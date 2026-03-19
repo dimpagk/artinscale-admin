@@ -12,8 +12,8 @@ importers:
         specifier: ^0.79.0
         version: 0.79.0
       '@dimpagk/artinscale-ui':
-        specifier: 0.1.3
-        version: 0.1.3(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        specifier: 0.2.0
+        version: 0.2.0(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@google/generative-ai':
         specifier: ^0.24.1
         version: 0.24.1
@@ -92,8 +92,8 @@ packages:
     resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
     engines: {node: '>=6.9.0'}
 
-  '@dimpagk/artinscale-ui@0.1.3':
-    resolution: {integrity: sha512-4zeCll3piv2swz88gqIs22qGSFDkRb0emHTOjnQadvo9YYOyV2waW8m0T7/3Ota6mKArwmd2+jYoRLVBPqzUxw==, tarball: https://npm.pkg.github.com/download/@dimpagk/artinscale-ui/0.1.3/6d1eafb65ef2c6c40c11a9bed3c0993924411803}
+  '@dimpagk/artinscale-ui@0.2.0':
+    resolution: {integrity: sha512-+ismlUOsQLwOz3Vx7CG+3PP3oR4Xt9pXdxNJhASvwMc+bun29m2jW77FykBIl6+NPUEuwzmzt2I26B5fli1oVQ==, tarball: https://npm.pkg.github.com/download/@dimpagk/artinscale-ui/0.2.0/bd99d04fbd7d43d04f0419d3b3d83485377f4b7d}
     peerDependencies:
       next: '>=14'
       react: '>=18'
@@ -734,7 +734,7 @@ snapshots:
 
   '@babel/runtime@7.29.2': {}
 
-  '@dimpagk/artinscale-ui@0.1.3(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+  '@dimpagk/artinscale-ui@0.2.0(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       '@phosphor-icons/react': 2.1.10(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       clsx: 2.1.1
