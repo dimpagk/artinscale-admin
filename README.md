@@ -1,6 +1,6 @@
 # ArtInScale Admin
 
-Admin dashboard for ArtInScale — managing artists, topics, contributions, social media content, and AI art generation.
+Admin dashboard for ArtInScale — managing artworks, artists, topics, contributions, social media content, and AI art generation. Integrates with Shopify (storefront) and Gelato (print-on-demand).
 
 ## Tech Stack
 
@@ -9,6 +9,8 @@ Admin dashboard for ArtInScale — managing artists, topics, contributions, soci
 - **Database**: Supabase (PostgreSQL + Auth + Storage)
 - **Styling**: Tailwind CSS 4
 - **AI**: Anthropic SDK (Content Copilot), Google Generative AI / Gemini (AI Art Generator)
+- **Print-on-Demand**: Gelato API
+- **E-commerce**: Shopify (via Gelato sync)
 - **Video**: Remotion (video preview + export)
 - **Icons**: Phosphor Icons
 - **Toasts**: Sonner
@@ -17,9 +19,10 @@ Admin dashboard for ArtInScale — managing artists, topics, contributions, soci
 
 - Node.js 18+
 - pnpm 9+
-- A Supabase project with the ArtInScale schema
+- A Supabase project
 - Anthropic API key (for Content Copilot)
 - Google Gemini API key (for AI Art Generator)
+- Gelato API key + Store ID (for print-on-demand sync)
 
 ## Installation
 
@@ -45,74 +48,70 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # Google Gemini (AI Art Generator)
 GOOGLE_GEMINI_API_KEY=your-gemini-api-key
+
+# Gelato (Print-on-Demand)
+GELATO_API_KEY=your-gelato-api-key
+GELATO_STORE_ID=your-gelato-store-id
 ```
 
 Get your keys from:
 - **Supabase**: Project Settings > API in your [Supabase dashboard](https://supabase.com/dashboard)
 - **Anthropic**: [Anthropic Console](https://console.anthropic.com/)
 - **Google Gemini**: [Google AI Studio](https://aistudio.google.com/apikey)
+- **Gelato**: Developer > API Key in your [Gelato dashboard](https://dashboard.gelato.com/)
 
 ### 3. Database migrations
 
-Run these SQL migrations in your Supabase SQL Editor (Dashboard > SQL Editor > New Query):
+Run the migration file in your Supabase SQL Editor (Dashboard > SQL Editor > New Query).
 
-#### Social Posts table (Content Studio)
+The migration file is at `sql/001_artworks_and_content.sql` and creates all 3 tables in the correct order:
 
-```sql
-create table public.social_posts (
-  id uuid primary key default gen_random_uuid(),
-  title text,
-  platform text not null default 'instagram',
-  post_type text not null default 'single',
-  visual_config jsonb not null,
-  caption text,
-  status text not null default 'draft',
-  scheduled_for timestamptz,
-  tags text[] default '{}',
-  artwork_id uuid references public.artworks(id) on delete set null,
-  deleted_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+1. **`artworks`** — Artwork records with Shopify + Gelato integration fields
+2. **`social_posts`** — Content Studio posts (references artworks)
+3. **`generated_images`** — AI-generated images (references artworks)
 
-create index idx_social_posts_status on public.social_posts(status) where deleted_at is null;
-create index idx_social_posts_artwork on public.social_posts(artwork_id) where artwork_id is not null;
-create index idx_social_posts_scheduled on public.social_posts(scheduled_for) where status = 'scheduled' and deleted_at is null;
-```
+Copy the entire contents of the file and run it in the SQL Editor.
 
-#### Generated Images table (AI Art Generator)
+> **Note**: The migration assumes the `users` and `topics` tables already exist (from the main artinscale-nextjs app). If they don't, create them first.
+
+### 4. Create your admin account
+
+The admin panel requires a Supabase auth user with `ADMIN` role. To set this up:
+
+**Step 1**: Create an auth user in Supabase Dashboard > Authentication > Users > Add User:
+- Enter your email and a password
+- Click "Create User"
+
+**Step 2**: Insert the user into the `users` table with ADMIN role. Run this in the SQL Editor:
 
 ```sql
-create table public.generated_images (
-  id uuid primary key default gen_random_uuid(),
-  prompt text not null,
-  edit_history jsonb default '[]',
-  model text not null,
-  aspect_ratio text not null default '1:1',
-  style_preset text,
-  image_url text not null,
-  storage_path text not null,
-  topic_id uuid references public.topics(id) on delete set null,
-  artwork_id uuid references public.artworks(id) on delete set null,
-  metadata jsonb default '{}',
-  created_at timestamptz not null default now()
+INSERT INTO public.users (id, email, name, role)
+VALUES (
+  (SELECT id FROM auth.users WHERE email = 'YOUR_EMAIL'),
+  'YOUR_EMAIL',
+  'Your Name',
+  'ADMIN'
 );
-
-create index idx_generated_images_topic on public.generated_images(topic_id) where topic_id is not null;
-create index idx_generated_images_artwork on public.generated_images(artwork_id) where artwork_id is not null;
 ```
 
-### 4. Supabase Storage bucket
+Replace `YOUR_EMAIL` with the email you used in Step 1.
 
-Create a storage bucket for AI-generated images:
+You can now sign in at [http://localhost:3001/login](http://localhost:3001/login).
 
-1. Go to your Supabase Dashboard > Storage
-2. Click "New bucket"
-3. Name: `ai-generated`
-4. Toggle **Public bucket** to ON
-5. Click "Create bucket"
+### 5. Supabase Storage buckets
 
-### 5. Run the dev server
+Create these storage buckets in Supabase Dashboard > Storage:
+
+| Bucket | Public | Purpose |
+|---|---|---|
+| `contributions` | No | Community contribution uploads |
+| `artworks` | Yes | Artwork images |
+| `profiles` | Yes | Artist profile images |
+| `ai-generated` | Yes | AI-generated artwork images |
+
+For each: click "New bucket", enter the name, toggle public access as noted, click "Create bucket".
+
+### 6. Run the dev server
 
 ```bash
 pnpm dev
@@ -120,7 +119,7 @@ pnpm dev
 
 The admin panel runs at [http://localhost:3001](http://localhost:3001).
 
-### 6. Build for production
+### 7. Build for production
 
 ```bash
 pnpm build
@@ -129,11 +128,11 @@ pnpm start
 
 ## Features
 
-### Dashboard
+### Dashboard (`/`)
 - Pending contributions count, active topics, contributor stats
 - Quick links to recent items
 
-### Topics Management (`/topics`)
+### Topics (`/topics`)
 - Create, edit, delete topics
 - Set deadlines, contribution types, and prompts
 - Assign artists
@@ -146,6 +145,15 @@ pnpm start
 ### Artists (`/artists`)
 - Manage artist profiles
 - View portfolios and bios
+
+### Artworks (`/artworks`)
+- Full CRUD for artwork records
+- Link to artists and topics
+- Edition tracking (size, sold count)
+- Pricing and product type configuration
+- Gelato sync status (push artwork to Gelato for print-on-demand)
+- Shopify sync status (product ID and handle tracking)
+- Image URL management
 
 ### Content Studio (`/content`)
 - Create social media posts (single + carousel) with a visual block editor
@@ -170,34 +178,52 @@ pnpm start
 
 ```
 artinscale-admin/
+├── sql/
+│   └── 001_artworks_and_content.sql  # Database migration
 ├── app/
-│   ├── (admin)/                    # Protected admin routes
-│   │   ├── page.tsx                # Dashboard
-│   │   ├── topics/                 # Topic CRUD
-│   │   ├── contributions/          # Contribution moderation
-│   │   ├── artists/                # Artist management
-│   │   ├── content/                # Content Studio
-│   │   └── art-generator/          # AI Art Generator
+│   ├── (admin)/                      # Protected admin routes
+│   │   ├── page.tsx                  # Dashboard
+│   │   ├── topics/                   # Topic CRUD
+│   │   ├── contributions/            # Contribution moderation
+│   │   ├── artists/                  # Artist management
+│   │   ├── artworks/                 # Artwork management + Gelato sync
+│   │   ├── content/                  # Content Studio
+│   │   └── art-generator/            # AI Art Generator
 │   ├── api/
-│   │   ├── content/                # Content CRUD + copilot
-│   │   └── art-generator/          # Generation + editing + gallery
-│   ├── login/                      # Auth
-│   └── auth/callback/              # Supabase auth callback
+│   │   ├── content/                  # Content CRUD + copilot
+│   │   └── art-generator/            # Generation + editing + gallery
+│   ├── login/                        # Auth
+│   └── auth/callback/                # Supabase auth callback
 ├── components/
-│   ├── ui/                         # Shared UI primitives
-│   ├── content/                    # Content Studio components
-│   ├── art-generator/              # AI Art Generator components
-│   └── layout/                     # Sidebar, etc.
+│   ├── ui/                           # Shared UI primitives
+│   ├── artworks/                     # Artwork form components
+│   ├── content/                      # Content Studio components
+│   ├── art-generator/                # AI Art Generator components
+│   └── layout/                       # Sidebar, etc.
 ├── lib/
-│   ├── constants/                  # Type definitions + presets
-│   ├── supabase/                   # Supabase clients
-│   └── *.ts                        # Data query modules
-└── middleware.ts                    # Auth guard (admin-only)
+│   ├── constants/                    # Type definitions + presets
+│   ├── supabase/                     # Supabase clients
+│   ├── gelato.ts                     # Gelato API client
+│   └── *.ts                          # Data query modules
+└── middleware.ts                      # Auth guard (admin-only)
 ```
 
 ## Auth
 
-Only users with `role = 'ADMIN'` in the `users` table can access the admin panel. The middleware checks the Supabase session and verifies the admin role on every request.
+Only users with `role = 'ADMIN'` in the `users` table can access the admin panel. The middleware checks both:
+1. Valid Supabase auth session
+2. `role = 'ADMIN'` in the `users` table
+
+Non-admin users are redirected to `/login?error=unauthorized`.
+
+## Artwork Pipeline
+
+The artwork lifecycle flows through:
+
+1. **Create** in admin (`/artworks/new`) — set title, artist, topic, edition details, upload image
+2. **Push to Gelato** — creates a print-on-demand product (poster, canvas, framed print, etc.)
+3. **Gelato publishes to Shopify** — product goes live in the storefront automatically
+4. **Track** — Gelato product ID and Shopify handle/product ID stored on the artwork record
 
 ## Scripts
 
