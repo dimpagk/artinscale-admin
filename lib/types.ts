@@ -75,17 +75,25 @@ export interface Contribution {
 }
 
 // Artwork types
+export type ArtworkStatus = 'created' | 'listed' | 'sold';
+
 export type Artwork = {
   id: string;
   title: string;
   description: string | null;
+  image_url: string | null;
   shopify_product_id: string | null;
   shopify_handle: string | null;
+  gelato_product_id: string | null;
+  gelato_store_id: string | null;
   artist_id: string | null;
   topic_id: string | null;
-  status: 'created' | 'listed' | 'sold';
+  status: ArtworkStatus;
   edition_size: number | null;
   edition_sold: number;
+  price: number | null;
+  currency: string;
+  product_type: string | null;
   creation_date: string | null;
   inspiration_summary: string | null;
   contributor_count: number;

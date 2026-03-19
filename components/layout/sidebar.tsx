@@ -10,6 +10,7 @@ const navItems = [
   { href: '/topics', label: 'Topics', icon: '#' },
   { href: '/contributions', label: 'Contributions', icon: '@' },
   { href: '/artists', label: 'Artists', icon: '*' },
+  { href: '/artworks', label: 'Artworks', icon: '&' },
   { href: '/content', label: 'Content', icon: '+' },
   { href: '/art-generator', label: 'AI Art', icon: '%' },
 ];
