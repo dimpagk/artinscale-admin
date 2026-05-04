@@ -13,13 +13,13 @@ export const MODEL_OPTIONS = [
   {
     key: 'flash',
     label: 'Nano Banana 2 (Fast)',
-    modelId: 'gemini-2.0-flash-exp',
+    modelId: 'gemini-2.5-flash-image',
     description: 'Fast generation, good for iteration',
   },
   {
     key: 'pro',
     label: 'Nano Banana Pro (Quality)',
-    modelId: 'gemini-2.0-flash-exp',
+    modelId: 'nano-banana-pro-preview',
     description: 'Studio-quality output, slower',
   },
 ] as const
@@ -93,6 +93,10 @@ export interface EditHistoryEntry {
   instruction: string
   timestamp: string
   model: string
+  /** URL of the image as it was BEFORE this edit (for diff/restore UI) */
+  previousImageUrl?: string
+  /** Storage path of the previous image, kept so we can re-link if needed */
+  previousStoragePath?: string
 }
 
 export interface GeneratedImage {
@@ -110,6 +114,15 @@ export interface GeneratedImage {
   created_at: string
 }
 
+/**
+ * Which generation engine to use:
+ *   - 'gemini' (default) → Nano Banana 2 raster image
+ *   - 'claude_vector'    → Claude writes SVG directly (Tier 5 native vector)
+ *
+ * Vector mode requires `stylePackId` and ignores `model` / `aspectRatio`.
+ */
+export type GeneratorEngine = 'gemini' | 'claude_vector'
+
 export interface GenerateParams {
   prompt: string
   model: ModelKey
@@ -119,12 +132,34 @@ export interface GenerateParams {
   mood?: MoodKey
   topicId?: string
   contributionContext?: string
+  /**
+   * Optional style pack id (kebab-case). When set, the generator uses
+   * `buildStyledPrompt` from `lib/style-packs` instead of the structured
+   * style/medium/mood preset chain. Style packs encapsulate the full AI
+   * artist voice (master prompt + locked palette + composition rules)
+   * and are the recommended path for the launch collection.
+   */
+  stylePackId?: string
+  /** Engine to use for generation — see {@link GeneratorEngine}. */
+  engine?: GeneratorEngine
 }
 
 export interface EditParams {
   imageId: string
   instruction: string
   model: ModelKey
+  /**
+   * Optional base64-encoded PNG mask. White pixels = regions Gemini
+   * should edit. Black/transparent pixels = leave untouched. When
+   * supplied, the edit route prepends a stronger mask-aware prompt.
+   */
+  maskBase64?: string
+  /**
+   * When true, the edit creates a NEW generated_images row instead of
+   * mutating the source. Useful when the operator wants to branch
+   * (keep the original AND the edited version side-by-side).
+   */
+  saveAsNew?: boolean
 }
 
 export interface GeneratedImageFilters {

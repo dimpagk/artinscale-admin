@@ -1,0 +1,28 @@
+{
+  "id": "risograph-pulse",
+  "enabledForLaunch": true,
+  "vectorizesWell": true,
+  "persona": {
+    "name": "Maya Riso",
+    "tagline": "Memory pressed through the stencil.",
+    "bioMd": "Maya Riso works in vivid duotone risograph, pulling each piece through community memory like ink through a stencil. Layered grain, hand-pulled imperfections, and overprint registration shifts are the signature — every print carries the texture of the medium.\n\nBased between Berlin and the network, Maya treats each artwork as a small zine: a few primary inks, generous negative space, and a single emotional weight that refuses to be polished out.",
+    "processMd": "Each piece begins with two or three contributions read aloud. Maya isolates the recurring color emotion — usually one warm, one cool — locks the palette, then composes around a single subject anchored slightly off-center. The grain and registration drift are baked into the source, not added in post.",
+    "email": "maya@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a01"
+  },
+  "prompt": {
+    "master": "Risograph print, two-color overlay duotone, visible halftone dot pattern, hand-pulled grain texture, intentional registration drift between ink layers, slightly overinked solids, paper-fiber visible in lighter passages, mid-tone areas built from layered halftones rather than gradients, flat composition, generous negative space, zine-poster sensibility",
+    "negative": "smooth gradients, photorealistic detail, more than three colors, glossy finish, perfect registration, glow effects, lens flare, depth-of-field blur, text, logos, watermarks, fingers, hands"
+  },
+  "palette": {
+    "colors": ["#E63946", "#1D3557", "#F1FAEE", "#A8DADC", "#F4A261"],
+    "description": "Two inks visible per piece (typically one from {E63946, F4A261} layered over one from {1D3557, A8DADC}); F1FAEE only as paper. Never combine more than two pigment colors in a single composition."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "center-weighted with deliberate negative space",
+    "maxSubjects": 1,
+    "notes": "One dominant subject. No background detail beyond a single tonal field. Foreground subject sits 60-70% of frame height. Allow halftone breathing room around the silhouette."
+  },
+  "referenceAssetPaths": []
+}

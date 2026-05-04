@@ -8,6 +8,12 @@ import {
   MODEL_OPTIONS,
   type GenerateParams,
 } from '@/lib/constants/art-generator'
+import { buildStyledPrompt } from '@/lib/style-packs'
+import { getStylePackAsync } from '@/lib/style-packs/server'
+import { loadExemplars } from '@/lib/style-packs/exemplars'
+import { checkStyleSimilarity } from '@/lib/agents/style-similarity-check'
+import { tagVisualContent } from '@/lib/agents/visual-tagger'
+import { updateGeneratedImage } from '@/lib/generated-images'
 
 export async function POST(request: Request) {
   try {
@@ -19,14 +25,71 @@ export async function POST(request: Request) {
 
     const modelOption = MODEL_OPTIONS.find((m) => m.key === body.model) || MODEL_OPTIONS[0]
 
-    const fullPrompt = buildFullPrompt(body)
+    // When a style pack is selected, it owns the entire style/palette/
+    // composition envelope and supersedes the structured style/medium/mood
+    // presets. Otherwise fall back to the legacy structured-prompt path.
+    const fullPrompt = body.stylePackId
+      ? buildStyledPrompt({
+          stylePackId: body.stylePackId,
+          subject: body.prompt,
+          contributionContext: body.contributionContext,
+        })
+      : buildFullPrompt(body)
+
+    const stylePackForRecord = body.stylePackId
+      ? await getStylePackAsync(body.stylePackId)
+      : null
+
+    // Reference image conditioning. Prefers operator-approved exemplars
+    // (images flipped via the gallery's "Mark as exemplar" action) over
+    // the style pack's static referenceAssetPaths — so the artist's
+    // voice tightens as the operator curates. Failures are non-fatal —
+    // we fall back to text-only generation.
+    const referenceParts: Array<{ inlineData: { mimeType: string; data: string } }> = []
+    let referenceSourceCounts = { approved: 0, static_fallback: 0 }
+    if (body.stylePackId) {
+      const exemplars = await loadExemplars({
+        stylePackId: body.stylePackId,
+        staticFallbackPaths: stylePackForRecord?.referenceAssetPaths,
+        baseUrlForStaticPaths: request.url.replace(/\/api\/.*$/, ''),
+      })
+      for (const ex of exemplars) {
+        try {
+          const refRes = await fetch(ex.imageUrl)
+          if (!refRes.ok) {
+            console.warn(`[generate] reference fetch ${ex.imageUrl} → ${refRes.status}`)
+            continue
+          }
+          const buf = Buffer.from(await refRes.arrayBuffer())
+          const mimeType = refRes.headers.get('content-type')?.split(';')[0]?.trim() || 'image/png'
+          referenceParts.push({
+            inlineData: { mimeType, data: buf.toString('base64') },
+          })
+          referenceSourceCounts[ex.source] += 1
+        } catch (err) {
+          console.warn('[generate] reference image fetch failed (non-fatal):', err)
+        }
+      }
+    }
 
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
     const model = genAI.getGenerativeModel({ model: modelOption.modelId })
 
+    const promptText = referenceParts.length
+      ? `Reference images above show the artist's locked visual voice — match palette, line weight, composition discipline, and grain/texture patterns. Then create the new piece.\n\n${fullPrompt}`
+      : fullPrompt
+
+    // Note: Gemini 2.5/3.x image models return images via `inlineData`
+    // parts automatically. Do NOT set generationConfig.responseMimeType
+    // to image/png — that field only accepts text/JSON/XML/YAML mimes
+    // and causes a 400 INVALID_ARGUMENT.
     const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-      generationConfig: { responseMimeType: 'image/png' },
+      contents: [
+        {
+          role: 'user',
+          parts: [...referenceParts, { text: promptText }],
+        },
+      ],
     })
 
     const response = result.response
@@ -42,6 +105,21 @@ export async function POST(request: Request) {
     }
 
     const imageBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+
+    // Measure dimensions cheaply via the parsePng helper — first 24 bytes
+    // tell us width × height. Stamped on metadata for the gallery
+    // dimensions badge + the print-safety guardrail later.
+    let measuredDimensions: { width: number; height: number } | null = null
+    try {
+      // Reuse the PNG header parser we already have for print-safety
+      const { fetchImageDimensions: _ } = await import('@/lib/image-dimensions')
+      void _
+      const w = imageBuffer.readUInt32BE(16)
+      const h = imageBuffer.readUInt32BE(20)
+      if (w > 0 && h > 0) measuredDimensions = { width: w, height: h }
+    } catch {
+      // ignore — non-fatal
+    }
 
     const now = new Date()
     const year = now.getFullYear()
@@ -69,6 +147,17 @@ export async function POST(request: Request) {
         medium: body.medium || null,
         mood: body.mood || null,
         contributionContext: body.contributionContext || null,
+        stylePackId: body.stylePackId || null,
+        stylePackPersonaUserId: stylePackForRecord?.persona.userId || null,
+        referenceImageCount: referenceParts.length,
+        referenceFromApprovedExemplars: referenceSourceCounts.approved,
+        referenceFromStaticFallback: referenceSourceCounts.static_fallback,
+        measuredDimensions,
+        // Cost ledger: ~$0.04 Gemini image generation (varies, but a
+        // safe round number) + ~$0.02 Claude vision similarity check
+        // when a style pack is in use. Not exact — surfaced as a rough
+        // running total in the gallery so the operator has a feel.
+        estimatedCostUsd: 0.04 + (body.stylePackId ? 0.02 : 0),
       },
     })
 
@@ -79,11 +168,48 @@ export async function POST(request: Request) {
       )
     }
 
+    // Run two post-generation Claude vision passes in parallel:
+    //   1. Style similarity (advisory — only when a style pack is in use)
+    //   2. Visual tagger (always, drives gallery filters + future tuning)
+    // Both are best-effort. Failures are logged, never blocks the response.
+    try {
+      const [similarity, tags] = await Promise.allSettled([
+        body.stylePackId
+          ? checkStyleSimilarity({
+              candidateImageUrl: publicUrl,
+              stylePackId: body.stylePackId,
+            })
+          : Promise.resolve(null),
+        tagVisualContent({ imageUrl: publicUrl }),
+      ])
+
+      const newMetadata: Record<string, unknown> = { ...(image.metadata ?? {}) }
+      if (similarity.status === 'fulfilled' && similarity.value) {
+        newMetadata.styleSimilarity = similarity.value
+      } else if (similarity.status === 'rejected') {
+        console.warn('[generate] style similarity failed (non-fatal):', similarity.reason)
+      }
+      if (tags.status === 'fulfilled') {
+        newMetadata.tags = tags.value
+      } else {
+        console.warn('[generate] visual tagger failed (non-fatal):', tags.reason)
+      }
+      await updateGeneratedImage(image.id, { metadata: newMetadata })
+    } catch (err) {
+      console.warn('[generate] post-generation vision pass failed (non-fatal):', err)
+    }
+
     return NextResponse.json({ image }, { status: 201 })
   } catch (error) {
-    console.error('Art generator error:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('[art-generator] generate failed:', error)
     return NextResponse.json(
-      { error: 'Failed to generate image' },
+      {
+        error: `Failed to generate image: ${message}`,
+        // Expose the message in dev so the client can show it.
+        // Production deployments may want to scrub this — wrap in NODE_ENV check if so.
+        detail: message,
+      },
       { status: 500 }
     )
   }

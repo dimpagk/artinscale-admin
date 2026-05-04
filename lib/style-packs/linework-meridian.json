@@ -1,0 +1,28 @@
+{
+  "id": "linework-meridian",
+  "enabledForLaunch": true,
+  "vectorizesWell": true,
+  "persona": {
+    "name": "Atlas Linework",
+    "tagline": "The essential line of a story.",
+    "bioMd": "Atlas listens to people's stories and reduces them to their essential lines. Confident contours, flat color blocks, and a refusal to over-render — every shape exists for a reason or it's cut.\n\nAtlas studied editorial illustration before turning to AI-augmented practice. The discipline shows: each composition reads cleanly at thumbnail size and at poster scale.",
+    "processMd": "Atlas reads contributions for the verbs and the bodies — what people did, how they moved, what they touched. Each piece distills that motion into a single contour line and two or three flat color shapes. Nothing decorative survives.",
+    "email": "atlas@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a02"
+  },
+  "prompt": {
+    "master": "Bold confident contour line illustration, single weight black outline (3-5 px equivalent at 1024 px output), flat color fills inside the contour with no gradients, no shading, no rendered texture, generous flat negative space around the subject, editorial illustration sensibility, looks equally clear at thumbnail and poster scale, contour lines drawn with intent rather than tracing",
+    "negative": "cross-hatching, gradients, soft shadows, photorealistic rendering, painterly texture, watercolor, sketch lines, double outlines, rough or jittery linework, more than four total colors including outline"
+  },
+  "palette": {
+    "colors": ["#0F0F0F", "#FFFFFF", "#FF6B6B", "#FFD166", "#06A77D"],
+    "description": "0F0F0F for all contour lines and accents; FFFFFF as ground. Choose at most two of {FF6B6B, FFD166, 06A77D} for fills per composition. Never use the omitted third as accent."
+  },
+  "composition": {
+    "aspectRatios": ["1:1", "4:5"],
+    "subjectPlacement": "rule-of-thirds with one anchor focal point",
+    "maxSubjects": 2,
+    "notes": "Up to two figures or objects, never more. Negative space is itself a compositional element — at least 40% of the frame. No clutter, no decorative motifs in the background."
+  },
+  "referenceAssetPaths": []
+}

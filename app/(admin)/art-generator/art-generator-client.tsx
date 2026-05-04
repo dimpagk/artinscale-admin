@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Tabs } from '@/components/ui/tabs'
 import { PromptBuilder } from '@/components/art-generator/prompt-builder'
 import { TopicContextPicker } from '@/components/art-generator/topic-context-picker'
 import { GenerationPanel } from '@/components/art-generator/generation-panel'
-import { ImageEditor } from '@/components/art-generator/image-editor'
+import { ArtStudio } from '@/components/art-generator/art-studio'
 import { ImageGallery } from '@/components/art-generator/image-gallery'
 import type { GeneratedImage, GenerateParams } from '@/lib/constants/art-generator'
 import type { TopicRow } from '@/lib/types'
+import { getArtistIdForStylePack } from '@/lib/style-packs'
 
 interface ArtGeneratorClientProps {
   initialImages: GeneratedImage[]
@@ -21,39 +23,152 @@ const TABS = [
 ]
 
 export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClientProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState('generate')
   const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [images, setImages] = useState<GeneratedImage[]>(initialImages)
   const [contributionContext, setContributionContext] = useState('')
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null)
+  // Tracks the most recent batch of generated images so the UI can
+  // show them side-by-side for comparison (Tier 2 #5). Cleared on each
+  // new batch start; populated as generations stream in.
+  const [recentBatch, setRecentBatch] = useState<GeneratedImage[]>([])
 
-  const handleGenerate = async (params: GenerateParams) => {
+  /**
+   * Pre-load contribution context when the page is opened from a "✨ Generate"
+   * link on the Contributions page. Fetches the seed contribution and
+   * primes the contributionContext state so the generator already has
+   * inspiration loaded.
+   */
+  useEffect(() => {
+    const seedId = searchParams.get('seedContributionId')
+    if (!seedId) return
+
+    void (async () => {
+      try {
+        const topicId = searchParams.get('topicId')
+        if (!topicId) return
+        const res = await fetch(`/api/topics/${topicId}/contributions?limit=10`)
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          contributions: Array<{ id: string; contributor_name: string; contributor_location: string | null; type: string; content: string; caption: string | null }>
+        }
+        const seed = data.contributions.find((c) => c.id === seedId)
+        if (!seed) return
+        const where = seed.contributor_location ? ` (${seed.contributor_location})` : ''
+        const text = seed.type === 'story' ? seed.content : seed.caption ?? ''
+        const formatted = `${seed.contributor_name}${where}: "${(text ?? '').trim().slice(0, 280)}"`
+        setContributionContext(formatted)
+      } catch {
+        // ignore — non-fatal pre-fill
+      }
+    })()
+  }, [searchParams])
+
+  /**
+   * Promote a generated image to a draft artwork, then jump to its
+   * edit page so the operator can finish the title / edition / price.
+   *
+   * Inferred fields (overrideable on the next page):
+   *   - image_url     ← from the generated image
+   *   - artist_id     ← from the generated_images.metadata.stylePackPersonaUserId
+   *   - topic_id      ← from generated_images.topic_id
+   *   - title         ← derived from the prompt
+   *   - product_type  ← 'poster' (the only launch-enabled SKU)
+   */
+  const handleLinkArtwork = async () => {
+    if (!currentImage) return
     setLoading(true)
     try {
-      const body = {
-        ...params,
-        ...(contributionContext && { contributionContext }),
-      }
+      const meta = currentImage.metadata as Record<string, unknown> | null
+      const stylePackId = (meta?.stylePackId as string | undefined) ?? null
+      const inferredArtistId =
+        (meta?.stylePackPersonaUserId as string | undefined) ??
+        getArtistIdForStylePack(stylePackId)
 
-      const res = await fetch('/api/art-generator/generate', {
+      const titleFromPrompt = currentImage.prompt
+        .split(/[,.;]/)[0]
+        .trim()
+        .slice(0, 80)
+        .replace(/^./, (c) => c.toUpperCase())
+
+      const res = await fetch('/api/art-generator/promote-to-artwork', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          generated_image_id: currentImage.id,
+          title: titleFromPrompt || 'Untitled',
+          image_url: currentImage.image_url,
+          artist_id: inferredArtistId,
+          topic_id: currentImage.topic_id,
+          product_type: 'poster',
+          inspiration_summary: currentImage.prompt,
+        }),
       })
-
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Generation failed')
+        throw new Error(data.error || `Promote failed (${res.status})`)
       }
-
-      const generated: GeneratedImage = await res.json()
-      setCurrentImage(generated)
-      setImages((prev) => [generated, ...prev])
+      const { artwork } = (await res.json()) as { artwork: { id: string } }
+      router.push(`/artworks/${artwork.id}`)
     } catch (err) {
-      console.error('Generation failed:', err)
+      console.error('Link to artwork failed:', err)
+      window.alert(err instanceof Error ? err.message : 'Failed to link to artwork')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const generateOne = async (params: GenerateParams): Promise<GeneratedImage> => {
+    const body = {
+      ...params,
+      ...(contributionContext && { contributionContext }),
+    }
+    const res = await fetch('/api/art-generator/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || 'Generation failed')
+    }
+    const json = (await res.json()) as { image?: GeneratedImage } & GeneratedImage
+    return json.image ?? (json as GeneratedImage)
+  }
+
+  /**
+   * Generate one or more variations of the same prompt sequentially.
+   * Sequential to keep Gemini rate-limiting predictable; results
+   * stream into the gallery as each one finishes so the operator can
+   * see progress.
+   */
+  const handleGenerate = async (
+    params: GenerateParams,
+    opts?: { count?: number }
+  ) => {
+    const count = Math.max(1, Math.min(10, opts?.count ?? 1))
+    setLoading(true)
+    setBatchProgress(count > 1 ? { done: 0, total: count } : null)
+    setRecentBatch([])
+    try {
+      for (let i = 0; i < count; i++) {
+        try {
+          const generated = await generateOne(params)
+          setCurrentImage(generated)
+          setImages((prev) => [generated, ...prev])
+          setRecentBatch((prev) => [...prev, generated])
+        } catch (err) {
+          console.error(`Generation ${i + 1}/${count} failed:`, err)
+        }
+        setBatchProgress((prev) => (prev ? { done: i + 1, total: count } : null))
+      }
+    } finally {
+      setLoading(false)
+      setBatchProgress(null)
     }
   }
 
@@ -86,6 +201,19 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
     setEditMode(false)
   }
 
+  /**
+   * When an edit branches into a brand-new generated_images row (or
+   * the operator forks from a history entry), splice the new image
+   * into the gallery, focus on it, and exit edit mode so the operator
+   * can immediately see the new sibling alongside the original.
+   */
+  const handleBranchCreated = (created: GeneratedImage) => {
+    setImages((prev) => [created, ...prev.filter((img) => img.id !== created.id)])
+    setRecentBatch((prev) => [created, ...prev.filter((img) => img.id !== created.id)])
+    setCurrentImage(created)
+    setEditMode(false)
+  }
+
   const handleGallerySelect = (image: GeneratedImage) => {
     setCurrentImage(image)
     setEditMode(false)
@@ -98,42 +226,56 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
 
       <div className="mt-4">
         {activeTab === 'generate' && (
-          <div className="flex gap-6">
-            {/* Left sidebar */}
-            <div className="w-[320px] shrink-0 space-y-6">
-              <PromptBuilder onGenerate={handleGenerate} loading={loading} />
-              <TopicContextPicker topics={topics} onContextChange={setContributionContext} />
-            </div>
+          <>
+            {editMode && currentImage ? (
+              // Edit mode → full-width 3-panel ArtStudio.
+              // The prompt builder + generation panel are stowed away;
+              // the operator is focused on a single image and its layers.
+              <ArtStudio
+                image={currentImage}
+                onUpdate={handleEditComplete}
+                onBranchCreated={handleBranchCreated}
+                onClose={() => setEditMode(false)}
+              />
+            ) : (
+              <div className="flex gap-6">
+                {/* Left sidebar */}
+                <div className="w-[320px] shrink-0 space-y-6">
+                  <PromptBuilder onGenerate={handleGenerate} loading={loading} />
+                  <TopicContextPicker topics={topics} onContextChange={setContributionContext} />
+                </div>
 
-            {/* Center panel */}
-            <div className="min-w-0 flex-1">
-              {editMode && currentImage ? (
-                <ImageEditor
-                  image={currentImage}
-                  onEditComplete={handleEditComplete}
-                  onCancel={() => setEditMode(false)}
-                />
-              ) : (
-                <GenerationPanel
-                  image={currentImage}
-                  loading={loading}
-                  onEdit={() => setEditMode(true)}
-                  onRegenerate={() => {
-                    if (currentImage) {
-                      handleGenerate({
-                        prompt: currentImage.prompt,
-                        model: currentImage.model as 'flash' | 'pro',
-                        aspectRatio: currentImage.aspect_ratio as '1:1',
-                      })
-                    }
-                  }}
-                  onLinkArtwork={() => {}}
-                  onDownload={handleDownload}
-                  onDelete={() => currentImage && handleDelete(currentImage.id)}
-                />
-              )}
-            </div>
-          </div>
+                {/* Center panel */}
+                <div className="min-w-0 flex-1">
+                  <GenerationPanel
+                    image={currentImage}
+                    loading={loading}
+                    recentBatch={recentBatch}
+                    batchProgress={batchProgress}
+                    onSelectBatchSibling={(img) => setCurrentImage(img)}
+                    onEdit={() => setEditMode(true)}
+                    onRegenerate={() => {
+                      if (currentImage) {
+                        handleGenerate({
+                          prompt: currentImage.prompt,
+                          model: currentImage.model as 'flash' | 'pro',
+                          aspectRatio: currentImage.aspect_ratio as '1:1',
+                        })
+                      }
+                    }}
+                    onLinkArtwork={handleLinkArtwork}
+                    onDownload={handleDownload}
+                    onDelete={() => currentImage && handleDelete(currentImage.id)}
+                    onUpdate={(updated) => {
+                      setCurrentImage(updated)
+                      setImages((prev) => prev.map((img) => (img.id === updated.id ? updated : img)))
+                      setRecentBatch((prev) => prev.map((img) => (img.id === updated.id ? updated : img)))
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === 'gallery' && (
@@ -141,6 +283,10 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
             images={images}
             onSelect={handleGallerySelect}
             onDelete={handleDelete}
+            onUpdate={(updated) => {
+              setImages((prev) => prev.map((img) => (img.id === updated.id ? updated : img)))
+              if (currentImage?.id === updated.id) setCurrentImage(updated)
+            }}
           />
         )}
       </div>

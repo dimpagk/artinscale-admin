@@ -5,6 +5,8 @@ import { uploadFile, getPublicUrl } from '@/lib/storage'
 import {
   getGeneratedImageById,
   updateGeneratedImage,
+  createGeneratedImage,
+  stripDerivedMetadata,
 } from '@/lib/generated-images'
 import {
   MODEL_OPTIONS,
@@ -39,31 +41,41 @@ export async function POST(request: Request) {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
     const model = genAI.getGenerativeModel({ model: modelOption.modelId })
 
-    // Multi-turn: first message with image + original prompt, second with edit instruction
+    // When a mask is supplied (Tier 4 #12 — inpainting), prepend it as
+    // a second image and tell Gemini to honor it. Without a mask the
+    // edit is global, same as before.
+    const hasMask = typeof body.maskBase64 === 'string' && body.maskBase64.length > 0
+    const editInstruction = hasMask
+      ? [
+          'INPAINTING REQUEST.',
+          'You are given two images: (1) the source artwork, (2) a binary mask.',
+          'In the mask, WHITE pixels mark the regions you should edit. BLACK pixels must be left untouched.',
+          'Preserve the source image exactly outside the white regions — same composition, same colors, same line work.',
+          'Inside the white regions, apply this change:',
+          body.instruction,
+        ].join('\n')
+      : `Edit this image with the following instruction: ${body.instruction}`
+
+    const firstTurnParts: Array<
+      | { inlineData: { mimeType: string; data: string } }
+      | { text: string }
+    > = [
+      { inlineData: { mimeType: 'image/png', data: imageBase64 } },
+    ]
+    if (hasMask) {
+      firstTurnParts.push({
+        inlineData: { mimeType: 'image/png', data: body.maskBase64! },
+      })
+    }
+    firstTurnParts.push({ text: `Original prompt: ${existing.prompt}` })
+
     const result = await model.generateContent({
       contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: 'image/png',
-                data: imageBase64,
-              },
-            },
-            { text: `Original prompt: ${existing.prompt}` },
-          ],
-        },
-        {
-          role: 'user',
-          parts: [
-            {
-              text: `Edit this image with the following instruction: ${body.instruction}`,
-            },
-          ],
-        },
+        { role: 'user', parts: firstTurnParts },
+        { role: 'user', parts: [{ text: editInstruction }] },
       ],
-      generationConfig: { responseMimeType: 'image/png' },
+      // See note in generate/route.ts — image models return PNGs via
+      // inlineData; setting responseMimeType: 'image/png' causes a 400.
     })
 
     const response = result.response
@@ -91,10 +103,55 @@ export async function POST(request: Request) {
 
     const newPublicUrl = getPublicUrl('ai-generated', newStoragePath)
 
+    // Each edit history entry captures the PREVIOUS image URL so the
+    // operator can compare versions in the editor and restore back to
+    // an earlier state if the latest edit went the wrong direction.
     const editEntry: EditHistoryEntry = {
-      instruction: body.instruction,
+      instruction: hasMask ? `[masked] ${body.instruction}` : body.instruction,
       timestamp: now.toISOString(),
       model: modelOption.key,
+      previousImageUrl: existing.image_url,
+      previousStoragePath: existing.storage_path,
+    }
+
+    // saveAsNew → branch into a fresh generated_images row so the
+    // operator keeps the original alongside the edited version. The
+    // new row's edit_history starts with this single edit entry, so
+    // they can still see what change produced it.
+    if (body.saveAsNew) {
+      const branched = await createGeneratedImage({
+        prompt: existing.prompt,
+        edit_history: [editEntry],
+        model: existing.model,
+        aspect_ratio: existing.aspect_ratio,
+        style_preset: existing.style_preset,
+        image_url: newPublicUrl,
+        storage_path: newStoragePath,
+        topic_id: existing.topic_id,
+        artwork_id: null,
+        metadata: {
+          // Carry style/topic context but drop per-image state that
+          // shouldn't follow a branch (exemplar, vector, upscale).
+          ...stripDerivedMetadata(
+            (existing.metadata as Record<string, unknown> | null) || {}
+          ),
+          forkedFromImageId: existing.id,
+          forkPoint: 'edit-branch',
+          forkLabel: hasMask ? `[masked] ${body.instruction}` : body.instruction,
+          exemplar: false,
+          exemplarMarkedAt: null,
+          vector: undefined,
+        },
+      })
+
+      if (!branched) {
+        return NextResponse.json(
+          { error: 'Failed to create branched image record' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ image: branched, branched: true })
     }
 
     const image = await updateGeneratedImage(body.imageId, {
@@ -119,3 +176,4 @@ export async function POST(request: Request) {
     )
   }
 }
+

@@ -1,6 +1,32 @@
 import { supabaseAdmin } from './supabase/admin';
 import type { GeneratedImage, GeneratedImageFilters } from './constants/art-generator';
 
+/**
+ * Strip per-image state that shouldn't follow a derived (forked /
+ * branched) generated_images row. The fork inherits the parent's
+ * style/topic context but gets a fresh exemplar flag, fresh vector
+ * data, and a fresh upscale (since the fork might diverge).
+ *
+ * Used by both POST /[id]/fork (explicit fork) and POST /edit when
+ * `saveAsNew` is true (edit-as-branch).
+ */
+export function stripDerivedMetadata(
+  meta: Record<string, unknown> | null | undefined
+): Record<string, unknown> {
+  if (!meta) return {};
+  const result: Record<string, unknown> = { ...meta };
+  delete result.exemplar;
+  delete result.exemplarMarkedAt;
+  delete result.vector;
+  delete result.upscaledImageUrl;
+  delete result.upscaledStoragePath;
+  delete result.upscaledScale;
+  delete result.upscaledDimensions;
+  delete result.upscaledAt;
+  delete result.upscaledIsDryRun;
+  return result;
+}
+
 export async function getGeneratedImages(
   filters?: GeneratedImageFilters
 ): Promise<GeneratedImage[]> {

@@ -1,0 +1,28 @@
+{
+  "id": "bauhaus-prime",
+  "enabledForLaunch": true,
+  "vectorizesWell": true,
+  "persona": {
+    "name": "Vera Prime",
+    "tagline": "The ruler and the meaning.",
+    "bioMd": "Vera Prime translates emotional fragments into hard-edged geometric forms — rooted in Bauhaus, sharpened by code. Where Maya layers ink and Atlas distills line, Vera measures: every shape is a deliberate weight, every angle a chosen direction.\n\nThe work is deceptively simple. A circle, a square, a beam of color. Read at speed it looks formal. Read slowly it carries the emotional weight of the contributions it interprets.",
+    "processMd": "Vera reads contributions for spatial words — distance, weight, edge, return. Each piece becomes a structural diagram of the emotion: a loaded circle, a tilted plane, a beam of color crossing a void. The geometry is the meaning.",
+    "email": "vera@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a03"
+  },
+  "prompt": {
+    "master": "Bauhaus-inspired geometric composition, primary geometric forms only (circles, squares, triangles, rectangles, single-direction lines), hard edges with no anti-aliased softening, flat solid colors with no gradients, mathematical precision in angles and proportions, deliberate empty space, modernist poster sensibility, composition reads as a structural diagram",
+    "negative": "organic shapes, freehand curves, gradients, textures, hand-drawn imperfection, decorative ornament, illustrative figures, photorealistic detail, soft shadows, depth-of-field, more than five colors"
+  },
+  "palette": {
+    "colors": ["#D62828", "#003049", "#FCBF49", "#EAE2B7", "#1E1E1E"],
+    "description": "Treat as a Bauhaus-strict palette: D62828 and FCBF49 are accent weights; 003049 carries structural mass; EAE2B7 is paper; 1E1E1E for fine geometric divisions only. Use 3-4 colors per piece, never all five."
+  },
+  "composition": {
+    "aspectRatios": ["2:3", "1:1"],
+    "subjectPlacement": "asymmetric balance with one dominant geometric mass",
+    "maxSubjects": 4,
+    "notes": "Up to four geometric primitives in dialogue with each other. Composition must read as deliberate from across the room. No filler shapes — every form carries weight."
+  },
+  "referenceAssetPaths": []
+}
