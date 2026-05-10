@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import type { Artwork } from '@/lib/types'
+import type { Artwork, ListingMeta } from '@/lib/types'
 
 export interface ArtworkWithJoins extends Artwork {
   users: {
@@ -113,6 +113,7 @@ export async function updateArtwork(
     gelato_store_id?: string | null
     shopify_product_id?: string | null
     shopify_handle?: string | null
+    listing_meta?: ListingMeta | null
   }
 ) {
   const { error } = await supabaseAdmin.from('artworks').update(data).eq('id', id)
@@ -122,4 +123,30 @@ export async function updateArtwork(
 export async function deleteArtwork(id: string) {
   const { error } = await supabaseAdmin.from('artworks').delete().eq('id', id)
   if (error) throw error
+}
+
+/**
+ * Link a Shopify product handle to a topic via the storefront's
+ * `product_topics` table. This is what the public storefront actually
+ * reads to render the "Story Behind This Artwork" block on a product
+ * page — the admin's local `artworks` table is invisible to it.
+ *
+ * Idempotent: ON CONFLICT (shopify_handle) DO NOTHING leaves an
+ * existing link untouched if the handle is already mapped.
+ */
+export async function linkProductToTopic(
+  shopifyHandle: string,
+  topicId: string
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('product_topics')
+    .upsert(
+      { shopify_handle: shopifyHandle, topic_id: topicId },
+      { onConflict: 'shopify_handle', ignoreDuplicates: true }
+    )
+
+  if (error) {
+    console.error('Error linking product to topic:', error)
+    throw new Error(`Failed to link product to topic: ${error.message}`)
+  }
 }
