@@ -140,6 +140,26 @@ export async function applyListedState(args: {
 
   if (artwork.topic_id) {
     await linkProductToTopic(shopifyHandle, artwork.topic_id);
+
+    // Topic lifecycle event: an artwork from this topic just went
+    // live. Flip the topic to `completed` so the storefront's
+    // "Past Topics" section picks it up and the active/in-production
+    // sections drop it. Idempotent — only fires for topics still in
+    // active or in_production. Failures here are non-fatal; the
+    // listing succeeds either way and the cron will eventually flip
+    // active→in_production on its own.
+    try {
+      await supabaseAdmin
+        .from('topics')
+        .update({ status: 'completed' })
+        .eq('id', artwork.topic_id)
+        .in('status', ['active', 'in_production']);
+    } catch (err) {
+      console.error(
+        `[post-create-publisher] topic ${artwork.topic_id} status flip failed (non-fatal):`,
+        err
+      );
+    }
   }
 
   // Full sync. Runs the listing-generator agent for first-time listings

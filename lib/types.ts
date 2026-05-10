@@ -14,7 +14,18 @@ export type User = {
 };
 
 // Topic types
-export type TopicStatus = 'active' | 'completed' | 'upcoming';
+/**
+ * Topic lifecycle:
+ *   upcoming       — pre-launch, contributions not yet open
+ *   active         — collecting contributions (deadline in future)
+ *   in_production  — deadline passed, artwork being made
+ *   completed      — artwork live and available for purchase
+ *
+ * Transitions:
+ *   active        → in_production    via cron (deadline passed)
+ *   in_production → completed        when artwork is marked listed
+ */
+export type TopicStatus = 'upcoming' | 'active' | 'in_production' | 'completed';
 
 export interface ContributionTypeConfig {
   type: string;
