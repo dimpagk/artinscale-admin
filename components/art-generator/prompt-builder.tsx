@@ -62,9 +62,14 @@ export function PromptBuilder({ onGenerate, loading }: PromptBuilderProps) {
   const [style, setStyle] = useState<string>('')
   const [medium, setMedium] = useState<string>('')
   const [mood, setMood] = useState<string>('')
-  const [aspectRatio, setAspectRatio] = useState<AspectRatioKey>('1:1')
-  const [model, setModel] = useState<ModelKey>('flash')
-  const [count, setCount] = useState<string>('1')
+  // Defaults aimed at the operator's typical workflow: Pro model
+  // (every kept output gets printed — quality compounds), 3 variations
+  // (cherry-picking is the AI-gen UX), 7:10 portrait (matches the
+  // most museum-poster sizes — 21×30 + 70×100 cm). Persisted prefs
+  // (loaded below) override these per-operator.
+  const [aspectRatio, setAspectRatio] = useState<AspectRatioKey>('7:10')
+  const [model, setModel] = useState<ModelKey>('pro')
+  const [count, setCount] = useState<string>('3')
   const [engine, setEngine] = useState<GeneratorEngine>('gemini')
 
   // Persist last-used count + style pack + aspect ratio + model + engine across reloads

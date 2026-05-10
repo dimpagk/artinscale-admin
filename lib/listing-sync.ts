@@ -37,7 +37,7 @@ import {
   updateShopifyProductCore,
   updateShopifyProductPrice,
   setShopifyProductMetafield,
-  assignProductToCollectionByTitle,
+  reconcileProductCollections,
   syncEditionToShopifyInventory,
   publishProductToAllChannels,
 } from '@/lib/shopify-admin';
@@ -358,57 +358,68 @@ export async function syncArtworkToShopify(
   if (invRes.ok && invRes.data?.warning) warnings.push(invRes.data.warning);
 
   // ── 9. Shopify: collection memberships
-  // Drive collections from canonical fields. body_html is applied at
-  // create time only — operator edits in Shopify dashboard stay safe
-  // for existing collections.
-  //   - Topic title (e.g. "Breath") with description from topic
-  //   - Artist name (e.g. "Maya Riso") with description from artist bio
-  //   - "Limited Edition" — only when edition_size is set, fixed copy
+  // Drive collections from canonical fields, with full reconcile —
+  // adds missing targets AND removes orphans within the auto-managed
+  // namespace (so changing topic_id / artist_id / clearing
+  // edition_size cleans up old collections instead of accumulating).
+  // Operator-added collections (e.g. "Bestsellers") survive
+  // untouched — they're outside the managed namespace.
   if (productLookup.ok && productLookup.data) {
     const productId = productLookup.data.id;
-    const collectionEntries: Array<{ title: string; bodyHtml?: string }> = [];
+    const targetEntries: Array<{ title: string; bodyHtml?: string }> = [];
     if (topic?.title) {
-      collectionEntries.push({
+      targetEntries.push({
         title: topic.title,
         bodyHtml: buildTopicCollectionBody(topic),
       });
     }
     if (artist?.name) {
-      collectionEntries.push({
+      targetEntries.push({
         title: artist.name,
         bodyHtml: buildArtistCollectionBody(artist),
       });
     }
     if (artwork.edition_size != null) {
-      collectionEntries.push({
+      targetEntries.push({
         title: 'Limited Edition',
         bodyHtml: LIMITED_EDITION_COLLECTION_BODY,
       });
     }
 
-    const collectionResults: Record<
-      string,
-      { ok: boolean; created?: boolean; alreadyAssigned?: boolean; error?: string }
-    > = {};
-    for (const entry of collectionEntries) {
-      const r = await assignProductToCollectionByTitle({
-        productId,
-        collectionTitle: entry.title,
-        bodyHtml: entry.bodyHtml,
-      });
-      collectionResults[entry.title] = {
-        ok: r.ok,
-        created: r.data?.created,
-        alreadyAssigned: r.data?.alreadyAssigned,
-        error: r.error,
-      };
-      if (!r.ok) warnings.push(`collection "${entry.title}": ${r.error}`);
+    // Managed namespace: every topic title + every artist name +
+    // "Limited Edition". Anything in the product's current
+    // memberships that matches one of these but isn't in
+    // targetEntries gets removed. Anything else (Bestsellers, etc.)
+    // is left alone.
+    const [{ data: allTopics }, { data: allArtists }] = await Promise.all([
+      supabaseAdmin.from('topics').select('title'),
+      supabaseAdmin.from('users').select('name').eq('role', 'ARTIST'),
+    ]);
+    const managedTitles = new Set<string>(['Limited Edition']);
+    for (const t of allTopics ?? []) {
+      if (t?.title) managedTitles.add(t.title);
     }
+    for (const a of allArtists ?? []) {
+      if (a?.name) managedTitles.add(a.name);
+    }
+
+    const reconcile = await reconcileProductCollections({
+      productId,
+      targetEntries,
+      managedTitles,
+    });
     steps.push({
       name: 'shopify_collections',
-      ok: Object.values(collectionResults).every((c) => c.ok),
-      detail: collectionResults,
+      ok: reconcile.ok,
+      detail: reconcile.data,
+      error: reconcile.error,
     });
+    if (!reconcile.ok && reconcile.error) {
+      warnings.push(`shopify_collections: ${reconcile.error}`);
+    }
+    for (const err of reconcile.data?.errors ?? []) {
+      warnings.push(`collection "${err.title}": ${err.message}`);
+    }
   }
 
   // ── 10. Shopify: publish to every sales channel.

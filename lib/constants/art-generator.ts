@@ -74,13 +74,27 @@ export type MoodKey = (typeof MOOD_PRESETS)[number]['key']
 // ============================================
 // Aspect Ratios
 // ============================================
+//
+// The list is print-aligned: each ratio matches one or more of the
+// Gelato museum-poster product types we sell (see
+// lib/gelato-templates.ts). Generating at any other ratio means
+// Gelato has to crop or letterbox at print time — visible quality
+// loss on the wall.
+//
+// Long-edge sticks at 1024 (Gemini's preferred output dim); the
+// other edge falls out of the ratio. The image gets upscaled 4× via
+// Real-ESRGAN before pushToGelato — see lib/upscale-runner.ts.
+//
+// The 1:1 option stays for non-print uses (square crops, social,
+// future square poster sizes).
 
 export const ASPECT_RATIOS = [
-  { key: '1:1', label: 'Square (1:1)', width: 1024, height: 1024 },
-  { key: '3:4', label: 'Portrait (3:4)', width: 768, height: 1024 },
-  { key: '4:3', label: 'Landscape (4:3)', width: 1024, height: 768 },
-  { key: '9:16', label: 'Tall (9:16)', width: 576, height: 1024 },
-  { key: '16:9', label: 'Wide (16:9)', width: 1024, height: 576 },
+  { key: '7:10', label: '7:10 portrait — 21×30 or 70×100 cm', width: 720, height: 1024 },
+  { key: '3:4',  label: '3:4 portrait — 30×40 cm',            width: 768, height: 1024 },
+  { key: '2:3',  label: '2:3 portrait — 30×45 or 60×90 cm',   width: 683, height: 1024 },
+  { key: '4:5',  label: '4:5 portrait — 40×50 cm',            width: 819, height: 1024 },
+  { key: '5:7',  label: '5:7 portrait — 50×70 cm',            width: 731, height: 1024 },
+  { key: '1:1',  label: 'Square (1:1) — non-print',           width: 1024, height: 1024 },
 ] as const
 
 export type AspectRatioKey = (typeof ASPECT_RATIOS)[number]['key']

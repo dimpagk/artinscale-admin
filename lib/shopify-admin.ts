@@ -576,6 +576,153 @@ export async function assignProductToCollectionByTitle(args: {
 }
 
 /**
+ * Remove a product from a custom collection (by deleting the
+ * `collect` join row). Idempotent — returns ok with `removed: false`
+ * if the membership doesn't exist.
+ */
+export async function removeProductFromCollect(args: {
+  productId: number | string;
+  collectionId: number | string;
+}): Promise<ShopifyAdminResult<{ removed: boolean }>> {
+  const res = await shopifyFetch<{ collects: Array<{ id: number }> }>(
+    `/collects.json?product_id=${args.productId}&collection_id=${args.collectionId}&limit=1`
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+  const collect = res.data?.collects?.[0];
+  if (!collect) return { ok: true, data: { removed: false } };
+  const del = await shopifyFetch(`/collects/${collect.id}.json`, { method: 'DELETE' });
+  if (!del.ok) return { ok: false, error: del.error };
+  return { ok: true, data: { removed: true } };
+}
+
+/**
+ * Reconcile a product's custom-collection memberships.
+ *
+ * `targetTitles` — collections the product SHOULD be in after sync.
+ *   Typically `[topic.title, artist.name, 'Limited Edition']`, with
+ *   any of them omitted when not applicable.
+ *
+ * `managedTitles` — collection titles the sync owns. Anything in this
+ *   set but not in `targetTitles` will be **removed** from the
+ *   product. Anything outside this set (e.g. a "Bestsellers"
+ *   collection the operator added manually in the Shopify dashboard)
+ *   is left untouched.
+ *
+ * The pattern: pass `managedTitles` as the union of all topic titles
+ * + all artist names + "Limited Edition" — that way previous topic /
+ * artist assignments get cleaned up when the operator changes the
+ * artwork's topic_id or artist_id, but operator-managed collections
+ * survive.
+ *
+ * Returns a per-collection result so listing-sync can surface what
+ * changed.
+ */
+export async function reconcileProductCollections(args: {
+  productId: number | string;
+  targetEntries: Array<{ title: string; bodyHtml?: string }>;
+  managedTitles: Set<string>;
+}): Promise<
+  ShopifyAdminResult<{
+    added: string[];
+    alreadyAssigned: string[];
+    removed: string[];
+    untouched: string[];
+    errors: Array<{ title: string; message: string }>;
+  }>
+> {
+  const errors: Array<{ title: string; message: string }> = [];
+
+  // 1. Get the product's current memberships
+  const collectsRes = await shopifyFetch<{
+    collects: Array<{ id: number; collection_id: number; product_id: number }>;
+  }>(`/collects.json?product_id=${args.productId}&limit=250`);
+  if (!collectsRes.ok) return { ok: false, error: collectsRes.error };
+
+  // 2. Map each collection_id → title via /custom_collections/{id}.json.
+  //    Done sequentially (Shopify rate-limits parallel admin calls
+  //    aggressively); shouldn't be more than a handful of collections
+  //    per product.
+  const currentMemberships: Array<{
+    collectId: number;
+    collectionId: number;
+    title: string;
+  }> = [];
+  for (const c of collectsRes.data?.collects ?? []) {
+    const r = await shopifyFetch<{ custom_collection: { id: number; title: string } }>(
+      `/custom_collections/${c.collection_id}.json`
+    );
+    if (!r.ok) {
+      // Smart collections (rule-based) live at /smart_collections/.json
+      // and won't resolve here — skip with a debug log. We only manage
+      // custom collections.
+      continue;
+    }
+    currentMemberships.push({
+      collectId: c.id,
+      collectionId: c.collection_id,
+      title: r.data?.custom_collection.title ?? '',
+    });
+  }
+
+  // 3. Compute diffs
+  const targetTitlesLower = new Set(args.targetEntries.map((e) => e.title.toLowerCase()));
+  const managedTitlesLower = new Set(
+    [...args.managedTitles].map((t) => t.toLowerCase())
+  );
+
+  const added: string[] = [];
+  const alreadyAssigned: string[] = [];
+  const removed: string[] = [];
+  const untouched: string[] = [];
+
+  // 3a. Remove orphans: in managed namespace but not in target
+  for (const m of currentMemberships) {
+    const titleLower = m.title.toLowerCase();
+    if (targetTitlesLower.has(titleLower)) {
+      // already correctly assigned
+      continue;
+    }
+    if (managedTitlesLower.has(titleLower)) {
+      const r = await removeProductFromCollect({
+        productId: args.productId,
+        collectionId: m.collectionId,
+      });
+      if (!r.ok) {
+        errors.push({ title: m.title, message: r.error ?? 'unknown' });
+      } else if (r.data?.removed) {
+        removed.push(m.title);
+      }
+    } else {
+      // Operator-added collection — leave untouched
+      untouched.push(m.title);
+    }
+  }
+
+  // 3b. Add missing targets
+  for (const entry of args.targetEntries) {
+    const r = await assignProductToCollectionByTitle({
+      productId: args.productId,
+      collectionTitle: entry.title,
+      bodyHtml: entry.bodyHtml,
+    });
+    if (!r.ok) {
+      errors.push({ title: entry.title, message: r.error ?? 'unknown' });
+      continue;
+    }
+    if (r.data?.alreadyAssigned) {
+      alreadyAssigned.push(entry.title);
+    } else {
+      added.push(entry.title);
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    data: { added, alreadyAssigned, removed, untouched, errors },
+  };
+}
+
+/**
  * Run a GraphQL admin query/mutation. The REST API doesn't expose
  * publication management cleanly, so a few of our helpers reach for
  * GraphQL — this is the shared transport.

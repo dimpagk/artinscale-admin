@@ -3066,7 +3066,7 @@ function ImagePropertiesPanel({
   onBranchCreated?: (image: GeneratedImage) => void
 }) {
   const [instruction, setInstruction] = useState('')
-  const [model, setModel] = useState<ModelKey>('flash')
+  const [model, setModel] = useState<ModelKey>('pro')
   const [loading, setLoading] = useState(false)
   const [maskMode, setMaskMode] = useState(false)
   const [maskBase64, setMaskBase64] = useState<string | null>(null)
@@ -3708,7 +3708,7 @@ function PickerGenerateTab({
   const [prompt, setPrompt] = useState(defaultPromptSeed)
   const [stylePackId, setStylePackId] = useState(defaultStylePackId)
   const [aspectRatio, setAspectRatio] = useState<AspectRatioKey>(defaultAspectRatio)
-  const [model, setModel] = useState<ModelKey>('flash')
+  const [model, setModel] = useState<ModelKey>('pro')
   const [useTopicContext, setUseTopicContext] = useState(Boolean(defaultTopicId))
   const [topicContextStatus, setTopicContextStatus] = useState<
     'idle' | 'loading' | 'ready' | 'error' | 'none'
@@ -3770,11 +3770,14 @@ function PickerGenerateTab({
       label: `${p.persona.name} — ${p.persona.tagline}`,
     })),
   ]
-  const aspectOptions = [
-    { value: '1:1', label: 'Square' },
-    { value: '3:4', label: 'Portrait' },
-    { value: '4:3', label: 'Landscape' },
-  ]
+  // Print-aligned ratios — match Gelato museum-poster product types.
+  // See ASPECT_RATIOS in lib/constants/art-generator.ts for the
+  // canonical list; this is a slimmer per-product subset of the
+  // most-used ones.
+  const aspectOptions = ASPECT_RATIOS.map((r) => ({
+    value: r.key,
+    label: r.label,
+  }))
   const modelOptions = MODEL_OPTIONS.map((m) => ({ value: m.key, label: m.label }))
 
   const handleGenerate = async () => {
