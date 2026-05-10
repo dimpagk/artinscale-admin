@@ -1,21 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Modal } from '@/components/ui/modal';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import {
+  FormActions,
+  FormCard,
+  FormGrid,
+  DeleteConfirmModal,
+  IntegrationStatusCard,
+} from '@/components/admin-ui';
+import { ArtworkPipelineActivity } from '@/components/artworks/artwork-pipeline-activity';
 import type { Artwork } from '@/lib/types';
+import { getProductDefaults } from '@/lib/pricing-defaults';
 import {
   createArtworkAction,
   updateArtworkAction,
   deleteArtworkAction,
   pushToGelatoAction,
+  regenerateListingMetaAction,
 } from '@/app/(admin)/artworks/actions';
+import { EMPTY_LISTING_META, type ListingMeta } from '@/lib/types';
 
 interface ArtworkFormProps {
   artwork?: Artwork;
@@ -24,10 +31,49 @@ interface ArtworkFormProps {
 }
 
 export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
-  const router = useRouter();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [gelatoPushing, setGelatoPushing] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const isEditing = !!artwork;
+
+  // Smart prefill — only on create. When the operator picks a
+  // product_type and price/edition are still empty, auto-fill from the
+  // PRODUCT_DEFAULTS table. We track the value as state so prefill
+  // triggers re-render of the price + edition inputs.
+  const [productType, setProductType] = useState<string>(artwork?.product_type || '');
+  const [priceOverride, setPriceOverride] = useState<string>(
+    artwork?.price != null ? String(artwork.price) : ''
+  );
+  const [editionOverride, setEditionOverride] = useState<string>(
+    artwork?.edition_size != null ? String(artwork.edition_size) : ''
+  );
+
+  // Listing meta state — controlled inputs so the Regenerate button
+  // can update them without a page reload.
+  const initialMeta: ListingMeta = artwork?.listing_meta ?? EMPTY_LISTING_META;
+  const [listingMeta, setListingMeta] = useState<ListingMeta>(initialMeta);
+
+  const handleProductTypeChange = (next: string) => {
+    setProductType(next);
+    if (isEditing) return;
+    const defaults = getProductDefaults(next);
+    if (!defaults) return;
+    if (!priceOverride) setPriceOverride(String(defaults.price));
+    if (!editionOverride) setEditionOverride(String(defaults.editionSize));
+  };
+
+  const handleRegenerateListingMeta = async () => {
+    if (!artwork) return;
+    setRegenerating(true);
+    try {
+      const next = await regenerateListingMetaAction(artwork.id);
+      setListingMeta(next);
+    } catch (err) {
+      console.error('Failed to regenerate listing meta:', err);
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const artistOptions = [
     { value: '', label: 'No artist assigned' },
@@ -67,203 +113,254 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
 
   return (
     <>
-      <form action={handleSubmit} className="max-w-2xl space-y-6">
-        <Input
-          name="title"
-          label="Title"
-          defaultValue={artwork?.title}
-          required
-        />
-
-        <Textarea
-          name="description"
-          label="Description"
-          defaultValue={artwork?.description || ''}
-          rows={3}
-        />
-
-        <Input
-          name="image_url"
-          label="Image URL"
-          defaultValue={artwork?.image_url || ''}
-          helperText="URL to the artwork image"
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <Select
-            name="artist_id"
-            label="Artist"
-            options={artistOptions}
-            defaultValue={artwork?.artist_id || ''}
+      <form action={handleSubmit} className="space-y-6">
+        <FormCard title="Identity">
+          <Input
+            name="title"
+            label="Title"
+            defaultValue={artwork?.title}
+            required
           />
 
-          <Select
-            name="topic_id"
-            label="Topic"
-            options={topicOptions}
-            defaultValue={artwork?.topic_id || ''}
-          />
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          <Select
-            name="status"
-            label="Status"
-            options={[
-              { value: 'created', label: 'Created' },
-              { value: 'listed', label: 'Listed' },
-              { value: 'sold', label: 'Sold' },
-            ]}
-            defaultValue={artwork?.status || 'created'}
+          <Textarea
+            name="description"
+            label="Description"
+            defaultValue={artwork?.description || ''}
+            rows={3}
           />
 
           <Input
-            name="edition_size"
-            label="Edition Size"
-            type="number"
-            defaultValue={artwork?.edition_size ?? ''}
-            helperText="Leave empty for open edition"
+            name="image_url"
+            label="Image URL"
+            defaultValue={artwork?.image_url || ''}
+            helperText="URL to the artwork image"
           />
 
-          <Input
-            name="edition_sold"
-            label="Edition Sold"
-            type="number"
-            defaultValue={artwork?.edition_sold ?? 0}
-          />
-        </div>
+          <FormGrid columns={2}>
+            <Select
+              name="artist_id"
+              label="Artist"
+              options={artistOptions}
+              defaultValue={artwork?.artist_id || ''}
+            />
 
-        <div className="grid grid-cols-3 gap-4">
-          <Input
-            name="price"
-            label="Price"
-            type="number"
-            step="0.01"
-            defaultValue={artwork?.price ?? ''}
-          />
+            <Select
+              name="topic_id"
+              label="Topic"
+              options={topicOptions}
+              defaultValue={artwork?.topic_id || ''}
+            />
+          </FormGrid>
+        </FormCard>
 
-          <Select
-            name="currency"
-            label="Currency"
-            options={[
-              { value: 'EUR', label: 'EUR' },
-              { value: 'USD', label: 'USD' },
-              { value: 'GBP', label: 'GBP' },
-            ]}
-            defaultValue={artwork?.currency || 'EUR'}
-          />
+        <FormCard title="Edition & status">
+          <FormGrid columns={3}>
+            <Select
+              name="status"
+              label="Status"
+              options={[
+                { value: 'created', label: 'Created' },
+                { value: 'listed', label: 'Listed' },
+                { value: 'sold', label: 'Sold' },
+              ]}
+              defaultValue={artwork?.status || 'created'}
+            />
 
-          <Select
-            name="product_type"
-            label="Product Type"
-            options={[
-              { value: '', label: 'None' },
-              { value: 'poster', label: 'Poster' },
-              { value: 'canvas', label: 'Canvas' },
-              { value: 'framed-poster', label: 'Framed Poster' },
-              { value: 'acrylic-print', label: 'Acrylic Print' },
-              { value: 'metal-print', label: 'Metal Print' },
-            ]}
-            defaultValue={artwork?.product_type || ''}
-          />
-        </div>
+            <Input
+              name="edition_size"
+              label="Edition Size"
+              type="number"
+              value={editionOverride}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditionOverride(e.target.value)}
+              helperText="Empty = open edition. Auto-prefills from product type on create; you can override."
+            />
 
-        <Textarea
-          name="inspiration_summary"
-          label="Inspiration Summary"
-          defaultValue={artwork?.inspiration_summary || ''}
-          rows={4}
+            <Input
+              name="edition_sold"
+              label="Edition Sold"
+              type="number"
+              defaultValue={artwork?.edition_sold ?? 0}
+            />
+          </FormGrid>
+        </FormCard>
+
+        <FormCard title="Pricing & product">
+          <FormGrid columns={3}>
+            <Input
+              name="price"
+              label="Price"
+              type="number"
+              step="0.01"
+              value={priceOverride}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPriceOverride(e.target.value)}
+              helperText={isEditing ? undefined : 'Auto-prefills from product type; you can override.'}
+            />
+
+            <Select
+              name="currency"
+              label="Currency"
+              options={[
+                { value: 'EUR', label: 'EUR' },
+                { value: 'USD', label: 'USD' },
+                { value: 'GBP', label: 'GBP' },
+              ]}
+              defaultValue={artwork?.currency || 'EUR'}
+            />
+
+            <Select
+              name="product_type"
+              label="Product Type"
+              options={[
+                { value: '', label: 'None' },
+                { value: 'museum-poster-21x30', label: 'Museum Poster · 21×30 cm (gallery / desk)' },
+                { value: 'museum-poster-30x40', label: 'Museum Poster · 30×40 cm (bedroom flank / desk)' },
+                { value: 'museum-poster-30x45', label: 'Museum Poster · 30×45 cm (corridor end-cap)' },
+                { value: 'museum-poster-40x50', label: 'Museum Poster · 40×50 cm (office / dining single)' },
+                { value: 'museum-poster-50x70', label: 'Museum Poster · 50×70 cm (above-bed centerpiece)' },
+                { value: 'museum-poster-60x90', label: 'Museum Poster · 60×90 cm (sofa pair / dining)' },
+                { value: 'museum-poster-70x100', label: 'Museum Poster · 70×100 cm (statement above sofa)' },
+              ]}
+              value={productType}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleProductTypeChange(e.target.value)}
+            />
+          </FormGrid>
+        </FormCard>
+
+        <FormCard
+          title="Provenance"
+          description="Surfaces on the public storefront under 'The Story Behind This Artwork' alongside the linked topic and contributions."
+        >
+          <Textarea
+            name="inspiration_summary"
+            label="Inspiration Summary"
+            defaultValue={artwork?.inspiration_summary || ''}
+            rows={4}
+          />
+        </FormCard>
+
+        {isEditing && (
+          <FormCard
+            title="Listing copy"
+            description={
+              listingMeta.generatedBy === 'manual'
+                ? `Manually edited${listingMeta.generatedAt ? ` ${new Date(listingMeta.generatedAt).toLocaleString()}` : ''}. Auto-regen is paused until you click Regenerate.`
+                : listingMeta.generatedBy === 'agent'
+                  ? `Generated by listing-generator${listingMeta.generatedAt ? ` ${new Date(listingMeta.generatedAt).toLocaleString()}` : ''}. Editing flips to manual.`
+                  : 'Empty — saving with values flips to manual; Regenerate fills via the agent.'
+            }
+          >
+            <Input
+              name="listing_meta_seo_title"
+              label="SEO Title"
+              value={listingMeta.seoTitle ?? ''}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setListingMeta({ ...listingMeta, seoTitle: e.target.value || null })
+              }
+              helperText="≤60 chars · drives <title> and SERP listing"
+              maxLength={60}
+            />
+            <Textarea
+              name="listing_meta_seo_description"
+              label="SEO Description"
+              value={listingMeta.seoDescription ?? ''}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setListingMeta({ ...listingMeta, seoDescription: e.target.value || null })
+              }
+              rows={2}
+              helperText="≤160 chars · search snippet"
+              maxLength={160}
+            />
+            <Input
+              name="listing_meta_og_title"
+              label="OG Title (social share)"
+              value={listingMeta.ogTitle ?? ''}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setListingMeta({ ...listingMeta, ogTitle: e.target.value || null })
+              }
+              helperText="≤60 chars · what shows on Twitter / FB / LinkedIn share"
+              maxLength={60}
+            />
+            <Textarea
+              name="listing_meta_og_description"
+              label="OG Description (social share)"
+              value={listingMeta.ogDescription ?? ''}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setListingMeta({ ...listingMeta, ogDescription: e.target.value || null })
+              }
+              rows={2}
+              helperText="≤200 chars · stop-the-scroll copy"
+              maxLength={200}
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleRegenerateListingMeta}
+                loading={regenerating}
+                disabled={regenerating}
+              >
+                Regenerate via agent
+              </Button>
+              <span className="text-xs text-zinc-500">
+                Forces a fresh generation, overwrites manual edits.
+              </span>
+            </div>
+          </FormCard>
+        )}
+
+        <FormActions
+          submitLabel={isEditing ? 'Save Changes' : 'Create Artwork'}
+          cancelHref="/artworks"
+          onDelete={isEditing ? () => setShowDeleteModal(true) : undefined}
+          deleteLabel="Delete"
         />
-
-        <div className="flex items-center gap-3 pt-4">
-          <Button type="submit">{isEditing ? 'Save Changes' : 'Create Artwork'}</Button>
-          <Button type="button" variant="ghost" onClick={() => router.push('/artworks')}>
-            Cancel
-          </Button>
-          {isEditing && (
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => setShowDeleteModal(true)}
-              className="ml-auto"
-            >
-              Delete
-            </Button>
-          )}
-        </div>
       </form>
 
       {isEditing && (
-        <div className="mt-8 max-w-2xl space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Integrations</h2>
+        <FormCard
+          className="mt-6"
+          title="Integrations"
+          description="Sync this artwork to external print and storefront systems."
+        >
+          <IntegrationStatusCard
+            name="Gelato"
+            synced={!!artwork.gelato_product_id}
+            identifierLabel="Product ID"
+            identifierValue={artwork.gelato_product_id}
+            action={
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handlePushToGelato}
+                loading={gelatoPushing}
+                disabled={gelatoPushing}
+              >
+                Push to Gelato
+              </Button>
+            }
+          />
 
-          <Card>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-gray-900">Gelato</p>
-                {artwork.gelato_product_id ? (
-                  <div className="mt-1 flex items-center gap-2">
-                    <Badge variant="success" size="sm">Synced</Badge>
-                    <span className="text-xs text-gray-500">
-                      Product ID: {artwork.gelato_product_id}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm text-gray-500">Not synced</p>
-                )}
-              </div>
-              {!artwork.gelato_product_id && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handlePushToGelato}
-                  disabled={gelatoPushing}
-                >
-                  {gelatoPushing ? 'Pushing...' : 'Push to Gelato'}
-                </Button>
-              )}
-            </div>
-          </Card>
-
-          <Card>
-            <div>
-              <p className="font-medium text-gray-900">Shopify</p>
-              {artwork.shopify_handle ? (
-                <div className="mt-1 flex items-center gap-2">
-                  <Badge variant="success" size="sm">Synced</Badge>
-                  <span className="text-xs text-gray-500">
-                    Handle: {artwork.shopify_handle}
-                  </span>
-                </div>
-              ) : (
-                <p className="mt-1 text-sm text-gray-500">Not synced</p>
-              )}
-            </div>
-          </Card>
-        </div>
+          <IntegrationStatusCard
+            name="Shopify"
+            synced={!!artwork.shopify_handle}
+            identifierLabel="Handle"
+            identifierValue={artwork.shopify_handle}
+          />
+        </FormCard>
       )}
 
+      {isEditing && <ArtworkPipelineActivity artworkId={artwork.id} />}
+
       {isEditing && (
-        <Modal
+        <DeleteConfirmModal
           isOpen={showDeleteModal}
           onClose={() => setShowDeleteModal(false)}
-          title="Delete Artwork"
-          actions={
-            <div className="flex justify-end gap-3">
-              <Button variant="ghost" onClick={() => setShowDeleteModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="danger" onClick={handleDelete}>
-                Delete Artwork
-              </Button>
-            </div>
-          }
-        >
-          <p className="text-sm text-gray-600">
-            Are you sure you want to delete <strong>{artwork.title}</strong>? This action cannot be
-            undone.
-          </p>
-        </Modal>
+          entity="Artwork"
+          itemName={artwork.title}
+          onConfirm={handleDelete}
+        />
       )}
     </>
   );
