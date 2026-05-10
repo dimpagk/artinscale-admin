@@ -15,7 +15,8 @@ The Admin API token at `SHOPIFY_ADMIN_ACCESS_TOKEN` needs these scopes:
 | `read_products` | All read operations (looking up product by handle) |
 | `write_inventory` | Setting `variant.inventory_quantity` (legacy fallback path) |
 | `read_locations` | Setting inventory via the modern `/inventory_levels/set.json` path |
-| `write_publications` | Auto-publishing collections to the Online Store sales channel |
+| `read_publications` | Listing the store's sales channels (Online Store, Google & YouTube, etc.) |
+| `write_publications` | Auto-publishing each artwork to every sales channel by default |
 
 ### Why `read_locations` matters
 
@@ -24,6 +25,17 @@ Without it, the listing-sync writes inventory via the legacy
 stores but is deprecated by Shopify and ignored when
 `inventory_management='shopify'` doesn't get applied. Symptom: variant
 shows `inventory_quantity=0` after sync even though edition is open.
+
+### Why `read_publications` + `write_publications` matter
+
+Without them, products are published to the Online Store channel only
+(Shopify's default for products created via REST/Gelato). Symptom: a
+sync finishes with a warning `shopify_channels: Access denied for
+publications field. Required access: read_publications`. After
+granting both scopes, every newly listed artwork is automatically
+visible on Google & YouTube, Facebook & Instagram, the Artinscale
+Platform / Headless channels, and any future channels you enable —
+no per-product clicking through Shopify's UI.
 
 ### How to grant it
 
@@ -110,7 +122,8 @@ Push one artwork through the pipeline end-to-end and verify in Shopify:
 - [ ] Inventory: `inventory_management='shopify'` and `inventory_quantity = edition_size - edition_sold`
 - [ ] Metafields: 4 entries (`global.title_tag`, `global.description_tag`, `seo.og_title`, `seo.og_description`)
 - [ ] Collections: product is in 3 collections (Topic, Artist, "Limited Edition")
-- [ ] Images: 6 images (framed, in-room, original, 3 details — in that order)
+- [ ] Images: 6 images in this order — original, framed, in-room, detail (center), detail (upper), detail (lower)
+- [ ] Sales channels: enabled on every channel (Online Store + Google & YouTube + Facebook & Instagram + Artinscale Platform + Artinscale Headless)
 
 If any of these come up empty after a sync, check the agent_tasks feed
 in the admin for warnings — the sync logs each step's outcome.

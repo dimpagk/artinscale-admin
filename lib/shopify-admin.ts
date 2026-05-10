@@ -574,3 +574,153 @@ export async function assignProductToCollectionByTitle(args: {
     data: { collectionId: collection.id, created, alreadyAssigned: false },
   };
 }
+
+/**
+ * Run a GraphQL admin query/mutation. The REST API doesn't expose
+ * publication management cleanly, so a few of our helpers reach for
+ * GraphQL — this is the shared transport.
+ */
+async function shopifyGraphql<T>(
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<ShopifyAdminResult<T>> {
+  const headers = shopifyHeaders();
+  if (!headers) {
+    return {
+      ok: false,
+      error: 'SHOPIFY_STORE_DOMAIN or SHOPIFY_ADMIN_ACCESS_TOKEN missing in admin env',
+    };
+  }
+  const url = `https://${STORE_DOMAIN}/admin/api/${API_VERSION}/graphql.json`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query, variables: variables ?? {} }),
+  });
+  const text = await res.text();
+  let parsed: { data?: T; errors?: Array<{ message: string }> } | null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = null;
+  }
+  if (!res.ok) {
+    return { ok: false, error: `Shopify GraphQL ${res.status}: ${text.slice(0, 500)}` };
+  }
+  if (parsed?.errors?.length) {
+    return {
+      ok: false,
+      error: `Shopify GraphQL errors: ${parsed.errors.map((e) => e.message).join('; ')}`,
+    };
+  }
+  return { ok: true, data: parsed?.data as T };
+}
+
+interface PublicationsQueryResult {
+  publications: {
+    edges: Array<{
+      node: {
+        id: string;
+        name: string;
+      };
+    }>;
+  };
+}
+
+/**
+ * List all sales channels (publications) configured on the store.
+ * Cached at module level since channels change rarely and every product
+ * publish would otherwise re-fetch on every call.
+ */
+let _publicationsCache: { ts: number; data: Array<{ id: string; name: string }> } | null = null;
+const PUBLICATIONS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export async function listShopifyPublications(opts: {
+  refresh?: boolean;
+} = {}): Promise<ShopifyAdminResult<Array<{ id: string; name: string }>>> {
+  if (
+    !opts.refresh &&
+    _publicationsCache &&
+    Date.now() - _publicationsCache.ts < PUBLICATIONS_CACHE_TTL_MS
+  ) {
+    return { ok: true, data: _publicationsCache.data };
+  }
+  const res = await shopifyGraphql<PublicationsQueryResult>(`
+    query {
+      publications(first: 50) {
+        edges { node { id name } }
+      }
+    }
+  `);
+  if (!res.ok) return { ok: false, error: res.error };
+  const list = (res.data?.publications.edges ?? []).map((e) => e.node);
+  _publicationsCache = { ts: Date.now(), data: list };
+  return { ok: true, data: list };
+}
+
+interface PublishablePublishResult {
+  publishablePublish: {
+    publishable: { __typename: string } | null;
+    userErrors: Array<{ field: string[] | null; message: string }>;
+  };
+}
+
+/**
+ * Publish a Shopify product to every available sales channel.
+ *
+ * Idempotent: re-publishing a product to a channel where it's already
+ * published is a no-op (Shopify's `publishablePublish` mutation handles
+ * this). Returns the list of channels the product was published to —
+ * channels with userErrors land in `errors` and don't fail the whole
+ * call.
+ *
+ * `productGid` must be in the `gid://shopify/Product/<numeric-id>`
+ * form. Our admin DB stores it that way (`artwork.shopify_product_id`)
+ * after the auto-publisher resolves it.
+ *
+ * Why all channels: every product should be visible everywhere we have
+ * a sales channel configured (Online Store, Google & YouTube, Facebook
+ * & Instagram, Artinscale Platform, etc.). The default Shopify
+ * behavior on product create publishes only to Online Store, so this
+ * fills the rest.
+ */
+export async function publishProductToAllChannels(args: {
+  productGid: string;
+}): Promise<
+  ShopifyAdminResult<{
+    publishedTo: Array<{ id: string; name: string }>;
+    errors: Array<{ channel: string; message: string }>;
+  }>
+> {
+  const pubsRes = await listShopifyPublications();
+  if (!pubsRes.ok) return { ok: false, error: pubsRes.error };
+  const publications = pubsRes.data ?? [];
+  if (publications.length === 0) {
+    return { ok: true, data: { publishedTo: [], errors: [] } };
+  }
+
+  const input = publications.map((p) => ({ publicationId: p.id }));
+  const res = await shopifyGraphql<PublishablePublishResult>(
+    `
+    mutation Publish($id: ID!, $input: [PublicationInput!]!) {
+      publishablePublish(id: $id, input: $input) {
+        publishable { __typename }
+        userErrors { field message }
+      }
+    }
+  `,
+    { id: args.productGid, input }
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const userErrors = res.data?.publishablePublish.userErrors ?? [];
+  // Map per-channel errors when the field path includes a channel index.
+  const errors = userErrors.map((u) => ({
+    channel: u.field?.find((f) => /publication/i.test(f)) ?? 'unknown',
+    message: u.message,
+  }));
+  return {
+    ok: true,
+    data: { publishedTo: publications, errors },
+  };
+}

@@ -39,6 +39,7 @@ import {
   setShopifyProductMetafield,
   assignProductToCollectionByTitle,
   syncEditionToShopifyInventory,
+  publishProductToAllChannels,
 } from '@/lib/shopify-admin';
 import {
   listGelatoProductVariants,
@@ -408,6 +409,38 @@ export async function syncArtworkToShopify(
       ok: Object.values(collectionResults).every((c) => c.ok),
       detail: collectionResults,
     });
+  }
+
+  // ── 10. Shopify: publish to every sales channel.
+  // Shopify's product create defaults to publishing on Online Store
+  // only. We want every product on Google & YouTube, Facebook &
+  // Instagram, the Artinscale Platform / Headless channels too.
+  // Idempotent — re-publishing to an already-published channel is a
+  // no-op (the GraphQL mutation handles it). Also covers the case
+  // where the operator adds a new sales channel later: the next sync
+  // backfills existing products.
+  if (artwork.shopify_product_id) {
+    const pubRes = await publishProductToAllChannels({
+      productGid: artwork.shopify_product_id,
+    });
+    steps.push({
+      name: 'shopify_channels',
+      ok: pubRes.ok && (pubRes.data?.errors.length ?? 0) === 0,
+      detail: pubRes.ok
+        ? {
+            publishedTo: pubRes.data?.publishedTo.map((p) => p.name),
+            errors: pubRes.data?.errors,
+          }
+        : undefined,
+      error: pubRes.ok ? undefined : pubRes.error,
+    });
+    if (!pubRes.ok) {
+      warnings.push(`shopify_channels: ${pubRes.error}`);
+    } else {
+      for (const err of pubRes.data?.errors ?? []) {
+        warnings.push(`channel "${err.channel}": ${err.message}`);
+      }
+    }
   }
 
   return {

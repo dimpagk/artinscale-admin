@@ -144,6 +144,9 @@ export async function applyListedState(args: {
 
   // Full sync. Runs the listing-generator agent for first-time listings
   // (the agent skips itself if listing_meta is already populated).
+  // The sync also publishes the product to all sales channels —
+  // baked into the sync rather than here so operator-driven edits also
+  // re-publish (e.g. when a new sales channel is added later).
   const sync = await syncArtworkToShopify(artworkId, { skipAgent: false });
   if (sync.warnings.length > 0) {
     console.warn(`[post-create-publisher] sync warnings for ${shopifyHandle}:`, sync.warnings);
