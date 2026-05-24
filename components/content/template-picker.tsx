@@ -198,7 +198,7 @@ export function TemplatePicker({ open, onClose }: TemplatePickerProps) {
 
       {creating && (
         <div className="flex items-center justify-center py-12">
-          <SpinnerGap size={24} className="animate-spin text-[#F72D5E]" />
+          <SpinnerGap size={24} className="animate-spin text-brand-coral" />
         </div>
       )}
 
@@ -208,14 +208,14 @@ export function TemplatePicker({ open, onClose }: TemplatePickerProps) {
           <div className="grid grid-cols-3 gap-3 mb-4">
             <button
               onClick={() => createFromTemplate(null)}
-              className="aspect-square border border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-[#F72D5E] hover:border-[#F72D5E]/30 transition-colors"
+              className="aspect-square border border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-brand-coral hover:border-brand-coral/30 transition-colors"
             >
               <span className="text-2xl">+</span>
               <span className="text-xs font-medium">Blank Post</span>
             </button>
             <button
               onClick={() => createFromTemplate(null, 'carousel')}
-              className="aspect-square border border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-[#F72D5E] hover:border-[#F72D5E]/30 transition-colors"
+              className="aspect-square border border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-brand-coral hover:border-brand-coral/30 transition-colors"
             >
               <Stack size={24} />
               <span className="text-xs font-medium">Blank Carousel</span>
@@ -231,7 +231,7 @@ export function TemplatePicker({ open, onClose }: TemplatePickerProps) {
                 <button
                   key={i}
                   onClick={() => createFromTemplate(t)}
-                  className="rounded-xl overflow-hidden border border-gray-200 hover:border-[#F72D5E]/40 hover:shadow-lg transition-all text-left"
+                  className="rounded-xl overflow-hidden border border-gray-200 hover:border-brand-coral/40 hover:shadow-lg transition-all text-left"
                 >
                   <div className="aspect-square overflow-hidden relative">
                     <PostCardPreview config={t.config} size={220} />

@@ -45,5 +45,19 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|auth/callback).*)'],
+  // Exclude:
+  //   _next/static, _next/image, favicon.ico — Next.js asset paths
+  //   auth/callback                          — Supabase OAuth completion
+  //   api/cron/                              — Vercel Cron / external schedulers
+  //                                            (gated by x-vercel-cron-signature
+  //                                            or AGENT_TRIGGER_TOKEN inside the route)
+  //   api/agents/run/                        — cross-app agent triggers
+  //                                            (gated by AGENT_TRIGGER_TOKEN)
+  //   api/email/send-approved                — same Bearer-gated trigger pattern
+  //
+  // Everything else (including the rest of /api/*) requires an admin
+  // session via the supabase middleware.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|api/cron/|api/agents/run/|api/email/send-approved).*)',
+  ],
 };

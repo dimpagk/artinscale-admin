@@ -721,6 +721,66 @@ export async function downloadPostAsPng(config: VisualConfig | SlideConfig, file
   URL.revokeObjectURL(url)
 }
 
+/**
+ * Render the post and upload the resulting PNG to Supabase Storage via
+ * `/api/content/upload-export`. Returns the public URL stored on
+ * `social_posts.visual_config.exported_image_urls`.
+ *
+ * Replaces the previous "operator manually exports + uploads" loop:
+ * one click renders client-side, ships the bytes server-side, and
+ * stamps the URL onto the post in a single round-trip.
+ */
+export async function uploadPostAsPng(
+  socialPostId: string,
+  config: VisualConfig | SlideConfig
+): Promise<{ urls: string[] }> {
+  const canvas = await renderPostToCanvas(config)
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob returned null'))), 'image/png')
+  })
+  const fd = new FormData()
+  fd.append('social_post_id', socialPostId)
+  fd.append('images', blob, `slide-1.png`)
+  const res = await fetch('/api/content/upload-export', {
+    method: 'POST',
+    body: fd,
+  })
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status} ${await res.text()}`)
+  }
+  return (await res.json()) as { urls: string[] }
+}
+
+/**
+ * Render every slide in a carousel and upload as a sequenced batch.
+ * Slide order is preserved in `exported_image_urls`.
+ */
+export async function uploadCarouselAsPngs(
+  socialPostId: string,
+  config: VisualConfig
+): Promise<{ urls: string[] }> {
+  const slides = getSlides(config)
+  const fd = new FormData()
+  fd.append('social_post_id', socialPostId)
+
+  for (let i = 0; i < slides.length; i++) {
+    const canvas = await renderPostToCanvas(slides[i])
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob returned null'))), 'image/png')
+    })
+    fd.append('images', blob, `slide-${i + 1}.png`)
+  }
+
+  const res = await fetch('/api/content/upload-export', {
+    method: 'POST',
+    body: fd,
+  })
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status} ${await res.text()}`)
+  }
+  return (await res.json()) as { urls: string[] }
+}
+
 /** Download all slides in a carousel as individual PNGs */
 export async function downloadCarouselAsPngs(config: VisualConfig, filenameBase?: string) {
   const slides = getSlides(config)

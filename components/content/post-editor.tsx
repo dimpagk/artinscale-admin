@@ -2,6 +2,7 @@
 
 import { BACKGROUND_PRESETS, ACCENT_PRESETS, POST_FORMATS, type SlideConfig, type PostFormatKey } from '@/lib/constants/content'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { BlockEditor } from './block-editor'
 import { cn } from '@/lib/utils'
 
@@ -32,7 +33,7 @@ export function PostEditor({ config, onChange }: PostEditorProps) {
                 className={cn(
                   'px-2 py-2 text-[10px] font-medium rounded-lg border transition-all flex flex-col items-center gap-1',
                   (config.format || 'portrait') === fmt.key
-                    ? 'border-[#F72D5E] bg-[#F72D5E]/10 text-[#F72D5E]'
+                    ? 'border-brand-coral bg-brand-coral/10 text-brand-coral'
                     : 'border-gray-200 text-gray-400 hover:text-gray-700 hover:bg-gray-50'
                 )}
               >
@@ -61,7 +62,7 @@ export function PostEditor({ config, onChange }: PostEditorProps) {
                 className={cn(
                   'h-10 rounded-lg border-2 transition-all',
                   config.bg === preset.key
-                    ? 'border-[#F72D5E] shadow-[0_0_8px_rgba(247,45,94,0.2)]'
+                    ? 'border-brand-coral shadow-[0_0_8px_rgba(247,45,94,0.2)]'
                     : 'border-gray-200 hover:border-gray-300'
                 )}
                 style={{ background: preset.css }}
@@ -82,7 +83,7 @@ export function PostEditor({ config, onChange }: PostEditorProps) {
                 className={cn(
                   'px-2.5 py-1.5 text-[10px] font-medium rounded-lg border transition-all',
                   config.accent === preset.key
-                    ? 'border-[#F72D5E] bg-[#F72D5E]/10 text-[#F72D5E]'
+                    ? 'border-brand-coral bg-brand-coral/10 text-brand-coral'
                     : 'border-gray-200 text-gray-400 hover:text-gray-700 hover:bg-gray-50'
                 )}
               >
@@ -102,15 +103,13 @@ export function PostEditor({ config, onChange }: PostEditorProps) {
         </div>
 
         {/* Footer */}
-        <div className="space-y-2">
-          <label className="text-xs text-gray-500">Footer text</label>
-          <input
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
-            value={config.footer}
-            onChange={e => update({ footer: e.target.value })}
-            placeholder="artinscale.com"
-          />
-        </div>
+        <Input
+          label="Footer text"
+          size="sm"
+          value={config.footer}
+          onChange={(e) => update({ footer: e.target.value })}
+          placeholder="artinscale.com"
+        />
       </div>
 
       {/* Divider */}

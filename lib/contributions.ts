@@ -45,18 +45,87 @@ export async function getContributionById(id: string): Promise<Contribution | nu
   return data;
 }
 
-export async function getContributionStats() {
-  const { data, error } = await supabaseAdmin
-    .from('topic_contributions')
-    .select('status');
+export interface ContributionStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+  total: number;
+  approvalRate: number;
+  uniqueContributors: number;
+  byType: Record<ContributionType, number>;
+  bySource: { community: number; studio_seed: number };
+  recent7d: number;
+  recent30d: number;
+}
 
-  if (error || !data) return { pending: 0, approved: 0, rejected: 0, total: 0 };
+export async function getContributionStats(filters?: {
+  topic_id?: string;
+}): Promise<ContributionStats> {
+  const empty: ContributionStats = {
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    total: 0,
+    approvalRate: 0,
+    uniqueContributors: 0,
+    byType: { story: 0, photo: 0, sound: 0, link: 0 },
+    bySource: { community: 0, studio_seed: 0 },
+    recent7d: 0,
+    recent30d: 0,
+  };
+
+  let query = supabaseAdmin
+    .from('topic_contributions')
+    .select('status, type, source, contributor_email, created_at');
+  if (filters?.topic_id) query = query.eq('topic_id', filters.topic_id);
+
+  const { data, error } = await query;
+  if (error || !data) return empty;
+
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+  const byType: Record<ContributionType, number> = { story: 0, photo: 0, sound: 0, link: 0 };
+  const bySource = { community: 0, studio_seed: 0 };
+  const emails = new Set<string>();
+  let pending = 0;
+  let approved = 0;
+  let rejected = 0;
+  let recent7d = 0;
+  let recent30d = 0;
+
+  for (const c of data) {
+    if (c.status === 'pending') pending++;
+    else if (c.status === 'approved') approved++;
+    else if (c.status === 'rejected') rejected++;
+
+    if (c.type && c.type in byType) byType[c.type as ContributionType]++;
+
+    if (c.source === 'studio_seed') bySource.studio_seed++;
+    else bySource.community++;
+
+    if (c.contributor_email) emails.add(c.contributor_email);
+
+    const createdMs = new Date(c.created_at).getTime();
+    if (createdMs >= sevenDaysAgo) recent7d++;
+    if (createdMs >= thirtyDaysAgo) recent30d++;
+  }
+
+  const decided = approved + rejected;
+  const approvalRate = decided > 0 ? Math.round((approved / decided) * 100) : 0;
 
   return {
-    pending: data.filter((c) => c.status === 'pending').length,
-    approved: data.filter((c) => c.status === 'approved').length,
-    rejected: data.filter((c) => c.status === 'rejected').length,
+    pending,
+    approved,
+    rejected,
     total: data.length,
+    approvalRate,
+    uniqueContributors: emails.size,
+    byType,
+    bySource,
+    recent7d,
+    recent30d,
   };
 }
 
@@ -73,7 +142,7 @@ export async function getPendingContributions(): Promise<Contribution[]> {
 
 export async function updateContributionStatus(
   id: string,
-  status: 'approved' | 'rejected',
+  status: ContributionStatus,
   adminNotes?: string
 ): Promise<{ success: boolean; error?: string }> {
   const { error } = await supabaseAdmin

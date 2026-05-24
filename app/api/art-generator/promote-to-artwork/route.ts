@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       artist_id: body.artist_id || null,
       topic_id: body.topic_id || null,
       status: 'created',
-      product_type: body.product_type || 'poster',
+      product_type: body.product_type || 'museum-poster-21x30',
       inspiration_summary: body.inspiration_summary || null,
     })
   } catch (err) {

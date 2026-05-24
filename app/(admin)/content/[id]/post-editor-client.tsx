@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { ArrowLeft, FloppyDisk, DownloadSimple, CalendarBlank, Trash, CheckCircle, ArrowCounterClockwise, Plus, Copy, CaretLeft, CaretRight, Stack, FilmStrip, LinkSimple, Image as ImageIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,7 @@ import { VideoPreviewDialog } from '@/components/content/video/video-preview-dia
 import { ContentCopilotPanel } from '@/components/content/content-copilot-panel'
 import { Robot, Sparkle } from '@phosphor-icons/react'
 import { AiArtModal } from '@/components/art-generator/ai-art-modal'
+import { schedulePostForPublishingAction } from '@/app/(admin)/content/actions'
 
 interface LinkedArtwork {
   id: string
@@ -132,22 +134,52 @@ export function PostEditorClient({ post: initialPost, linkedArtwork: initialArtw
           ...extraFields,
         }),
       })
-      if (res.ok) {
-        const { post: updated } = await res.json()
-        setPost(updated)
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || 'Failed to save post')
       }
+      const { post: updated } = await res.json()
+      setPost(updated)
     } finally {
       setSaving(false)
     }
   }, [post.id, post.post_type, isCarousel])
 
+  const queueForPublishing = async (scheduledForIso: string, successMessage: string) => {
+    const platform = post.platform === 'instagram' || post.platform === 'facebook' ? post.platform : null
+    if (!platform) {
+      toast.error(`Direct publishing supports Instagram/Facebook only, not "${post.platform}".`)
+      return
+    }
+
+    try {
+      await save()
+      setSaving(true)
+      const fd = new FormData()
+      fd.append('scheduled_for', scheduledForIso)
+      fd.append('platforms', platform)
+      await schedulePostForPublishingAction(post.id, fd)
+      setPost((prev) => ({
+        ...prev,
+        status: 'scheduled',
+        scheduled_for: scheduledForIso,
+      }))
+      toast.success(successMessage)
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleSchedule = async () => {
     if (!scheduleDate) return
-    await save({ scheduled_for: new Date(scheduleDate).toISOString(), status: 'scheduled' })
+    await queueForPublishing(new Date(scheduleDate).toISOString(), 'Post scheduled for Meta publishing')
   }
 
   const handlePublish = async () => {
-    await save({ status: 'published' })
+    await queueForPublishing(new Date().toISOString(), 'Post queued for Meta publishing')
   }
 
   const handleUnpublish = async () => {
@@ -217,7 +249,7 @@ export function PostEditorClient({ post: initialPost, linkedArtwork: initialArtw
             <div className="hidden lg:flex items-center gap-1.5 mr-2 pr-3 border-r border-gray-200">
               <input
                 type="datetime-local"
-                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30 w-[160px]"
+                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-brand-coral/30 w-[160px]"
                 value={scheduleDate}
                 onChange={e => setScheduleDate(e.target.value)}
               />
@@ -363,7 +395,7 @@ export function PostEditorClient({ post: initialPost, linkedArtwork: initialArtw
                     onClick={() => setActiveSlide(i)}
                     className={`relative group/tab shrink-0 w-12 h-12 rounded-lg border text-[10px] font-bold transition-all ${
                       activeSlide === i
-                        ? 'border-[#F72D5E] bg-[#F72D5E]/10 text-[#F72D5E] shadow-[0_0_8px_rgba(247,45,94,0.15)]'
+                        ? 'border-brand-coral bg-brand-coral/10 text-brand-coral shadow-[0_0_8px_rgba(247,45,94,0.15)]'
                         : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
                     }`}
                   >
@@ -371,7 +403,7 @@ export function PostEditorClient({ post: initialPost, linkedArtwork: initialArtw
                     {slides.length > 1 && (
                       <div className="absolute -top-1 -right-1 opacity-0 group-hover/tab:opacity-100 transition-opacity flex gap-0.5">
                         <button
-                          className="w-3.5 h-3.5 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-[#F72D5E] flex items-center justify-center"
+                          className="w-3.5 h-3.5 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-brand-coral flex items-center justify-center"
                           onClick={e => { e.stopPropagation(); duplicateSlide(i) }}
                           title="Duplicate"
                         ><Copy size={7} /></button>
@@ -416,7 +448,7 @@ export function PostEditorClient({ post: initialPost, linkedArtwork: initialArtw
             <div className="flex gap-1.5">
               <input
                 type="datetime-local"
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
                 value={scheduleDate}
                 onChange={e => setScheduleDate(e.target.value)}
               />

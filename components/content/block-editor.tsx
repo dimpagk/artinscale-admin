@@ -12,15 +12,15 @@ interface BlockEditorProps {
   onChange: (blocks: BlockType[]) => void
 }
 
-const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
-const inputSmCls = "bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
+const inputSmCls = "bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
 
 function BlockField({ block, onChange }: { block: BlockType; onChange: (b: BlockType) => void }) {
   switch (block.type) {
     case 'tag':
       return (
         <input
-          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
           value={block.text}
           onChange={e => onChange({ ...block, text: e.target.value })}
           placeholder="TAG TEXT"
@@ -31,7 +31,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
       return (
         <div className="space-y-1">
           <textarea
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             rows={2}
             value={block.text}
             onChange={e => onChange({ ...block, text: e.target.value })}
@@ -52,7 +52,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
     case 'text':
       return (
         <textarea
-          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
           rows={3}
           value={block.text}
           onChange={e => onChange({ ...block, text: e.target.value })}
@@ -69,7 +69,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
             <div key={i} className="flex items-center gap-1">
               <span className="text-[10px] text-gray-400 w-4 shrink-0">{block.type === 'steps' ? `${i + 1}.` : '\u2022'}</span>
               <input
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
                 value={item}
                 onChange={e => {
                   const next = [...items]
@@ -88,7 +88,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
             </div>
           ))}
           <button
-            className="text-[10px] text-[#F72D5E] hover:underline"
+            className="text-[10px] text-brand-coral hover:underline"
             onClick={() => onChange({ ...block, items: [...items, ''] })}
           >
             + Add item
@@ -101,13 +101,13 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
       return (
         <div className="flex gap-2">
           <input
-            className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             value={block.value}
             onChange={e => onChange({ ...block, value: e.target.value })}
             placeholder="95%"
           />
           <input
-            className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             value={block.label}
             onChange={e => onChange({ ...block, label: e.target.value })}
             placeholder="Label"
@@ -119,14 +119,14 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
       return (
         <div className="space-y-1">
           <textarea
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs italic resize-none focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs italic resize-none focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             rows={2}
             value={block.text}
             onChange={e => onChange({ ...block, text: e.target.value })}
             placeholder="Quote text"
           />
           <input
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             value={block.author || ''}
             onChange={e => onChange({ ...block, author: e.target.value })}
             placeholder="Author (optional)"
@@ -138,7 +138,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
       return (
         <input
           type="number"
-          className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+          className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
           value={block.height || 20}
           onChange={e => onChange({ ...block, height: parseInt(e.target.value) || 20 })}
           min={4}
@@ -173,7 +173,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
                   }}><Trash size={8} /></Button>
                 </div>
               ))}
-              <button className="text-[10px] text-[#F72D5E] hover:underline" onClick={() => {
+              <button className="text-[10px] text-brand-coral hover:underline" onClick={() => {
                 onChange({ ...block, headers: [...headers, 'Column'], rows: rows.map(r => [...r, '']) })
               }}>+ Col</button>
             </div>
@@ -200,7 +200,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
                 }}><Trash size={8} /></Button>
               </div>
             ))}
-            <button className="text-[10px] text-[#F72D5E] hover:underline" onClick={() => {
+            <button className="text-[10px] text-brand-coral hover:underline" onClick={() => {
               onChange({ ...block, rows: [...rows, headers.map(() => '')] })
             }}>+ Row</button>
           </div>
@@ -219,7 +219,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
       return (
         <div className="space-y-1.5">
           <input
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             value={block.label}
             onChange={e => onChange({ ...block, label: e.target.value })}
             placeholder="Label"
@@ -260,13 +260,13 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
       return (
         <div className="space-y-1.5">
           <input
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             value={block.url}
             onChange={e => onChange({ ...block, url: e.target.value })}
             placeholder="Image URL (https://...)"
           />
           <input
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             value={block.alt || ''}
             onChange={e => onChange({ ...block, alt: e.target.value })}
             placeholder="Alt text (optional)"
@@ -318,7 +318,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
             placeholder="Artist name"
           />
           <textarea
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-1 text-[10px] resize-none focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-1 text-[10px] resize-none focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
             rows={2}
             value={block.bio}
             onChange={e => onChange({ ...block, bio: e.target.value })}
@@ -361,7 +361,7 @@ function BlockField({ block, onChange }: { block: BlockType; onChange: (b: Block
           <div>
             <span className="text-[10px] text-gray-400">Status</span>
             <select
-              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30"
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-coral/30"
               value={block.status}
               onChange={e => onChange({ ...block, status: e.target.value })}
             >
@@ -462,7 +462,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
       {/* Add block */}
       <div className="relative">
         <button
-          className="w-full border border-dashed border-gray-300 rounded-xl py-2.5 text-xs text-gray-400 hover:text-[#F72D5E] hover:border-[#F72D5E]/40 transition-all flex items-center justify-center gap-1"
+          className="w-full border border-dashed border-gray-300 rounded-xl py-2.5 text-xs text-gray-400 hover:text-brand-coral hover:border-brand-coral/40 transition-all flex items-center justify-center gap-1"
           onClick={() => setAddMenuOpen(!addMenuOpen)}
         >
           <Plus size={14} /> Add Block

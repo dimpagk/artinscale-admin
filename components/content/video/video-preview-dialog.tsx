@@ -179,7 +179,7 @@ export function VideoPreviewDialog({ config, open, onClose, postTitle }: VideoPr
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F72D5E] to-[#F6B61C] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-coral to-brand-gold flex items-center justify-center">
               <FilmStrip size={16} weight="bold" className="text-white" />
             </div>
             <div>
@@ -225,7 +225,7 @@ export function VideoPreviewDialog({ config, open, onClose, postTitle }: VideoPr
                     onClick={() => setVideoFormat(key)}
                     className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
                       videoFormat === key
-                        ? 'bg-[#F72D5E]/10 border border-[#F72D5E]/30 text-[#F72D5E]'
+                        ? 'bg-brand-coral/10 border border-brand-coral/30 text-brand-coral'
                         : 'bg-white/[0.03] border border-white/[0.06] text-white/60 hover:text-white/80 hover:border-white/10'
                     }`}
                   >
@@ -249,7 +249,7 @@ export function VideoPreviewDialog({ config, open, onClose, postTitle }: VideoPr
                     onClick={() => setFramesPerSlide(opt.value)}
                     className={`px-2 py-1.5 rounded-md text-[10px] font-bold transition-all ${
                       framesPerSlide === opt.value
-                        ? 'bg-[#F72D5E]/15 text-[#F72D5E] border border-[#F72D5E]/30'
+                        ? 'bg-brand-coral/15 text-brand-coral border border-brand-coral/30'
                         : 'bg-white/[0.03] text-white/40 border border-transparent hover:text-white/60'
                     }`}
                     title={opt.description}
@@ -296,7 +296,7 @@ export function VideoPreviewDialog({ config, open, onClose, postTitle }: VideoPr
               {exporting && (
                 <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#F72D5E] to-[#F6B61C] transition-all duration-300"
+                    className="h-full rounded-full bg-gradient-to-r from-brand-coral to-brand-gold transition-all duration-300"
                     style={{ width: `${exportProgress * 100}%` }}
                   />
                 </div>

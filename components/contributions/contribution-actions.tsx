@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
+import { SidebarCard } from '@/components/admin-ui';
 import { approveContribution, rejectContribution } from '@/app/(admin)/contributions/actions';
 
 export function ContributionActions({ contributionId }: { contributionId: string }) {
@@ -28,32 +28,35 @@ export function ContributionActions({ contributionId }: { contributionId: string
   };
 
   return (
-    <Card>
-      <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Actions</h2>
-      <Textarea
-        label="Admin Notes (optional)"
-        value={adminNotes}
-        onChange={(e) => setAdminNotes(e.target.value)}
-        rows={3}
-        placeholder="Add a note about this decision..."
-      />
-      <div className="mt-4 flex gap-3">
-        <Button
-          onClick={() => handleAction('approve')}
-          loading={loading === 'approve'}
-          disabled={loading !== null}
-        >
-          Approve
-        </Button>
-        <Button
-          variant="danger"
-          onClick={() => handleAction('reject')}
-          loading={loading === 'reject'}
-          disabled={loading !== null}
-        >
-          Reject
-        </Button>
+    <SidebarCard title="Actions">
+      <div className="space-y-3">
+        <Textarea
+          label="Admin notes (optional)"
+          value={adminNotes}
+          onChange={(e) => setAdminNotes(e.target.value)}
+          rows={3}
+          placeholder="Add a note about this decision..."
+        />
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => handleAction('approve')}
+            loading={loading === 'approve'}
+            disabled={loading !== null}
+          >
+            Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => handleAction('reject')}
+            loading={loading === 'reject'}
+            disabled={loading !== null}
+          >
+            Reject
+          </Button>
+        </div>
       </div>
-    </Card>
+    </SidebarCard>
   );
 }

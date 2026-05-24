@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { DotsThreeVertical, PencilSimple, Copy, DownloadSimple, Trash, Plus, Stack, PaintBrush } from '@phosphor-icons/react'
+import { DotsThreeVertical, PencilSimple, Copy, DownloadSimple, Trash, Plus, Stack, PaintBrush, CloudArrowUp } from '@phosphor-icons/react'
 import { InstagramLogo, XLogo } from '@phosphor-icons/react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SOCIAL_POST_STATUSES, POST_FORMATS, getSlides, type SocialPost, type SocialPostStatus, type PostFormatKey } from '@/lib/constants/content'
 import { PostCardPreview } from './post-card-preview'
-import { downloadPostAsPng, downloadCarouselAsPngs } from './post-canvas-export'
+import { downloadPostAsPng, downloadCarouselAsPngs, uploadPostAsPng, uploadCarouselAsPngs } from './post-canvas-export'
 
 interface ContentPostsGridProps {
   initialPosts: SocialPost[]
@@ -39,6 +40,7 @@ export function ContentPostsGrid({ initialPosts, onNewPost, platform }: ContentP
   const [posts, setPosts] = useState(initialPosts)
   const [filter, setFilter] = useState<SocialPostStatus | 'all'>('all')
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
 
   const platformFiltered = platform === 'all' ? posts : posts.filter(p => p.platform === platform)
   const filtered = filter === 'all' ? platformFiltered : platformFiltered.filter(p => p.status === filter)
@@ -70,6 +72,22 @@ export function ContentPostsGrid({ initialPosts, onNewPost, platform }: ContentP
     }
   }
 
+  const handleExportUpload = async (post: SocialPost) => {
+    setMenuOpen(null)
+    setUploadingId(post.id)
+    try {
+      const isCarousel = post.post_type === 'carousel' && getSlides(post.visual_config).length > 1
+      const result = isCarousel
+        ? await uploadCarouselAsPngs(post.id, post.visual_config)
+        : await uploadPostAsPng(post.id, post.visual_config)
+      toast.success(`Exported ${result.urls.length} image${result.urls.length === 1 ? '' : 's'} — ready to schedule`)
+    } catch (err) {
+      toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setUploadingId(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -80,7 +98,7 @@ export function ContentPostsGrid({ initialPosts, onNewPost, platform }: ContentP
             variant={filter === f.key ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setFilter(f.key)}
-            className={filter === f.key ? 'bg-[#0C103D]/10 text-[#0C103D] border-transparent' : ''}
+            className={filter === f.key ? 'bg-brand-navy/10 text-brand-navy border-transparent' : ''}
           >
             {f.label}
           </Button>
@@ -92,7 +110,7 @@ export function ContentPostsGrid({ initialPosts, onNewPost, platform }: ContentP
         {/* New Post card */}
         <button
           onClick={onNewPost}
-          className="aspect-square border border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-[#F72D5E] hover:border-[#F72D5E]/40 transition-all"
+          className="aspect-square border border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-brand-coral hover:border-brand-coral/40 transition-all"
         >
           <Plus size={24} />
           <span className="text-xs font-medium">New Post</span>
@@ -101,7 +119,7 @@ export function ContentPostsGrid({ initialPosts, onNewPost, platform }: ContentP
         {filtered.map(post => (
           <div
             key={post.id}
-            className="relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 hover:border-[#F72D5E]/40 hover:shadow-lg transition-all"
+            className="relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 hover:border-brand-coral/40 hover:shadow-lg transition-all"
             onClick={() => router.push(`/content/${post.id}`)}
           >
             {/* Thumbnail */}
@@ -115,7 +133,7 @@ export function ContentPostsGrid({ initialPosts, onNewPost, platform }: ContentP
               )}
               {/* Artwork indicator */}
               {post.artwork_id && (
-                <div className="absolute top-2 right-8 bg-[#F6B61C]/90 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                <div className="absolute top-2 right-8 bg-brand-gold/90 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
                   <PaintBrush size={10} weight="bold" />
                   Art
                 </div>
@@ -162,6 +180,13 @@ export function ContentPostsGrid({ initialPosts, onNewPost, platform }: ContentP
                 </button>
                 <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2 transition-colors" onClick={() => handleDownload(post)}>
                   <DownloadSimple size={12} /> Download PNG
+                </button>
+                <button
+                  className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2 transition-colors disabled:opacity-50"
+                  onClick={() => handleExportUpload(post)}
+                  disabled={uploadingId === post.id}
+                >
+                  <CloudArrowUp size={12} /> {uploadingId === post.id ? 'Uploading…' : 'Export & Upload'}
                 </button>
                 <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 text-red-400 flex items-center gap-2 transition-colors" onClick={() => handleDelete(post.id)}>
                   <Trash size={12} /> Delete

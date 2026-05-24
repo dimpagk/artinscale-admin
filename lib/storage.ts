@@ -5,6 +5,7 @@ export const STORAGE_BUCKETS = {
   artworks: 'artworks',
   profiles: 'profiles',
   'ai-generated': 'ai-generated',
+  'seed-photos': 'seed-photos',
 } as const;
 
 export type StorageBucket = keyof typeof STORAGE_BUCKETS;

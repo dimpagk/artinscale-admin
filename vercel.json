@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/topic_ideator",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/contribution_moderator",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/insight_agent",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/posting_worker",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

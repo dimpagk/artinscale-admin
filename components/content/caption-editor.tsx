@@ -34,14 +34,14 @@ export function CaptionEditor({ caption, onChange }: CaptionEditorProps) {
           onClick={handleCopy}
           disabled={!caption}
           icon={copied ? <Check size={10} /> : <Copy size={10} />}
-          className="h-6 text-[10px] font-semibold px-2.5 bg-[#F72D5E]/10 text-[#F72D5E] hover:bg-[#F72D5E]/20"
+          className="h-6 text-[10px] font-semibold px-2.5 bg-brand-coral/10 text-brand-coral hover:bg-brand-coral/20"
         >
           {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>
 
       <textarea
-        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30 placeholder:text-gray-300"
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-brand-coral/30 placeholder:text-gray-300"
         rows={6}
         value={caption}
         onChange={e => onChange(e.target.value)}

@@ -62,15 +62,17 @@ Get your keys from:
 
 ### 3. Database migrations
 
-Run the migration file in your Supabase SQL Editor (Dashboard > SQL Editor > New Query).
+All SQL migrations live in the **shared** `../sql/` folder (one level up
+from this app — same set powers both the storefront and admin panel).
 
-The migration file is at `sql/001_artworks_and_content.sql` and creates all 3 tables in the correct order:
+Run every file in numeric order in your Supabase SQL Editor (Dashboard
+> SQL Editor > New Query). The admin-specific tables (`artworks`,
+`social_posts`, `generated_images`) are created by `012_create_admin_tables.sql`,
+the agent infrastructure (`agent_tasks`, `approval_queue`, etc.) by
+`011_agent_infrastructure.sql`, and the seed-contribution helpers by
+`015_seed_contribution_enhancements.sql`.
 
-1. **`artworks`** — Artwork records with Shopify + Gelato integration fields
-2. **`social_posts`** — Content Studio posts (references artworks)
-3. **`generated_images`** — AI-generated images (references artworks)
-
-Copy the entire contents of the file and run it in the SQL Editor.
+See `../sql/README.md` for the full migration catalogue.
 
 > **Note**: The migration assumes the `users` and `topics` tables already exist (from the main artinscale-nextjs app). If they don't, create them first.
 
@@ -178,8 +180,6 @@ pnpm start
 
 ```
 artinscale-admin/
-├── sql/
-│   └── 001_artworks_and_content.sql  # Database migration
 ├── app/
 │   ├── (admin)/                      # Protected admin routes
 │   │   ├── page.tsx                  # Dashboard

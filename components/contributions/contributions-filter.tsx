@@ -29,7 +29,8 @@ export function ContributionsFilter({
     } else {
       params.delete(key);
     }
-    router.push(`/contributions?${params.toString()}`);
+    const qs = params.toString();
+    router.replace(qs ? `/contributions?${qs}` : '/contributions', { scroll: false });
   };
 
   const tabs = [

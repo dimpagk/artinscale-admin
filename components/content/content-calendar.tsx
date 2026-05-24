@@ -163,13 +163,13 @@ export function ContentCalendar({ posts }: ContentCalendarProps) {
                 onClick={() => setSelectedDay(isSelected ? null : date)}
                 className={`min-h-[80px] p-1.5 text-left transition-colors flex flex-col ${
                   inMonth ? 'bg-white' : 'bg-gray-50/50'
-                } ${isSelected ? 'ring-2 ring-inset ring-[#F72D5E]/50 bg-[#F72D5E]/[0.03]' : ''} hover:bg-gray-50`}
+                } ${isSelected ? 'ring-2 ring-inset ring-brand-coral/50 bg-brand-coral/[0.03]' : ''} hover:bg-gray-50`}
               >
                 {/* Day number */}
                 <div className="flex items-center justify-between mb-0.5">
                   <span className={`text-[11px] leading-none ${
                     isToday
-                      ? 'bg-[#0C103D] text-white font-bold w-5 h-5 rounded-full flex items-center justify-center'
+                      ? 'bg-brand-navy text-white font-bold w-5 h-5 rounded-full flex items-center justify-center'
                       : inMonth ? 'text-gray-900 font-medium' : 'text-gray-300'
                   }`}>
                     {date.getDate()}

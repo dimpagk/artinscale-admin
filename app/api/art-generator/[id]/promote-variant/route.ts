@@ -127,7 +127,7 @@ export async function POST(
       edition_size: body.edition_size ?? null,
       price: body.price ?? null,
       currency: body.currency ?? 'EUR',
-      product_type: 'poster',
+      product_type: 'museum-poster-21x30',
       inspiration_summary: image.prompt,
     })
   } catch (err) {

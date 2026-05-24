@@ -20,9 +20,15 @@
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
 const DRY_RUN = process.env.UPSCALER_DRY_RUN === 'true'
 
-const MODEL_VERSION =
-  process.env.REPLICATE_UPSCALER_MODEL_VERSION ??
-  'nightmareai/real-esrgan:latest'
+/**
+ * Replicate's newer "official model" endpoint resolves the latest
+ * version automatically — no SHA-pinning required. Falls back to the
+ * legacy versioned `/v1/predictions` if `REPLICATE_UPSCALER_MODEL_VERSION`
+ * is set explicitly (lets the operator pin a specific SHA if desired).
+ */
+const MODEL_OWNER = 'nightmareai'
+const MODEL_NAME = 'real-esrgan'
+const MODEL_VERSION = process.env.REPLICATE_UPSCALER_MODEL_VERSION ?? null
 
 export interface UpscaleArgs {
   imageUrl: string
@@ -61,20 +67,35 @@ export async function upscaleImage(args: UpscaleArgs): Promise<UpscaleResult> {
     )
   }
 
-  const startRes = await fetch('https://api.replicate.com/v1/predictions', {
+  // Use the model-name endpoint when a version is not pinned — Replicate
+  // resolves "latest" server-side. When REPLICATE_UPSCALER_MODEL_VERSION
+  // is set, fall back to the SHA-pinned predictions endpoint.
+  const url = MODEL_VERSION
+    ? 'https://api.replicate.com/v1/predictions'
+    : `https://api.replicate.com/v1/models/${MODEL_OWNER}/${MODEL_NAME}/predictions`
+  const body = MODEL_VERSION
+    ? {
+        version: MODEL_VERSION,
+        input: {
+          image: args.imageUrl,
+          scale: args.scale ?? 4,
+          face_enhance: args.faceEnhance ?? false,
+        },
+      }
+    : {
+        input: {
+          image: args.imageUrl,
+          scale: args.scale ?? 4,
+          face_enhance: args.faceEnhance ?? false,
+        },
+      }
+  const startRes = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Token ${REPLICATE_API_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      version: MODEL_VERSION,
-      input: {
-        image: args.imageUrl,
-        scale: args.scale ?? 4,
-        face_enhance: args.faceEnhance ?? false,
-      },
-    }),
+    body: JSON.stringify(body),
   })
   if (!startRes.ok) {
     throw new Error(`Replicate start error ${startRes.status}: ${await startRes.text()}`)

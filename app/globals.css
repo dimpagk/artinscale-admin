@@ -1,1 +1,87 @@
 @import 'tailwindcss';
+
+/*
+ * Tell Tailwind v4 to scan the @dimpagk/artinscale-ui design system's
+ * compiled output for utility class names. Without this, the design
+ * system's components render correctly but their Tailwind classes get
+ * purged from the final stylesheet.
+ *   https://tailwindcss.com/docs/detecting-classes-in-source-files#explicitly-registering-sources
+ */
+@source "../node_modules/@dimpagk/artinscale-ui";
+
+/* ============================================
+ * Brand tokens — mirrored from the storefront so design system
+ * components (CTASection, FeatureBanner, Badge variants, etc.) render
+ * with the right palette and typography.
+ *
+ * Keep this list in sync with `artinscale-nextjs/app/globals.css`.
+ * ============================================ */
+:root {
+  /* Logo + accent palette */
+  --brand-navy: #0c103d;
+  --brand-coral: #f72d5e;
+  --brand-gold: #f6b61c;
+  --brand-blue: #1617f7;
+  --brand-cyan: #00c3dd;
+
+  /* Neutrals */
+  --brand-primary: #000000;
+  --brand-background: #ffffff;
+  --brand-gray: #666666;
+  --brand-light-gray: #f5f5f5;
+  --brand-success: #10b981;
+  --brand-error: #ef4444;
+
+  /* Typography */
+  --font-display: 'Outfit', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Expose brand tokens as Tailwind v4 theme variables so utilities like
+ * `text-brand-coral` / `bg-brand-gold` work in admin components. */
+@theme inline {
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-coral: var(--brand-coral);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-background: var(--brand-background);
+  --color-brand-gray: var(--brand-gray);
+  --color-brand-light-gray: var(--brand-light-gray);
+  --color-brand-success: var(--brand-success);
+  --color-brand-error: var(--brand-error);
+}
+
+/* ============================================
+ * Base styles
+ * ============================================ */
+html,
+body {
+  font-family: var(--font-sans);
+  color: var(--brand-primary);
+  background: var(--brand-background);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+}
+
+/* Match storefront's gentle focus ring on form fields */
+:where(input, textarea, select):focus {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 1px;
+}
+
+/* Tabular numerics for dashboard stats */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

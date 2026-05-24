@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader, StatCard, EmptyState } from '@/components/admin-ui';
 
 async function getDashboardStats() {
   const [
@@ -44,61 +45,60 @@ async function getDashboardStats() {
 export default async function DashboardPage() {
   const stats = await getDashboardStats();
 
-  const statCards = [
-    {
-      label: 'Pending Contributions',
-      value: stats.pendingContributions,
-      href: '/contributions?status=pending',
-      color: stats.pendingContributions > 0 ? 'text-yellow-600' : 'text-gray-900',
-    },
-    {
-      label: 'Active Topics',
-      value: stats.activeTopics,
-      href: '/topics',
-      color: 'text-gray-900',
-    },
-    {
-      label: 'Total Contributors',
-      value: stats.totalContributors,
-      href: '/contributions',
-      color: 'text-gray-900',
-    },
-  ];
-
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Dashboard</h1>
+      <PageHeader title="Dashboard" />
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {statCards.map((stat) => (
-          <Link key={stat.label} href={stat.href}>
-            <Card className="hover:border-gray-300 transition-colors">
-              <p className="text-sm text-gray-500">{stat.label}</p>
-              <p className={`mt-1 text-3xl font-bold ${stat.color}`}>{stat.value}</p>
-            </Card>
-          </Link>
-        ))}
+        <StatCard
+          label="Pending Contributions"
+          value={stats.pendingContributions}
+          valueColorClass={
+            stats.pendingContributions > 0 ? 'text-brand-gold' : 'text-gray-900'
+          }
+          href="/contributions?status=pending"
+        />
+        <StatCard
+          label="Active Topics"
+          value={stats.activeTopics}
+          href="/topics"
+        />
+        <StatCard
+          label="Total Contributors"
+          value={stats.totalContributors}
+          href="/contributions"
+        />
       </div>
 
       <Card>
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">Recent Pending Contributions</h2>
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+          Recent Pending Contributions
+        </h2>
         {stats.recentPending.length === 0 ? (
-          <p className="text-sm text-gray-500">No pending contributions</p>
+          <EmptyState
+            title="Nothing pending"
+            description="When community contributions arrive, they show up here."
+          />
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="-mx-6 divide-y divide-gray-100">
             {stats.recentPending.map((item) => (
               <Link
                 key={item.id}
                 href={`/contributions/${item.id}`}
-                className="flex items-center justify-between py-3 hover:bg-gray-50 -mx-6 px-6 transition-colors"
+                className="flex items-center justify-between px-6 py-3 transition-colors hover:bg-gray-50"
               >
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{item.contributor_name}</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {item.contributor_name}
+                  </p>
                   <p className="text-xs text-gray-500">
-                    {item.topic_id} &middot; {new Date(item.created_at).toLocaleDateString()}
+                    {item.topic_id} &middot;{' '}
+                    {new Date(item.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <Badge variant="outline" size="sm">{item.type}</Badge>
+                <Badge variant="outline" size="sm">
+                  {item.type}
+                </Badge>
               </Link>
             ))}
           </div>

@@ -70,15 +70,21 @@ export function buildProductCopy(input: ProductCopyInput): ProductCopyOutput {
   const cfg = input.productConfig;
 
   // ── Synopsis (fallback chain)
+  // The terminal fallback stays neutral — claims about how a piece was
+  // made (AI-rendered, community-inspired, etc.) belong in the per-piece
+  // synopsis stored on the artwork, not in copy that runs for every
+  // product including public-domain reproductions.
   const synopsis =
     input.artworkSynopsis?.trim() ||
     input.inspirationSummary?.trim() ||
-    `${input.title} by ${input.artistName} is part of Artinscale's collection of community-inspired AI-rendered art.`;
+    `${input.title} by ${input.artistName}.`;
 
-  // ── Collection framing — anchors the piece in the topic
+  // ── Collection framing — only added when the piece is actually tied
+  // to a topic. For unattached pieces (e.g. Classic Collection vintage
+  // prints) we skip this paragraph entirely rather than inventing one.
   const collectionFraming = input.topicTitle
     ? `This artwork was created as part of the ${input.topicTitle} collection and reflects ${input.artistName}'s interpretation of the contributions submitted by the Artinscale community.`
-    : `This artwork was created by ${input.artistName} and reflects their interpretation of the Artinscale community's collective experience.`;
+    : null;
 
   // ── Structured details block
   // Format mirrors the operator's existing live products (e.g.
@@ -117,9 +123,11 @@ export function buildProductCopy(input: ProductCopyInput): ProductCopyOutput {
 
   const description = [
     `<p><span>${escapeHtml(synopsis)}</span></p>`,
-    `<p><span>${escapeHtml(collectionFraming)}</span></p>`,
+    collectionFraming ? `<p><span>${escapeHtml(collectionFraming)}</span></p>` : null,
     detailsParagraph,
-  ].join('');
+  ]
+    .filter((s): s is string => s !== null)
+    .join('');
 
   // ── SEO description: shortest single-sentence form, ≤160 chars
   const seoBase = input.topicTitle

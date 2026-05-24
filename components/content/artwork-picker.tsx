@@ -55,7 +55,7 @@ export function ArtworkPicker({ open, onClose, onSelect, artworks = [] }: Artwor
           <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F72D5E]/30 placeholder:text-gray-300"
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand-coral/30 placeholder:text-gray-300"
             placeholder="Search by title or artist..."
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -78,8 +78,8 @@ export function ArtworkPicker({ open, onClose, onSelect, artworks = [] }: Artwor
                   onClick={() => handleSelect(artwork)}
                   className={cn(
                     'text-left border border-gray-200 rounded-xl p-3 transition-all',
-                    'hover:border-[#F72D5E]/40 hover:shadow-sm hover:bg-gray-50/50',
-                    'focus:outline-none focus:ring-2 focus:ring-[#F72D5E]/20'
+                    'hover:border-brand-coral/40 hover:shadow-sm hover:bg-gray-50/50',
+                    'focus:outline-none focus:ring-2 focus:ring-brand-coral/20'
                   )}
                 >
                   {/* Image */}
