@@ -19,6 +19,7 @@ import {
   applyListedState,
   autoPublishArtworkAfterGelatoCreate,
 } from '@/lib/post-create-publisher';
+import { runSoldOutFollowUp } from '@/lib/agents/sold-out-follow-up';
 import { EMPTY_LISTING_META, type ListingMeta } from '@/lib/types';
 import { startAgentTask, finishAgentTask } from '@/lib/agents/base';
 import { validatePrintSafety } from '@/lib/image-dimensions';
@@ -283,6 +284,41 @@ export async function updateArtworkAction(id: string, formData: FormData) {
       }
     } catch (err) {
       console.error('sold-out notice failed (non-fatal):', err);
+    }
+
+    // Sold-out follow-up agent — drafts a successor piece proposal
+    // into the approval queue (item_type='artwork'). Runs in the
+    // background so a manual edit doesn't block on the LLM call.
+    // Non-fatal: the artwork update succeeds even if the agent
+    // errors. Wrapped in agent_tasks so the operator can see it ran.
+    try {
+      const followUpTask = await startAgentTask({
+        agentName: 'sold-out-follow-up',
+        triggerKind: 'event',
+        correlationId: `artwork:${id}`,
+        input: { artwork_id: id },
+      });
+      if (followUpTask) {
+        void runSoldOutFollowUp({ artworkId: id })
+          .then((result) =>
+            finishAgentTask(followUpTask.id, {
+              status: result.queueItemId ? 'succeeded' : 'failed',
+              output: {
+                queueItemId: result.queueItemId,
+                proposal: result.proposal as unknown as Record<string, unknown>,
+              },
+              error: result.queueItemId ? undefined : 'No valid proposal generated',
+            })
+          )
+          .catch((err) =>
+            finishAgentTask(followUpTask.id, {
+              status: 'failed',
+              error: err instanceof Error ? err.message : String(err),
+            })
+          );
+      }
+    } catch (err) {
+      console.error('sold-out follow-up trigger failed (non-fatal):', err);
     }
   }
 

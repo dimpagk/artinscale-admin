@@ -317,6 +317,35 @@ export async function syncArtworkToShopify(
         value: listingMeta.ogDescription,
         type: 'multi_line_text_field',
       },
+      // Storefront-rendered metafields. The product detail page reads
+      // these to render the edition counter, contributor trust signal,
+      // and artist bio block above the fold. Plain values so the
+      // storefront's GraphQL fragment can read them as
+      // `{ value: string }`.
+      {
+        slot: 'edition_size',
+        namespace: 'custom',
+        key: 'edition_size',
+        value: artwork.edition_size != null ? String(artwork.edition_size) : null,
+        type: 'single_line_text_field',
+      },
+      {
+        slot: 'contributor_count',
+        namespace: 'custom',
+        key: 'contributor_count',
+        value: topic ? await getTopicContributorCount(topic.id) : null,
+        type: 'single_line_text_field',
+      },
+      {
+        slot: 'artist_bio',
+        namespace: 'custom',
+        key: 'artist_bio',
+        // First paragraph of the bio — keep the storefront unaware of
+        // multi-paragraph bios so we don't surface stuff the operator
+        // hasn't sanitized for public display.
+        value: artist?.bio ? artist.bio.trim().split(/\n\s*\n/)[0]?.trim().slice(0, 400) ?? null : null,
+        type: 'multi_line_text_field',
+      },
     ];
 
     const metafieldResults: Record<string, { ok: boolean; error?: string }> = {};
@@ -527,6 +556,28 @@ export async function getArtistPrimaryStyle(
     .eq('is_primary', true)
     .maybeSingle();
   return deriveStyleDescriptor(pack);
+}
+
+/**
+ * Count unique approved-and-public contributors for a topic. Surfaces
+ * as the "contributor_count" metafield on the Shopify product — the
+ * storefront uses it for the "Made with input from N contributors"
+ * trust signal.
+ */
+async function getTopicContributorCount(topicId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('topic_contributions')
+    .select('contributor_email')
+    .eq('topic_id', topicId)
+    .eq('status', 'approved')
+    .eq('show_publicly', true);
+  if (!data) return null;
+  const unique = new Set(
+    (data as Array<{ contributor_email?: string | null }>)
+      .map((r) => r.contributor_email)
+      .filter((s): s is string => Boolean(s))
+  );
+  return unique.size > 0 ? String(unique.size) : null;
 }
 
 /**

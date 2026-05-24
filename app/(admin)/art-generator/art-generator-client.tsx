@@ -31,6 +31,11 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
   const [loading, setLoading] = useState(false)
   const [images, setImages] = useState<GeneratedImage[]>(initialImages)
   const [contributionContext, setContributionContext] = useState('')
+  // Lifted prompt state so the cluster picker's "Use suggested
+  // subject" button can push values into the prompt textarea. The
+  // PromptBuilder is now a controlled input — see its `value` +
+  // `onChange` props below.
+  const [promptValue, setPromptValue] = useState('')
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null)
   // Tracks the most recent batch of generated images so the UI can
   // show them side-by-side for comparison (Tier 2 #5). Cleared on each
@@ -104,7 +109,7 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
           image_url: currentImage.image_url,
           artist_id: inferredArtistId,
           topic_id: currentImage.topic_id,
-          product_type: 'poster',
+          product_type: 'museum-poster-21x30',
           inspiration_summary: currentImage.prompt,
         }),
       })
@@ -241,8 +246,17 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
               <div className="flex gap-6">
                 {/* Left sidebar */}
                 <div className="w-[320px] shrink-0 space-y-6">
-                  <PromptBuilder onGenerate={handleGenerate} loading={loading} />
-                  <TopicContextPicker topics={topics} onContextChange={setContributionContext} />
+                  <PromptBuilder
+                    onGenerate={handleGenerate}
+                    loading={loading}
+                    value={promptValue}
+                    onChange={setPromptValue}
+                  />
+                  <TopicContextPicker
+                    topics={topics}
+                    onContextChange={setContributionContext}
+                    onSubjectSuggest={setPromptValue}
+                  />
                 </div>
 
                 {/* Center panel */}

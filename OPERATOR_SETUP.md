@@ -13,10 +13,17 @@ The Admin API token at `SHOPIFY_ADMIN_ACCESS_TOKEN` needs these scopes:
 |---|---|
 | `write_products` | Setting price, vendor, tags, body_html, status, metafields, images |
 | `read_products` | All read operations (looking up product by handle) |
-| `write_inventory` | Setting `variant.inventory_quantity` (legacy fallback path) |
-| `read_locations` | Setting inventory via the modern `/inventory_levels/set.json` path |
+| `read_inventory` | Reading inventory item state (tracked flag, etc.) |
+| `write_inventory` | Setting inventory via `/inventory_levels/set.json` AND flipping `inventory_item.tracked=true` |
+| `read_locations` | Resolving the active location id for inventory writes |
 | `read_publications` | Listing the store's sales channels (Online Store, Google & YouTube, etc.) |
 | `write_publications` | Auto-publishing each artwork to every sales channel by default |
+
+**Check all 7 boxes in one go.** Granting them piecewise means rotating the
+token piecewise — each `Save → Reinstall` cycle revokes the previous token,
+so partial grants put you in a loop where the next sync surfaces a new
+scope error, you re-grant + reinstall, and the previously-working token is
+now revoked. Ask me how I know.
 
 ### Why `read_locations` matters
 
@@ -25,6 +32,19 @@ Without it, the listing-sync writes inventory via the legacy
 stores but is deprecated by Shopify and ignored when
 `inventory_management='shopify'` doesn't get applied. Symptom: variant
 shows `inventory_quantity=0` after sync even though edition is open.
+
+### Why `read_inventory` + `write_inventory` matter
+
+Without them, `/inventory_levels/set.json` returns 403 *"requires merchant
+approval for write_inventory scope"* on every limited-edition sync.
+
+There's also a secondary quirk: Gelato-published variants land with
+`inventory_item.tracked = false`. The sync helper now PUTs
+`tracked: true` on each variant's inventory_item before setting levels —
+which itself needs `write_inventory`. Symptom if missed: even with the
+scope, the first sync 422s with *"Inventory item does not have inventory
+tracking enabled"*. The helper handles this automatically once the scope
+is present; nothing for the operator to do beyond the scope grant.
 
 ### Why `read_publications` + `write_publications` matter
 

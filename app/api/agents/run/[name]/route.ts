@@ -17,6 +17,7 @@ import { syncArtworkToShopify } from '@/lib/listing-sync'
 import { generateContributions } from '@/lib/contribution-generator'
 import { getTopic } from '@/lib/topics'
 import { startAgentTask } from '@/lib/agents/base'
+import { runSoldOutFollowUp } from '@/lib/agents/sold-out-follow-up'
 import { ensureUpscaledForArtworkImage, runUpscaleForGeneratedImage } from '@/lib/upscale-runner'
 import { autoPublishArtworkAfterGelatoCreate } from '@/lib/post-create-publisher'
 
@@ -172,6 +173,11 @@ async function dispatch(name: string, body: Record<string, unknown>): Promise<un
         })
       }
       return ensureUpscaledForArtworkImage(requireString(body, 'imageUrl'))
+    case 'sold_out_follow_up':
+      // Draft a successor-piece proposal into the approval queue.
+      // Fires automatically when an artwork transitions to sold-out
+      // (via updateArtworkAction); this route is for manual re-runs.
+      return runSoldOutFollowUp({ artworkId: requireString(body, 'artworkId') })
     case 'contribution_generator': {
       // Seed contributions for a topic via the studio_seed source.
       // Used by the operator to backfill sparse topics before

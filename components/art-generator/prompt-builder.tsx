@@ -54,10 +54,22 @@ import { listLaunchStylePacks } from '@/lib/style-packs'
 interface PromptBuilderProps {
   onGenerate: (params: GenerateParams, opts?: { count?: number }) => void
   loading: boolean
+  /**
+   * Optional controlled-input pattern for the prompt textarea. When
+   * `value` is provided, the parent owns the state — useful for
+   * surfaces like the cluster picker's "Use suggested subject"
+   * button that need to push values down into the input. Falls back
+   * to internal state when omitted, preserving the original API.
+   */
+  value?: string
+  onChange?: (next: string) => void
 }
 
-export function PromptBuilder({ onGenerate, loading }: PromptBuilderProps) {
-  const [prompt, setPrompt] = useState('')
+export function PromptBuilder({ onGenerate, loading, value, onChange }: PromptBuilderProps) {
+  const isControlled = value !== undefined && onChange !== undefined
+  const [internalPrompt, setInternalPrompt] = useState('')
+  const prompt = isControlled ? value : internalPrompt
+  const setPrompt = isControlled ? onChange : setInternalPrompt
   const [stylePackId, setStylePackId] = useState<string>('')
   const [style, setStyle] = useState<string>('')
   const [medium, setMedium] = useState<string>('')
