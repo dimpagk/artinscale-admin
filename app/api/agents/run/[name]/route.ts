@@ -14,6 +14,9 @@ import { runPostingWorker } from '@/lib/publishers/posting-worker'
 import { pushArtworkMockupsToShopify } from '@/lib/mockup-publisher'
 import { generateListingMeta } from '@/lib/agents/listing-generator'
 import { syncArtworkToShopify } from '@/lib/listing-sync'
+import { generateContributions } from '@/lib/contribution-generator'
+import { getTopic } from '@/lib/topics'
+import { startAgentTask } from '@/lib/agents/base'
 import { ensureUpscaledForArtworkImage, runUpscaleForGeneratedImage } from '@/lib/upscale-runner'
 import { autoPublishArtworkAfterGelatoCreate } from '@/lib/post-create-publisher'
 
@@ -169,6 +172,29 @@ async function dispatch(name: string, body: Record<string, unknown>): Promise<un
         })
       }
       return ensureUpscaledForArtworkImage(requireString(body, 'imageUrl'))
+    case 'contribution_generator': {
+      // Seed contributions for a topic via the studio_seed source.
+      // Used by the operator to backfill sparse topics before
+      // clustering / generation. The session-gated UI endpoint
+      // (/api/topics/{id}/generate-contributions) calls the same lib
+      // function — this Bearer-gated path is the cross-app
+      // equivalent.
+      const topicId = requireString(body, 'topicId')
+      const count = typeof body.count === 'number' ? body.count : 15
+      const instructions = typeof body.instructions === 'string' ? body.instructions : undefined
+      const topic = await getTopic(topicId)
+      if (!topic) throw new Error(`Topic not found: ${topicId}`)
+      const task = await startAgentTask({
+        agentName: 'contribution-generator',
+        triggerKind: 'manual',
+        input: { topic_id: topicId, count, instructions: instructions ?? null },
+      })
+      if (!task) {
+        return { skipped: 'already_running', topicId, count }
+      }
+      const result = await generateContributions(topic, count, instructions, task.id)
+      return { topicId, count, result }
+    }
     case 'auto_publisher':
       // Resume the post-Gelato-create chain manually — useful when
       // the original auto-publisher poll timed out (e.g. Shopify auto-
