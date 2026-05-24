@@ -132,7 +132,18 @@ export function buildProductCopy(input: ProductCopyInput): ProductCopyOutput {
 
   // ── Tags (these surface as Shopify product tags, used by storefront
   // collection filters + Meta product feed). Keep small + meaningful.
-  const tags = ['illustration', 'museum-matte', 'archival-print', 'limited-edition'];
+  // Tags reflect what's actually true about the piece, not aspiration:
+  //   - 'museum-matte' / 'archival-print' only when the underlying
+  //     Gelato product family is museum-matte-poster
+  //   - 'limited-edition' only when there's an actual edition cap
+  //     (editionLabel set and not the "Open edition" placeholder)
+  const tags = ['illustration'];
+  if (cfg?.productFamily === 'museum-matte-poster') {
+    tags.push('museum-matte', 'archival-print');
+  }
+  const limited =
+    !!input.editionLabel && input.editionLabel.trim().toLowerCase() !== 'open edition';
+  if (limited) tags.push('limited-edition');
   if (input.topicId) tags.push(input.topicId);
   if (cfg) tags.push(`size-${cfg.widthCm}x${cfg.heightCm}`);
 

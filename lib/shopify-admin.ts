@@ -66,6 +66,21 @@ function shopifyHeaders(): Record<string, string> | null {
   };
 }
 
+/**
+ * Module-level throttle: serializes Shopify REST calls and spaces
+ * them by at least MIN_INTERVAL_MS. Shopify standard plans allow 2
+ * calls/sec; we sit at ~1.7/sec to leave headroom for the
+ * X-Shopify-Shop-Api-Call-Limit bucket.
+ *
+ * Without this, syncs that touch a dozen endpoints in a tight loop
+ * (collection reconcile, image replace, metafields) hit 429 and the
+ * step fails. The throttle adds ~6s wall time to a full sync but
+ * eliminates the flake.
+ */
+const MIN_INTERVAL_MS = 600;
+let lastShopifyCallAt = 0;
+let shopifyChain: Promise<unknown> = Promise.resolve();
+
 async function shopifyFetch<T>(path: string, init: RequestInit = {}): Promise<ShopifyAdminResult<T>> {
   const headers = shopifyHeaders();
   if (!headers) {
@@ -74,22 +89,33 @@ async function shopifyFetch<T>(path: string, init: RequestInit = {}): Promise<Sh
       error: 'SHOPIFY_STORE_DOMAIN or SHOPIFY_ADMIN_ACCESS_TOKEN missing in admin env',
     };
   }
-  const url = `https://${STORE_DOMAIN}/admin/api/${API_VERSION}${path}`;
-  const res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers ?? {}) } });
-  const text = await res.text();
-  let parsed: unknown;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = null;
-  }
-  if (!res.ok) {
-    return {
-      ok: false,
-      error: `Shopify ${res.status}: ${text.slice(0, 500)}`,
-    };
-  }
-  return { ok: true, data: parsed as T };
+  // Serialize the call onto the chain — each call waits for the
+  // previous to start + MIN_INTERVAL_MS before issuing its own.
+  const run = async (): Promise<ShopifyAdminResult<T>> => {
+    const wait = Math.max(0, MIN_INTERVAL_MS - (Date.now() - lastShopifyCallAt));
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastShopifyCallAt = Date.now();
+
+    const url = `https://${STORE_DOMAIN}/admin/api/${API_VERSION}${path}`;
+    const res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers ?? {}) } });
+    const text = await res.text();
+    let parsed: unknown;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = null;
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Shopify ${res.status}: ${text.slice(0, 500)}`,
+      };
+    }
+    return { ok: true, data: parsed as T };
+  };
+  const next = shopifyChain.then(run, run);
+  shopifyChain = next;
+  return next;
 }
 
 export async function getShopifyProductByHandle(
@@ -189,6 +215,19 @@ export async function syncEditionToShopifyInventory(args: {
     if (locRes.ok && locRes.data) {
       const locationId = locRes.data;
       for (const variant of product.variants) {
+        // Gelato-published variants land with `inventory_item.tracked=
+        // false`. inventory_levels/set returns 422 "Inventory item does
+        // not have inventory tracking enabled" until we flip that flag.
+        // Idempotent — re-PUTting tracked=true on an already-tracked
+        // item is a no-op.
+        const trackRes = await shopifyFetch(`/inventory_items/${variant.inventory_item_id}.json`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            inventory_item: { id: variant.inventory_item_id, tracked: true },
+          }),
+        });
+        if (!trackRes.ok) return { ok: false, error: trackRes.error };
+
         const setRes = await shopifyFetch('/inventory_levels/set.json', {
           method: 'POST',
           body: JSON.stringify({
