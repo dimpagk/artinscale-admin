@@ -20,10 +20,10 @@
  */
 
 import crypto from 'node:crypto';
+import sharp from 'sharp';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { upscaleImage } from './upscaler';
 import { uploadFile, getPublicUrl } from './storage';
-import { fetchImageDimensions } from './image-dimensions';
 import { createGelatoProduct } from './gelato';
 import { pollGelatoUntilPublished } from './post-create-publisher';
 import { updateShopifyProductCore } from './shopify-admin';
@@ -84,6 +84,21 @@ async function markError(id: string, message: string): Promise<void> {
   await updateStatus(id, 'error', { error_message: message });
 }
 
+// Source-aware fetch headers. Some museum image servers (AIC's IIIF in
+// particular) return 403 to anonymous fetches; we send the attribution
+// headers their API conventions document. Sources not listed here use
+// no extra headers.
+function headersForSource(source: string): Record<string, string> {
+  switch (source) {
+    case 'aic':
+      return {
+        'AIC-User-Agent': 'ArtInScale/1.0 (contact: hello@artinscale.com)',
+      };
+    default:
+      return {};
+  }
+}
+
 export async function runExternalPrintPipeline(externalPrintId: string): Promise<void> {
   // 1. Load row
   const { data: rowData, error: readError } = await supabaseAdmin
@@ -107,18 +122,36 @@ export async function runExternalPrintPipeline(externalPrintId: string): Promise
   }
 
   try {
-    // 2. Ensure source dimensions
+    // 2. Fetch source image bytes with source-aware headers. Some museum
+    //    image servers (notably AIC's IIIF) require attribution headers
+    //    and return 403 to anonymous fetches — that means Gelato +
+    //    Replicate also can't reach those URLs directly. We rehost to
+    //    Supabase below so the rest of the pipeline doesn't care.
     await updateStatus(row.id, 'fetching');
+    const sourceHeaders = headersForSource(row.source);
+    const sourceRes = await fetch(row.source_image_url, { headers: sourceHeaders });
+    if (!sourceRes.ok) {
+      await markError(
+        row.id,
+        `Source fetch failed: HTTP ${sourceRes.status} from ${row.source}`
+      );
+      return;
+    }
+    const sourceBuffer = Buffer.from(await sourceRes.arrayBuffer());
+    const sourceContentType = sourceRes.headers.get('content-type') || 'image/jpeg';
+
+    // Get dimensions from the buffer (works regardless of upstream hosting
+    // quirks). sharp is already an admin dep — used by mockup-composer.
     let sourceWidth = row.source_image_width;
     let sourceHeight = row.source_image_height;
     if (!sourceWidth || !sourceHeight) {
-      const dims = await fetchImageDimensions(row.source_image_url);
-      if (!dims) {
-        await markError(row.id, 'Could not determine source image dimensions');
+      const meta = await sharp(sourceBuffer).metadata();
+      sourceWidth = meta.width ?? sourceWidth ?? null;
+      sourceHeight = meta.height ?? sourceHeight ?? null;
+      if (!sourceWidth || !sourceHeight) {
+        await markError(row.id, 'Could not determine source image dimensions from buffer');
         return;
       }
-      sourceWidth = dims.width;
-      sourceHeight = dims.height;
       await supabaseAdmin
         .from('external_prints')
         .update({
@@ -166,41 +199,57 @@ export async function runExternalPrintPipeline(externalPrintId: string): Promise
     const template = fits;
     const needsUpscale = sourceWidth < template.config.recommendedImageWidthPx;
 
-    // 4. Prepare the print-ready image
-    let printImageUrl = row.source_image_url;
+    // 4. Always rehost source to Supabase — gives us a hotlink-friendly
+    //    URL for both Replicate (upscale) and Gelato to fetch from,
+    //    regardless of the upstream's anti-hotlinking policy.
+    await updateStatus(row.id, 'rendering');
+    const sourceExt = sourceContentType.includes('png') ? 'png' : 'jpg';
+    const sourcePath = `${row.id}/source-${crypto.randomBytes(3).toString('hex')}.${sourceExt}`;
+    await uploadFile('print-ready', sourcePath, sourceBuffer, {
+      contentType: sourceContentType,
+    });
+    let printImageUrl = getPublicUrl('print-ready', sourcePath);
 
     if (needsUpscale) {
       await updateStatus(row.id, 'upscaling');
-      // Pick the smallest scale that meets recommended; saves Replicate cost
+
+      // Real-ESRGAN on Replicate has a GPU memory cap of ~2.1M input
+      // pixels (1448×1448 square). Any larger and the prediction returns
+      // 400. Resize down to fit (preserving aspect) before sending.
+      let upscaleInputUrl = printImageUrl;
+      const MAX_REPLICATE_PIXELS = 2_000_000; // 5% headroom below the documented cap
+      const sourcePixels = sourceWidth * sourceHeight;
+      if (sourcePixels > MAX_REPLICATE_PIXELS) {
+        const ratio = Math.sqrt(MAX_REPLICATE_PIXELS / sourcePixels);
+        const targetWidth = Math.floor(sourceWidth * ratio);
+        const resizedBuffer = await sharp(sourceBuffer).resize(targetWidth).toBuffer();
+        const resizedPath = `${row.id}/replicate-input-${crypto.randomBytes(3).toString('hex')}.png`;
+        await uploadFile('print-ready', resizedPath, resizedBuffer, {
+          contentType: 'image/png',
+        });
+        upscaleInputUrl = getPublicUrl('print-ready', resizedPath);
+      }
+
+      // Pick the smallest scale that meets recommended (saves Replicate cost).
       const scale: 2 | 4 =
         sourceWidth * 2 >= template.config.recommendedImageWidthPx ? 2 : 4;
-      const upscaled = await upscaleImage({
-        imageUrl: row.source_image_url,
-        scale,
-      });
+      const upscaled = await upscaleImage({ imageUrl: upscaleInputUrl, scale });
 
       await updateStatus(row.id, 'rendering');
-      const path = `${row.id}/${template.key}-${crypto.randomBytes(3).toString('hex')}.png`;
-      await uploadFile('print-ready', path, upscaled.buffer, {
+      const upscaledPath = `${row.id}/${template.key}-${crypto.randomBytes(3).toString('hex')}.png`;
+      await uploadFile('print-ready', upscaledPath, upscaled.buffer, {
         contentType: 'image/png',
       });
-      printImageUrl = getPublicUrl('print-ready', path);
-
-      await supabaseAdmin
-        .from('external_prints')
-        .update({
-          print_ready_url: printImageUrl,
-          max_print_size: template.key,
-        })
-        .eq('id', row.id);
-    } else {
-      // Source already big enough; no upload needed. Record the chosen
-      // template for ops visibility.
-      await supabaseAdmin
-        .from('external_prints')
-        .update({ max_print_size: template.key })
-        .eq('id', row.id);
+      printImageUrl = getPublicUrl('print-ready', upscaledPath);
     }
+
+    await supabaseAdmin
+      .from('external_prints')
+      .update({
+        print_ready_url: printImageUrl,
+        max_print_size: template.key,
+      })
+      .eq('id', row.id);
 
     // 5. Create the Gelato product
     await updateStatus(row.id, 'creating_gelato');
