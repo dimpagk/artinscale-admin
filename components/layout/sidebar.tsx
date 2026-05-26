@@ -10,6 +10,7 @@ import {
   ChatCircle,
   PaintBrushHousehold,
   Image,
+  Globe,
   PencilSimpleLine,
   MagicWand,
   Palette,
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   // artist's page rather than as separate sidebar entries.
   { href: '/artists', label: 'Artists', icon: <PaintBrushHousehold size={16} weight="duotone" /> },
   { href: '/artworks', label: 'Artworks', icon: <Image size={16} weight="duotone" /> },
+  { href: '/external-prints', label: 'External Prints', icon: <Globe size={16} weight="duotone" /> },
   { href: '/content', label: 'Content', icon: <PencilSimpleLine size={16} weight="duotone" /> },
   { href: '/art-generator', label: 'AI Art', icon: <MagicWand size={16} weight="duotone" /> },
 ];

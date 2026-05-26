@@ -40,6 +40,18 @@ const STATUS_MAP = {
     published: 'success',
     failed: 'error',
   },
+  external_print: {
+    discovered: 'default',
+    in_progress: 'warning',
+    fetching: 'warning',
+    upscaling: 'warning',
+    rendering: 'warning',
+    creating_gelato: 'warning',
+    creating_shopify: 'warning',
+    shopify_created: 'success',
+    retired: 'secondary',
+    error: 'error',
+  },
 } satisfies Record<string, Record<string, BadgeVariant>>
 
 export type StatusDomain = keyof typeof STATUS_MAP
