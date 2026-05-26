@@ -54,10 +54,13 @@ export const config = {
   //   api/agents/run/                        — cross-app agent triggers
   //                                            (gated by AGENT_TRIGGER_TOKEN)
   //   api/email/send-approved                — same Bearer-gated trigger pattern
+  //   api/external/                          — cross-app on-demand print pipeline
+  //                                            (gated by AGENT_TRIGGER_TOKEN
+  //                                            inside the route)
   //
   // Everything else (including the rest of /api/*) requires an admin
   // session via the supabase middleware.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|auth/callback|api/cron/|api/agents/run/|api/email/send-approved).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|api/cron/|api/agents/run/|api/email/send-approved|api/external/).*)',
   ],
 };
