@@ -126,6 +126,13 @@ export async function applyListedState(args: {
   shopifyHandle: string;
   shopifyProductId: string | null;
   triggerKind?: 'manual' | 'event';
+  /**
+   * Await the mockup pipeline instead of firing it in the background.
+   * The reconcile cron sets this so mockups reliably land — a
+   * fire-and-forget promise would be killed when the cron function
+   * returns (same class of bug as the old auto-publisher).
+   */
+  awaitMockups?: boolean;
 }): Promise<ApplyListedStateResult> {
   const { artworkId, shopifyHandle, shopifyProductId } = args;
 
@@ -172,7 +179,8 @@ export async function applyListedState(args: {
     console.warn(`[post-create-publisher] sync warnings for ${shopifyHandle}:`, sync.warnings);
   }
 
-  // Fire mockup pipeline in background
+  // Mockup pipeline — awaited when the caller needs it to reliably land
+  // (cron), fire-and-forget otherwise (interactive push returns fast).
   let mockupTaskId: string | null = null;
   try {
     const task = await startAgentTask({
@@ -183,7 +191,7 @@ export async function applyListedState(args: {
     });
     if (task) {
       mockupTaskId = task.id;
-      void pushArtworkMockupsToShopify(artworkId)
+      const run = pushArtworkMockupsToShopify(artworkId)
         .then((result) =>
           finishAgentTask(task.id, {
             status: result.ok ? 'succeeded' : 'failed',
@@ -197,6 +205,7 @@ export async function applyListedState(args: {
             error: err instanceof Error ? err.message : String(err),
           })
         );
+      if (args.awaitMockups) await run;
     }
   } catch (err) {
     console.error('mockup publisher trigger failed (non-fatal):', err);
@@ -244,8 +253,9 @@ export interface AutoPublishResult {
 export async function autoPublishArtworkAfterGelatoCreate(args: {
   artworkId: string;
   pollTimeoutMs?: number;
+  awaitMockups?: boolean;
 }): Promise<AutoPublishResult> {
-  const { artworkId, pollTimeoutMs } = args;
+  const { artworkId, pollTimeoutMs, awaitMockups } = args;
 
   const artwork = await getArtworkById(artworkId);
   if (!artwork) throw new Error('Artwork not found');
@@ -265,6 +275,7 @@ export async function autoPublishArtworkAfterGelatoCreate(args: {
       shopifyHandle: artwork.shopify_handle,
       shopifyProductId: artwork.shopify_product_id ?? null,
       triggerKind: 'event',
+      awaitMockups,
     });
     return {
       artworkId,
@@ -307,6 +318,7 @@ export async function autoPublishArtworkAfterGelatoCreate(args: {
     shopifyHandle: gelato.handle,
     shopifyProductId,
     triggerKind: 'event',
+    awaitMockups,
   });
 
   return {
@@ -315,4 +327,58 @@ export async function autoPublishArtworkAfterGelatoCreate(args: {
     gelato,
     applied,
   };
+}
+
+/**
+ * Reconcile cron: complete the listing for every artwork that was
+ * pushed to Gelato but hasn't gone live yet. This is the reliable
+ * replacement for the fire-and-forget auto-publisher — Gelato's
+ * background variant/mockup/publish takes minutes to HOURS, so we can't
+ * await it inside the push request. Instead, `pushToGelatoAction` just
+ * creates the Gelato product, and this cron (every ~15 min) picks up
+ * each pending piece once Gelato has published it to Shopify and runs
+ * the full `applyListedState` chain: price, tags, body, dimensions +
+ * edition metafields, all sales channels (incl. Artinscale Headless),
+ * the 5-image mockup set, and status → listed.
+ *
+ * Idempotent and self-limiting: only touches artworks with a
+ * gelato_product_id still in `created` status; a piece that Gelato
+ * hasn't finished publishing yet is left for the next run.
+ */
+export async function reconcilePendingListings(
+  opts: { limit?: number } = {}
+): Promise<{
+  checked: number;
+  results: Array<{ artworkId: string; title: string; status: string; message?: string }>;
+}> {
+  const limit = opts.limit ?? 5;
+  const { data: pending } = await supabaseAdmin
+    .from('artworks')
+    .select('id, title')
+    .not('gelato_product_id', 'is', null)
+    .eq('status', 'created')
+    .order('created_at', { ascending: true })
+    .limit(limit);
+
+  const results: Array<{ artworkId: string; title: string; status: string; message?: string }> = [];
+  for (const a of pending ?? []) {
+    try {
+      // Short poll — one quick check. If Gelato hasn't published yet,
+      // this returns 'timeout' and we retry the piece next run.
+      const r = await autoPublishArtworkAfterGelatoCreate({
+        artworkId: a.id,
+        pollTimeoutMs: 8000,
+        awaitMockups: true,
+      });
+      results.push({ artworkId: a.id, title: a.title, status: r.status, message: r.message });
+    } catch (err) {
+      results.push({
+        artworkId: a.id,
+        title: a.title,
+        status: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return { checked: pending?.length ?? 0, results };
 }

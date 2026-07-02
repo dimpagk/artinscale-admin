@@ -5,6 +5,7 @@ import { runInsightAgent } from '@/lib/agents/insight-agent'
 import { runPostingWorker } from '@/lib/publishers/posting-worker'
 import { runTopicStatusUpdater } from '@/lib/topic-status-updater'
 import { runOrderSync } from '@/lib/orders'
+import { reconcilePendingListings } from '@/lib/post-create-publisher'
 
 /**
  * GET-callable scheduled triggers.
@@ -88,6 +89,12 @@ async function runScheduled(name: string): Promise<unknown> {
       return runTopicStatusUpdater()
     case 'order_sync':
       return runOrderSync()
+    case 'finalize_listings':
+      // Complete the Shopify listing (price, metafields, all channels,
+      // mockups, status→listed) for artworks Gelato has finished
+      // publishing. The reliable replacement for the fire-and-forget
+      // auto-publisher.
+      return reconcilePendingListings()
     default:
       throw new Error(`Unknown scheduled job: ${name}`)
   }
