@@ -94,9 +94,7 @@ export function buildProductCopy(input: ProductCopyInput): ProductCopyOutput {
   // last, all enclosed in a single <p>. The "Artwork details:"
   // header is the first inner span. Edition is intentionally NOT
   // rendered — the canonical format leaves it to Shopify inventory.
-  const dimMetric = cfg ? `${cfg.widthCm}x${cfg.heightCm} cm` : null;
-  const dimImperial = cfg ? cmToInches(cfg.widthCm, cfg.heightCm) : null;
-  const dimensions = dimMetric && dimImperial ? `${dimMetric} / ${dimImperial}″` : dimMetric ?? '';
+  const dimensions = formatDimensions(cfg);
   const style = input.style?.trim() || null;
 
   const detailLines: Array<{ label: string; value: string } | { header: string }> = [
@@ -166,6 +164,20 @@ export function buildProductCopy(input: ProductCopyInput): ProductCopyOutput {
     variantTitle,
     seoTitle,
   };
+}
+
+/**
+ * Print dimensions string — `40x60 cm / 16x24″` (metric / imperial).
+ * Single source of truth shared by the description's "Dimensions:" line
+ * and the storefront-facing `custom.dimensions` metafield. Returns an
+ * empty string when there's no resolved size, so callers can skip the
+ * line/metafield entirely.
+ */
+export function formatDimensions(cfg: GelatoTemplateConfig | null): string {
+  if (!cfg) return '';
+  const metric = `${cfg.widthCm}x${cfg.heightCm} cm`;
+  const imperial = cmToInches(cfg.widthCm, cfg.heightCm);
+  return `${metric} / ${imperial}″`;
 }
 
 /**

@@ -27,6 +27,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   buildProductCopy,
+  formatDimensions,
 } from '@/lib/product-copy';
 import { getTemplateConfig } from '@/lib/gelato-templates';
 import {
@@ -46,6 +47,16 @@ import {
   updateGelatoVariantPrice,
 } from '@/lib/gelato';
 import { EMPTY_LISTING_META, type ListingMeta } from '@/lib/types';
+
+/**
+ * Community artworks default to a 50x70 print. When an artwork has no
+ * explicit `product_type` (older community pieces never had a size
+ * assigned), we still surface a dimension on the storefront by falling
+ * back to this size for the `custom.dimensions` metafield. Scoped to
+ * the dimensions metafield only — it does NOT change the Gelato order,
+ * the size tags, or the description body.
+ */
+const DEFAULT_COMMUNITY_PRODUCT_TYPE = 'museum-poster-50x70';
 
 export interface ListingSyncStep {
   name: string;
@@ -345,6 +356,21 @@ export async function syncArtworkToShopify(
         // hasn't sanitized for public display.
         value: artist?.bio ? artist.bio.trim().split(/\n\s*\n/)[0]?.trim().slice(0, 400) ?? null : null,
         type: 'multi_line_text_field',
+      },
+      {
+        slot: 'dimensions',
+        namespace: 'custom',
+        key: 'dimensions',
+        // Print size resolved from the artwork's Gelato template, e.g.
+        // "30x40 cm / 12x16″". Same string that feeds the description's
+        // Dimensions line — kept as its own metafield so the storefront
+        // can render it reliably even for products whose description
+        // predates the Dimensions line. Community pieces with no
+        // explicit size fall back to the default 50x70 print.
+        value:
+          formatDimensions(productConfig ?? getTemplateConfig(DEFAULT_COMMUNITY_PRODUCT_TYPE)) ||
+          null,
+        type: 'single_line_text_field',
       },
     ];
 
