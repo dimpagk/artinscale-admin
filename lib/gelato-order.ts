@@ -157,6 +157,18 @@ export interface GelatoOrderSummary {
   previewUrl: string | null;
   /** First tracking URL, once shipped. */
   trackingUrl: string | null;
+  /** Customer + shipping, used to backfill rows when Shopify redacts PII. */
+  customerName: string | null;
+  customerEmail: string | null;
+  shipping: {
+    name: string | null;
+    address1: string | null;
+    address2: string | null;
+    city: string | null;
+    zip: string | null;
+    province: string | null;
+    country_code: string | null;
+  } | null;
 }
 
 interface RawGelatoOrder {
@@ -174,6 +186,17 @@ interface RawGelatoOrder {
   }>;
   shipment?: { trackingUrl?: string } | null;
   shipments?: Array<{ trackingUrl?: string }>;
+  shippingAddress?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    postCode?: string | null;
+    state?: string | null;
+    country?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 function extractExternalOrderId(raw: RawGelatoOrder): string | null {
@@ -195,6 +218,22 @@ export function normalizeGelatoOrder(raw: RawGelatoOrder): GelatoOrderSummary {
     null;
   const trackingUrl = raw.shipment?.trackingUrl ?? raw.shipments?.[0]?.trackingUrl ?? null;
 
+  const sa = raw.shippingAddress ?? null;
+  const customerName = sa
+    ? [sa.firstName, sa.lastName].filter(Boolean).join(' ').trim() || null
+    : null;
+  const shipping = sa
+    ? {
+        name: customerName,
+        address1: sa.addressLine1 ?? null,
+        address2: sa.addressLine2 ?? null,
+        city: sa.city ?? null,
+        zip: sa.postCode ?? null,
+        province: sa.state ?? null,
+        country_code: sa.country ?? null,
+      }
+    : null;
+
   return {
     id: raw.id ?? '',
     orderReferenceId: raw.orderReferenceId ?? null,
@@ -206,6 +245,9 @@ export function normalizeGelatoOrder(raw: RawGelatoOrder): GelatoOrderSummary {
     itemCost,
     previewUrl,
     trackingUrl,
+    customerName,
+    customerEmail: sa?.email ?? null,
+    shipping,
   };
 }
 
@@ -241,6 +283,24 @@ export async function searchGelatoOrders(limit = 100): Promise<GelatoOrderSummar
   }
   const body = (await res.json()) as { orders?: RawGelatoOrder[] };
   return (body.orders ?? []).map(normalizeGelatoOrder);
+}
+
+/**
+ * Search then fetch full detail for each order. The search endpoint
+ * returns a light projection that omits metadata (external id), items
+ * (cost/preview) and the shipping address, so the reconcile needs the
+ * per-order GET to match rows and backfill. One extra call per order,
+ * fine at our volume.
+ */
+export async function listGelatoOrdersDetailed(limit = 100): Promise<GelatoOrderSummary[]> {
+  const summaries = await searchGelatoOrders(limit);
+  const detailed: GelatoOrderSummary[] = [];
+  for (const s of summaries) {
+    if (!s.id) continue;
+    const full = await getGelatoOrder(s.id);
+    if (full) detailed.push(full);
+  }
+  return detailed;
 }
 
 /**

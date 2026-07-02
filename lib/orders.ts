@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   getGelatoOrder,
-  searchGelatoOrders,
+  listGelatoOrdersDetailed,
   type GelatoOrderSummary,
 } from '@/lib/gelato-order';
 
@@ -190,23 +190,35 @@ function mapShopifyOrder(o: ShopifyOrderInput): Record<string, unknown> {
       }
     : null;
 
-  return {
+  const row: Record<string, unknown> = {
     shopify_order_id: String(o.id ?? ''),
     shopify_order_number: o.order_number != null ? String(o.order_number) : null,
     name: o.name ?? (o.order_number != null ? `#${o.order_number}` : null),
-    customer_name: customerName,
-    customer_email: o.email ?? o.customer?.email ?? null,
     currency: o.currency ?? 'EUR',
     subtotal_price: num(o.subtotal_price ?? null),
     shipping_price: shippingPrice(o),
     total_price: num(o.total_price ?? null),
     financial_status: o.financial_status ?? null,
     shopify_fulfillment_status: o.fulfillment_status ?? null,
-    shipping_address: shippingAddress,
     line_items: lineItems,
     placed_at: o.created_at ?? null,
     updated_at: new Date().toISOString(),
   };
+
+  // Only write PII when Shopify actually returned it. The Admin token
+  // redacts customer data without the protected-customer-data scope, and
+  // the reconcile runs on every sync: if we wrote nulls here we would
+  // clobber the name/address that syncGelatoStatuses backfilled from
+  // Gelato (which it stops doing once an order ships). Omitting the keys
+  // leaves any existing value untouched on upsert.
+  const customerEmail = o.email ?? o.customer?.email ?? null;
+  if (customerName) row.customer_name = customerName;
+  if (customerEmail) row.customer_email = customerEmail;
+  if (shippingAddress && (shippingAddress.address1 || shippingAddress.city)) {
+    row.shipping_address = shippingAddress;
+  }
+
+  return row;
 }
 
 export async function upsertOrderFromShopify(
@@ -229,23 +241,34 @@ export async function upsertOrderFromShopify(
   return { ok: true, id: (data as { id: string }).id };
 }
 
-async function applyGelatoToOrder(shopifyOrderId: string, g: GelatoOrderSummary): Promise<void> {
+async function applyGelatoToOrder(order: OrderRow, g: GelatoOrderSummary): Promise<void> {
+  const update: Record<string, unknown> = {
+    gelato_order_id: g.id,
+    gelato_reference_id: g.orderReferenceId,
+    gelato_order_type: g.orderType,
+    gelato_fulfillment_status: g.fulfillmentStatus,
+    gelato_financial_status: g.financialStatus,
+    gelato_item_cost: g.itemCost,
+    gelato_preview_url: g.previewUrl,
+    gelato_tracking_url: g.trackingUrl,
+    gelato_synced_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  // Shopify's Admin API redacts customer PII unless the token has the
+  // protected-customer-data scope, so name/email/address come back null.
+  // Gelato has the real shipping details, so backfill from there when the
+  // row is missing them.
+  if (!order.customer_name && g.customerName) update.customer_name = g.customerName;
+  if (!order.customer_email && g.customerEmail) update.customer_email = g.customerEmail;
+  const hasShip = order.shipping_address?.address1 || order.shipping_address?.city;
+  if (!hasShip && g.shipping) update.shipping_address = g.shipping;
+
   const { error } = await supabaseAdmin
     .from('orders')
-    .update({
-      gelato_order_id: g.id,
-      gelato_reference_id: g.orderReferenceId,
-      gelato_order_type: g.orderType,
-      gelato_fulfillment_status: g.fulfillmentStatus,
-      gelato_financial_status: g.financialStatus,
-      gelato_item_cost: g.itemCost,
-      gelato_preview_url: g.previewUrl,
-      gelato_tracking_url: g.trackingUrl,
-      gelato_synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('shopify_order_id', shopifyOrderId);
-  if (error) console.error(`applyGelatoToOrder(${shopifyOrderId}) failed:`, error);
+    .update(update)
+    .eq('shopify_order_id', order.shopify_order_id);
+  if (error) console.error(`applyGelatoToOrder(${order.shopify_order_id}) failed:`, error);
 }
 
 /** Refresh a single order's Gelato status (used after an approve). */
@@ -253,7 +276,7 @@ export async function refreshOrderGelatoStatus(orderId: string): Promise<void> {
   const order = await getOrderById(orderId);
   if (!order?.gelato_order_id) return;
   const g = await getGelatoOrder(order.gelato_order_id);
-  if (g) await applyGelatoToOrder(order.shopify_order_id, g);
+  if (g) await applyGelatoToOrder(order, g);
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -290,7 +313,7 @@ async function reconcileRecentShopifyOrders(limit = 50): Promise<number> {
  * status/cost/preview across. One search call covers all recent orders.
  */
 async function syncGelatoStatuses(): Promise<number> {
-  const gelatoOrders = await searchGelatoOrders(100);
+  const gelatoOrders = await listGelatoOrdersDetailed(100);
   const byExternalId = new Map<string, GelatoOrderSummary>();
   for (const g of gelatoOrders) {
     if (g.externalOrderId) byExternalId.set(String(g.externalOrderId), g);
@@ -306,7 +329,7 @@ async function syncGelatoStatuses(): Promise<number> {
     }
     const g = byExternalId.get(o.shopify_order_id);
     if (!g) continue;
-    await applyGelatoToOrder(o.shopify_order_id, g);
+    await applyGelatoToOrder(o, g);
     count++;
   }
   return count;
