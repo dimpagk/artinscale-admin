@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/admin-ui';
+import { cn } from '@/lib/utils';
 import {
   getPrintSizePricing,
   getPricingFinance,
@@ -9,6 +11,7 @@ import {
   type PricingFinance,
   type PricingCampaign,
 } from '@/lib/pricing';
+import { getArtworkEconomics, type ArtworkEconomics } from '@/lib/costs/economics';
 import {
   updatePriceAction,
   createCampaignAction,
@@ -16,8 +19,10 @@ import {
   revertCampaignAction,
 } from './actions';
 
-// Classics pricing is operator-editable and margin-aware; never cache it.
+// Pricing is operator-editable and margin-aware; never cache it.
 export const dynamic = 'force-dynamic';
+
+type Tab = 'classics' | 'originals';
 
 function marginColor(pct: number | null): string {
   if (pct == null) return 'text-gray-400';
@@ -30,7 +35,53 @@ function fmtPct(pct: number | null): string {
   return pct == null ? '—' : `${pct.toFixed(0)}%`;
 }
 
-export default async function PricingPage() {
+function eur(n: number | null | undefined): string {
+  return n == null ? '—' : `€${Number(n).toFixed(2)}`;
+}
+
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const activeTab: Tab = tab === 'originals' ? 'originals' : 'classics';
+
+  return (
+    <div>
+      <PageHeader
+        title="Pricing"
+        description="Classics (public-domain print) prices are edited here; originals show read-only unit economics (edit per-piece in Shopify for now)."
+      />
+
+      <div className="mb-6 flex gap-1 border-b border-gray-200">
+        {(
+          [
+            { key: 'classics', label: 'Classics' },
+            { key: 'originals', label: 'Originals' },
+          ] as const
+        ).map((t) => (
+          <Link
+            key={t.key}
+            href={`/pricing?tab=${t.key}`}
+            className={cn(
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === t.key
+                ? 'border-gray-900 text-gray-900'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            )}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
+      {activeTab === 'classics' ? <ClassicsView /> : <OriginalsView />}
+    </div>
+  );
+}
+
+async function ClassicsView() {
   const [{ rows, source }, finance, campaigns] = await Promise.all([
     getPrintSizePricing(),
     getPricingFinance(),
@@ -40,11 +91,6 @@ export default async function PricingPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Pricing"
-        description="Classics (public-domain print) prices. One row per ship size — edit a price and it applies to new pieces and reprices existing listings. Originals are priced per piece in Shopify and reviewed separately."
-      />
-
       {active && (
         <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
           <strong>Sale live:</strong> “{active.name}” — {active.discount_percent}% off all
@@ -275,6 +321,82 @@ function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFin
       <td className={`px-4 py-3 tabular-nums ${marginColor(margin20)}`}>{fmtPct(margin20)}</td>
       <td className="px-4 py-3 text-right text-xs text-gray-400">
         {row.cost_source === 'estimated' ? 'cost estimated' : ''}
+      </td>
+    </tr>
+  );
+}
+
+async function OriginalsView() {
+  const [rows, finance] = await Promise.all([getArtworkEconomics(), getPricingFinance()]);
+
+  return (
+    <div>
+      <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        Read-only. Originals are priced per piece in Shopify; this surfaces their unit economics
+        from cost tracking. Net margin/unit uses the same VAT {finance.vatPercent}% + fee{' '}
+        {finance.paymentFeePercent}% assumptions as Classics. Creation cost is one-time and shown
+        separately (amortised over units sold to date).
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500">
+          No originals economics yet. If you expected data, run{' '}
+          <code className="rounded bg-gray-100 px-1">sql/030_cost_tracking.sql</code> in Supabase
+          (creates the <code>artwork_economics</code> view) and make sure pieces have a synced
+          production cost.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-4 py-3 font-medium">Piece</th>
+                <th className="px-4 py-3 font-medium">Price</th>
+                <th className="px-4 py-3 font-medium">Prod. cost</th>
+                <th className="px-4 py-3 font-medium">Net margin/unit</th>
+                <th className="px-4 py-3 font-medium">Creation</th>
+                <th className="px-4 py-3 font-medium">Amort./unit</th>
+                <th className="px-4 py-3 font-medium">Sold</th>
+                <th className="px-4 py-3 font-medium">Recouped</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((a) => (
+                <OriginalsRow key={a.id} a={a} finance={finance} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OriginalsRow({ a, finance }: { a: ArtworkEconomics; finance: PricingFinance }) {
+  const net = a.price != null ? netMarginPct(a.price, a.unit_production_cost, finance) : null;
+  return (
+    <tr className="hover:bg-gray-50/50">
+      <td className="px-4 py-3">
+        <p className="truncate font-medium text-gray-900">{a.title}</p>
+        <p className="text-xs text-gray-400">
+          {a.creation_source}
+          {a.status ? ` · ${a.status}` : ''}
+        </p>
+      </td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.price)}</td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.unit_production_cost)}</td>
+      <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(net)}`}>{fmtPct(net)}</td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.creation_cost)}</td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.amortized_creation_per_unit)}</td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{a.units_sold}</td>
+      <td className="px-4 py-3">
+        {a.creation_recouped == null ? (
+          <span className="text-gray-400">—</span>
+        ) : a.creation_recouped ? (
+          <span className="text-green-700">yes</span>
+        ) : (
+          <span className="text-amber-700">not yet</span>
+        )}
       </td>
     </tr>
   );
