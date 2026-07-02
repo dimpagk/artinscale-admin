@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { FormCard, FormGrid } from '@/components/admin-ui'
+import { ReferenceImages } from '@/components/styles/reference-images'
 import type { StylePack } from '@/lib/style-packs'
 import { updateStylePackAction } from './actions'
 
@@ -245,6 +246,11 @@ export function StylePackForm({ pack }: StylePackFormProps) {
           )}
         </div>
       </FormCard>
+
+      <ReferenceImages
+        packId={pack.id}
+        initialPaths={pack.referenceAssetPaths ?? []}
+      />
 
       <FormCard title="Composition">
         <FormGrid columns={2}>
