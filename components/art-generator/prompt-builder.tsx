@@ -69,6 +69,15 @@ interface PromptBuilderProps {
    * parent when a topic context is available. A typed subject still wins.
    */
   allowEmptySubject?: boolean
+  /**
+   * Optional controlled-input pattern for the artist (style pack) select,
+   * mirroring `value`/`onChange` for the prompt. Lets the parent sync the
+   * selected artist when the operator picks an image from the gallery, so
+   * the compose panel matches the image being viewed. Falls back to
+   * internal state when omitted.
+   */
+  stylePackId?: string
+  onStylePackIdChange?: (next: string) => void
 }
 
 export function PromptBuilder({
@@ -77,12 +86,20 @@ export function PromptBuilder({
   value,
   onChange,
   allowEmptySubject = false,
+  stylePackId: stylePackIdProp,
+  onStylePackIdChange,
 }: PromptBuilderProps) {
   const isControlled = value !== undefined && onChange !== undefined
   const [internalPrompt, setInternalPrompt] = useState('')
   const prompt = isControlled ? value : internalPrompt
   const setPrompt = isControlled ? onChange : setInternalPrompt
-  const [stylePackId, setStylePackId] = useState<string>('')
+  const isStyleControlled =
+    stylePackIdProp !== undefined && onStylePackIdChange !== undefined
+  const [internalStylePackId, setInternalStylePackId] = useState<string>('')
+  const stylePackId = isStyleControlled ? stylePackIdProp : internalStylePackId
+  const setStylePackId = isStyleControlled
+    ? onStylePackIdChange
+    : setInternalStylePackId
   const [style, setStyle] = useState<string>('')
   const [medium, setMedium] = useState<string>('')
   const [mood, setMood] = useState<string>('')
@@ -178,15 +195,15 @@ export function PromptBuilder({
       <Select
         label="Engine"
         options={[
-          { value: 'gemini', label: 'Image — Gemini 2.5 (raster)' },
-          { value: 'claude_vector', label: 'Vector — Claude (native SVG)' },
+          { value: 'gemini', label: 'Image - Gemini raster (Nano Banana)' },
+          { value: 'claude_vector', label: 'Vector - Claude (native SVG)' },
         ]}
         value={engine}
         onChange={(e) => setEngine(e.target.value as GeneratorEngine)}
         helperText={
           isVector
             ? 'Claude writes SVG directly. Best for Bauhaus + line-art. Requires a style pack. Slower per call (~30s) but produces native vectors.'
-            : 'Gemini Nano Banana 2 — raster. Fast (~10s). Vectorize after, if needed.'
+            : 'Raster image via the Nano Banana model picked in Model below. Vectorize after, if needed.'
         }
       />
 

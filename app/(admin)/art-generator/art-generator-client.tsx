@@ -36,6 +36,9 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
   // PromptBuilder is now a controlled input — see its `value` +
   // `onChange` props below.
   const [promptValue, setPromptValue] = useState('')
+  // Selected artist (style pack) for the compose panel. Lifted so picking
+  // an image from the gallery can sync the panel to that image's artist.
+  const [selectedStylePackId, setSelectedStylePackId] = useState('')
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null)
   // Tracks the most recent batch of generated images so the UI can
   // show them side-by-side for comparison (Tier 2 #5). Cleared on each
@@ -275,6 +278,12 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
     setCurrentImage(image)
     setEditMode(false)
     setActiveTab('generate')
+    // Sync the compose panel to the picked image so the artist + subject
+    // shown match what actually made it (and become the starting point for
+    // the next generation).
+    const meta = image.metadata as Record<string, unknown> | null
+    setSelectedStylePackId((meta?.stylePackId as string | undefined) ?? '')
+    setPromptValue(image.prompt)
   }
 
   return (
@@ -304,6 +313,8 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
                     value={promptValue}
                     onChange={setPromptValue}
                     allowEmptySubject={!!contributionContext.trim()}
+                    stylePackId={selectedStylePackId}
+                    onStylePackIdChange={setSelectedStylePackId}
                   />
                   <TopicContextPicker
                     topics={topics}
