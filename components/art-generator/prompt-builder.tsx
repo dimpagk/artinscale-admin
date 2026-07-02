@@ -63,9 +63,21 @@ interface PromptBuilderProps {
    */
   value?: string
   onChange?: (next: string) => void
+  /**
+   * When true, the subject may be left blank; the parent will derive one
+   * from the selected topic's contributions at generate time. Set by the
+   * parent when a topic context is available. A typed subject still wins.
+   */
+  allowEmptySubject?: boolean
 }
 
-export function PromptBuilder({ onGenerate, loading, value, onChange }: PromptBuilderProps) {
+export function PromptBuilder({
+  onGenerate,
+  loading,
+  value,
+  onChange,
+  allowEmptySubject = false,
+}: PromptBuilderProps) {
   const isControlled = value !== undefined && onChange !== undefined
   const [internalPrompt, setInternalPrompt] = useState('')
   const prompt = isControlled ? value : internalPrompt
@@ -103,8 +115,10 @@ export function PromptBuilder({ onGenerate, loading, value, onChange }: PromptBu
   const isVector = engine === 'claude_vector'
   const canGenerate = stylePackActive || !isVector
 
+  const emptySubjectOk = allowEmptySubject && !prompt.trim()
+
   const handleGenerate = () => {
-    if (!prompt.trim()) return
+    if (!prompt.trim() && !allowEmptySubject) return
 
     const params: GenerateParams = {
       prompt: prompt.trim(),
@@ -200,7 +214,12 @@ export function PromptBuilder({ onGenerate, loading, value, onChange }: PromptBu
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         rows={4}
-        required
+        required={!allowEmptySubject}
+        helperText={
+          allowEmptySubject
+            ? 'Optional: leave blank to auto-derive a subject from the selected topic. Type one to take control.'
+            : undefined
+        }
       />
 
       {/* Vector mode hides the structured presets entirely — they're
@@ -281,11 +300,15 @@ export function PromptBuilder({ onGenerate, loading, value, onChange }: PromptBu
         className="w-full"
         onClick={handleGenerate}
         loading={loading}
-        disabled={!prompt.trim() || !canGenerate}
+        disabled={(!prompt.trim() && !allowEmptySubject) || !canGenerate}
         icon={<MagicWand size={18} weight="bold" />}
       >
         {!canGenerate
           ? 'Pick a style pack first'
+          : emptySubjectOk
+          ? Number(count) > 1
+            ? `Generate ${count} from topic`
+            : 'Generate from topic'
           : isVector
           ? Number(count) > 1
             ? `Generate ${count} vector variations`

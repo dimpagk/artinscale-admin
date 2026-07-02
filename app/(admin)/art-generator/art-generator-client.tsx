@@ -10,7 +10,7 @@ import { ArtStudio } from '@/components/art-generator/art-studio'
 import { ImageGallery } from '@/components/art-generator/image-gallery'
 import type { GeneratedImage, GenerateParams } from '@/lib/constants/art-generator'
 import type { TopicRow } from '@/lib/types'
-import { getArtistIdForStylePack } from '@/lib/style-packs'
+import { getArtistIdForStylePack, listLaunchStylePacks } from '@/lib/style-packs'
 
 interface ArtGeneratorClientProps {
   initialImages: GeneratedImage[]
@@ -151,6 +151,55 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
    * stream into the gallery as each one finishes so the operator can
    * see progress.
    */
+  /**
+   * When the operator leaves the subject blank, derive one from the
+   * selected topic's contribution context. Runs once per batch (not per
+   * variation) so all variations share the same subject, and the derived
+   * value is pushed back into the visible field. Returns null if it can't
+   * be resolved (caller aborts the batch).
+   */
+  const resolveSubject = async (
+    params: GenerateParams
+  ): Promise<GenerateParams | null> => {
+    if (params.prompt?.trim()) return params
+
+    if (!contributionContext.trim()) {
+      window.alert(
+        'Enter a subject, or pick a topic with approved contributions to auto-derive one.'
+      )
+      return null
+    }
+
+    const artistTagline = params.stylePackId
+      ? listLaunchStylePacks().find((p) => p.id === params.stylePackId)?.persona
+          .tagline ?? null
+      : null
+
+    try {
+      const res = await fetch('/api/art-generator/suggest-subject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contributionContext, artistTagline }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Subject derivation failed (${res.status})`)
+      }
+      const { subject } = (await res.json()) as { subject?: string }
+      if (!subject?.trim()) throw new Error('No subject returned')
+      setPromptValue(subject)
+      return { ...params, prompt: subject }
+    } catch (err) {
+      console.error('Subject derivation failed:', err)
+      window.alert(
+        err instanceof Error
+          ? `Could not derive a subject: ${err.message}. Type one instead.`
+          : 'Could not derive a subject. Type one instead.'
+      )
+      return null
+    }
+  }
+
   const handleGenerate = async (
     params: GenerateParams,
     opts?: { count?: number }
@@ -160,9 +209,12 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
     setBatchProgress(count > 1 ? { done: 0, total: count } : null)
     setRecentBatch([])
     try {
+      const resolved = await resolveSubject(params)
+      if (!resolved) return
+
       for (let i = 0; i < count; i++) {
         try {
-          const generated = await generateOne(params)
+          const generated = await generateOne(resolved)
           setCurrentImage(generated)
           setImages((prev) => [generated, ...prev])
           setRecentBatch((prev) => [...prev, generated])
@@ -251,6 +303,7 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
                     loading={loading}
                     value={promptValue}
                     onChange={setPromptValue}
+                    allowEmptySubject={!!contributionContext.trim()}
                   />
                   <TopicContextPicker
                     topics={topics}
