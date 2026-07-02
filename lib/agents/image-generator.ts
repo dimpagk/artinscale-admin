@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { uploadFile, getPublicUrl } from '@/lib/storage';
 
 const GEMINI_MODEL = 'gemini-2.5-flash-image';
@@ -40,13 +40,13 @@ export async function generatePhotoForCaption(
   let imageBase64: string;
   let mimeType = 'image/png';
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const result = await model.generateContent({
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
       contents: [{ role: 'user', parts: [{ text: buildPrompt(args) }] }],
     });
-    const part = result.response.candidates?.[0]?.content?.parts?.find(
-      (p: { inlineData?: { data: string; mimeType: string } }) => p.inlineData
+    const part = response.candidates?.[0]?.content?.parts?.find(
+      (p) => p.inlineData
     );
     if (!part?.inlineData?.data) {
       return { error: 'Gemini returned no image data' };

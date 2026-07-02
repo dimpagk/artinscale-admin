@@ -26,7 +26,7 @@
 
 import crypto from 'node:crypto';
 import sharp from 'sharp';
-import { GoogleGenerativeAI, type Part } from '@google/generative-ai';
+import { GoogleGenAI, type Part } from '@google/genai';
 import { supabaseAdmin } from './supabase/admin';
 import { getTemplateConfig, type RoomType } from './gelato-templates';
 import {
@@ -270,8 +270,7 @@ async function geminiImageEdit(args: GeminiEditArgs): Promise<Buffer> {
   if (!GEMINI_API_KEY) {
     throw new Error('GOOGLE_GEMINI_API_KEY missing');
   }
-  const client = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = client.getGenerativeModel({ model: GEMINI_IMAGE_MODEL });
+  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
   const parts: Part[] = [];
   for (const ref of args.referenceImages) {
@@ -281,13 +280,14 @@ async function geminiImageEdit(args: GeminiEditArgs): Promise<Buffer> {
   }
   parts.push({ text: args.prompt });
 
-  const result = await model.generateContent({
+  const response = await ai.models.generateContent({
+    model: GEMINI_IMAGE_MODEL,
     contents: [{ role: 'user', parts }],
   });
 
-  const responseParts = result.response?.candidates?.[0]?.content?.parts ?? [];
+  const responseParts = response.candidates?.[0]?.content?.parts ?? [];
   const imagePart = responseParts.find((p) => p.inlineData);
-  if (!imagePart?.inlineData) {
+  if (!imagePart?.inlineData?.data) {
     throw new Error('Gemini returned no image inlineData');
   }
   return Buffer.from(imagePart.inlineData.data, 'base64');

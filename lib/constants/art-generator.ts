@@ -21,22 +21,51 @@ export const MODEL_OPTIONS = [
     label: 'Nano Banana 2 Lite (Fastest)',
     modelId: 'gemini-3.1-flash-lite-image',
     description: 'Fastest + cheapest. Best for rapid iteration (1K).',
+    // gemini-3.1-flash-lite-image only supports 1K output.
+    maxImageSize: '1K',
   },
   {
     key: 'flash',
     label: 'Nano Banana 2 (Balanced)',
     modelId: 'gemini-3.1-flash-image',
     description: 'Versatile workhorse. Up to 4K.',
+    maxImageSize: '4K',
   },
   {
     key: 'pro',
     label: 'Nano Banana Pro (Quality)',
     modelId: 'gemini-3-pro-image',
     description: 'Premium quality + world knowledge. Up to 4K, slower.',
+    maxImageSize: '4K',
   },
 ] as const
 
 export type ModelKey = (typeof MODEL_OPTIONS)[number]['key']
+
+// Gemini's imageConfig.aspectRatio only accepts a fixed set of ratios
+// ("1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"). Our
+// poster aspect keys include 7:10 and 5:7, which Gemini rejects — map
+// each to the nearest supported ratio. The small mismatch is absorbed by
+// the print-time crop to the exact poster aspect.
+const GEMINI_ASPECT_RATIO: Record<string, string> = {
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '2:3': '2:3',
+  '4:5': '4:5',
+  '7:10': '2:3', // 0.700 → 2:3 (0.667) is the closest supported
+  '5:7': '3:4', // 0.714 → 3:4 (0.750) is the closest supported
+}
+
+/** Map a poster aspect key to the nearest Gemini-supported ratio. */
+export function toGeminiAspectRatio(key: string | undefined | null): string {
+  return (key && GEMINI_ASPECT_RATIO[key]) || '1:1'
+}
+
+/** The largest output size a model supports, for imageConfig.imageSize. */
+export function maxImageSizeForModel(modelKey: string | undefined): '1K' | '2K' | '4K' {
+  const opt = MODEL_OPTIONS.find((m) => m.key === modelKey)
+  return (opt?.maxImageSize ?? '1K') as '1K' | '2K' | '4K'
+}
 
 // ============================================
 // Style Presets

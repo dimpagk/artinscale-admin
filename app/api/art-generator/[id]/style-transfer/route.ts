@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 import { uploadFile, getPublicUrl } from '@/lib/storage'
 import {
   getGeneratedImageById,
   createGeneratedImage,
 } from '@/lib/generated-images'
 import { buildStyledPrompt } from '@/lib/style-packs'
-import { MODEL_OPTIONS } from '@/lib/constants/art-generator'
+import { MODEL_OPTIONS, maxImageSizeForModel } from '@/lib/constants/art-generator'
 import { getStylePackAsync } from '@/lib/style-packs/server'
 import { tagVisualContent } from '@/lib/agents/visual-tagger'
 import { checkStyleSimilarity } from '@/lib/agents/style-similarity-check'
@@ -100,10 +100,10 @@ export async function POST(
   const modelId =
     MODEL_OPTIONS.find((m) => m.key === modelKey)?.modelId ??
     MODEL_OPTIONS[0].modelId
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: modelId })
+  const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY! })
 
-  const result = await model.generateContent({
+  const response = await ai.models.generateContent({
+    model: modelId,
     contents: [
       {
         role: 'user',
@@ -113,10 +113,15 @@ export async function POST(
         ],
       },
     ],
+    // Max resolution so the restyled result stays print-grade; no
+    // aspectRatio — the source image's shape is preserved.
+    config: {
+      imageConfig: { imageSize: maxImageSizeForModel(modelKey) },
+    },
   })
 
-  const parts = result.response.candidates?.[0]?.content?.parts ?? []
-  const imagePart = parts.find((p: { inlineData?: { data: string } }) => p.inlineData)
+  const parts = response.candidates?.[0]?.content?.parts ?? []
+  const imagePart = parts.find((p) => p.inlineData)
   if (!imagePart?.inlineData?.data) {
     return NextResponse.json(
       { error: 'Gemini returned no image' },

@@ -21,7 +21,7 @@
  * components/art-generator/clustered-topic-context-picker.tsx.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
@@ -169,18 +169,17 @@ Cluster these into 3–5 thematic groups. JSON only.`;
 
   const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
   if (!apiKey) throw new Error('GOOGLE_GEMINI_API_KEY missing');
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
     model: GEMINI_MODEL,
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: {
+    contents: userPrompt,
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
       responseMimeType: 'application/json',
       temperature: 0.4,
     },
   });
-
-  const result = await model.generateContent(userPrompt);
-  const responseText = result.response.text();
+  const responseText = response.text ?? '';
 
   let parsed: { clusters?: Array<Partial<ContributionCluster>> };
   try {

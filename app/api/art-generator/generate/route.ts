@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 import { uploadFile, getPublicUrl } from '@/lib/storage'
 import { createGeneratedImage } from '@/lib/generated-images'
 import {
   buildFullPrompt,
   MODEL_OPTIONS,
+  maxImageSizeForModel,
+  toGeminiAspectRatio,
   type GenerateParams,
 } from '@/lib/constants/art-generator'
 import { buildStyledPrompt } from '@/lib/style-packs'
@@ -72,29 +74,35 @@ export async function POST(request: Request) {
       }
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
-    const model = genAI.getGenerativeModel({ model: modelOption.modelId })
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY! })
 
     const promptText = referenceParts.length
       ? `Reference images above show the artist's locked visual voice — match palette, line weight, composition discipline, and grain/texture patterns. Then create the new piece.\n\n${fullPrompt}`
       : fullPrompt
 
-    // Note: Gemini 2.5/3.x image models return images via `inlineData`
-    // parts automatically. Do NOT set generationConfig.responseMimeType
-    // to image/png — that field only accepts text/JSON/XML/YAML mimes
-    // and causes a 400 INVALID_ARGUMENT.
-    const result = await model.generateContent({
+    // Generate at the model's max native resolution (4K on pro/flash,
+    // 1K on lite) and the requested portrait aspect, so raster art is
+    // print-grade instead of the old ~1K default. Note: image models
+    // return PNGs via `inlineData` — do NOT set responseMimeType to
+    // image/png (that field only accepts text/JSON/XML/YAML → 400).
+    const response = await ai.models.generateContent({
+      model: modelOption.modelId,
       contents: [
         {
           role: 'user',
           parts: [...referenceParts, { text: promptText }],
         },
       ],
+      config: {
+        imageConfig: {
+          imageSize: maxImageSizeForModel(modelOption.key),
+          aspectRatio: toGeminiAspectRatio(body.aspectRatio),
+        },
+      },
     })
 
-    const response = result.response
     const imagePart = response.candidates?.[0]?.content?.parts?.find(
-      (part: { inlineData?: { data: string; mimeType: string } }) => part.inlineData
+      (part) => part.inlineData
     )
 
     if (!imagePart?.inlineData?.data) {

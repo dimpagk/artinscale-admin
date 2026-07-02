@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 import { uploadFile, getPublicUrl } from '@/lib/storage'
 import {
   getGeneratedImageById,
@@ -10,6 +10,7 @@ import {
 } from '@/lib/generated-images'
 import {
   MODEL_OPTIONS,
+  maxImageSizeForModel,
   type EditParams,
   type EditHistoryEntry,
 } from '@/lib/constants/art-generator'
@@ -38,8 +39,7 @@ export async function POST(request: Request) {
     const modelOption =
       MODEL_OPTIONS.find((m) => m.key === body.model) || MODEL_OPTIONS[0]
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
-    const model = genAI.getGenerativeModel({ model: modelOption.modelId })
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY! })
 
     // When a mask is supplied (Tier 4 #12 — inpainting), prepend it as
     // a second image and tell Gemini to honor it. Without a mask the
@@ -69,18 +69,23 @@ export async function POST(request: Request) {
     }
     firstTurnParts.push({ text: `Original prompt: ${existing.prompt}` })
 
-    const result = await model.generateContent({
+    const response = await ai.models.generateContent({
+      model: modelOption.modelId,
       contents: [
         { role: 'user', parts: firstTurnParts },
         { role: 'user', parts: [{ text: editInstruction }] },
       ],
-      // See note in generate/route.ts — image models return PNGs via
-      // inlineData; setting responseMimeType: 'image/png' causes a 400.
+      // Keep edits at the model's max resolution so iterating doesn't
+      // downgrade print quality. No aspectRatio — preserve the source
+      // image's shape. See note in generate/route.ts — image models
+      // return PNGs via inlineData; responseMimeType 'image/png' 400s.
+      config: {
+        imageConfig: { imageSize: maxImageSizeForModel(modelOption.key) },
+      },
     })
 
-    const response = result.response
     const imagePart = response.candidates?.[0]?.content?.parts?.find(
-      (part: { inlineData?: { data: string; mimeType: string } }) => part.inlineData
+      (part) => part.inlineData
     )
 
     if (!imagePart?.inlineData?.data) {
