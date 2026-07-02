@@ -1,0 +1,29 @@
+{
+  "id": "corfu-gouache",
+  "enabledForLaunch": true,
+  "vectorizesWell": false,
+  "isPrimary": true,
+  "persona": {
+    "name": "Corfu",
+    "tagline": "Warm plaster, Ionian light.",
+    "bioMd": "Corfu works in soft painterly gouache: matte opaque color in a faded Venetian palette, warm plaster and rosso veneziano against deep cypress and Ionian turquoise. Four hundred years of Venice left the island its warmth, and the work carries it.\n\nEach piece stays gentle and unhurried, soft at the edges, with a few overlapping planes and generous open ground. A shuttered window, an arch, a cypress may sit quietly in the scene, never crowding it.",
+    "processMd": "Color is chosen from the warm facades first, then anchored with the deep cypress so the piece has depth rather than muddy mid-tones. A few colors carry each image against open plaster ground; the sea and the rose accent come in only where the composition asks.",
+    "email": "corfu@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a06"
+  },
+  "prompt": {
+    "master": "Soft painterly gouache, matte opaque color, faded Venetian pastel palette, layered foliage and calm sea, warm humid Ionian light, gentle soft-edged shapes, loose brushwork, a few overlapping planes with airy negative space, depth anchored by deep cypress darks against warm mids, a quiet Venetian hint (a shuttered window, an arch, a cypress) used sparingly",
+    "negative": "hard vector edges, high-contrast ink, neon, glossy, photoreal, harsh shadows, muddy mid-tones, busy clutter filling the frame, text, watermark"
+  },
+  "palette": {
+    "colors": ["#F1E2BD", "#AB4A34", "#D79F4C", "#2C4033", "#2E828E", "#CD8A82"],
+    "description": "Warm plaster is the ground and stays mostly open. Venetian red and golden ochre carry the warm facades; deep cypress is the dark anchor for depth; ionian turquoise is the sea; faded rose is a soft accent. Use a few colors per piece against generous plaster ground, not all six at once."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "soft layered planes with airy negative space, subject occupying part of the frame",
+    "maxSubjects": 2,
+    "notes": "Matte gouache with soft edges. Depth from the deep-cypress darks against warm mids. Leave generous plaster ground; a small Venetian element (shutter, arch, cypress) may sit quietly in the scene."
+  },
+  "referenceAssetPaths": []
+}

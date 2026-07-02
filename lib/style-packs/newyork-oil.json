@@ -1,0 +1,29 @@
+{
+  "id": "newyork-oil",
+  "enabledForLaunch": true,
+  "vectorizesWell": false,
+  "isPrimary": true,
+  "persona": {
+    "name": "New York",
+    "tagline": "Cold steel, warm neon.",
+    "bioMd": "New York works in illustrative oil: rich painterly color and visible brushwork with a bold, confident drawn hand. Not a flat print, a painting that still reads graphic.\n\nThe work holds a contradiction. A cold steel-and-concrete city lit by warm and electric neon life, grit and glamour in one frame. Where Amsterdam is soft and quiet, New York runs high-contrast and loud, though it still leaves the frame room to breathe.",
+    "processMd": "Each piece is built from a strong graphic idea, then painted in oil so the neon glows and the concrete has weight. Warm light against cold structure carries the tension; color stays bold but the composition is kept open, never crowded.",
+    "email": "newyork@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a08"
+  },
+  "prompt": {
+    "master": "Illustrative oil painting, rich painterly color with a bold graphic illustrative hand, confident drawn shapes and visible brushwork, a hard steel-and-concrete city lit by warm and electric neon energy, the contradiction of grit and glamour in one frame, high-contrast and dynamic composition, generous negative space",
+    "negative": "flat vector print, thin clean linework, pastel, low energy, photoreal, muddy blending, watercolor, busy clutter filling the frame, text, watermark"
+  },
+  "palette": {
+    "colors": ["#EAE1CC", "#5C6B78", "#14181F", "#E74074", "#26AEC6", "#EDB232"],
+    "description": "Bone highlight is the light; steel blue is the cold structure; ink navy is the dark anchor. Neon magenta, neon cyan, and neon amber are electric light against the cold base. In oil these read as glowing light within a painted scene, not flat blocks. Use the neons sparingly, and keep open ground."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3", "1:1"],
+    "subjectPlacement": "dynamic and off-center with a strong diagonal and open ground",
+    "maxSubjects": 2,
+    "notes": "Bold illustrative oil: painterly brushwork with confident drawn shapes. Warm and electric neon light against cold concrete and steel. Keep energy high but leave open ground; do not fill the frame."
+  },
+  "referenceAssetPaths": []
+}

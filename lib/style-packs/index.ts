@@ -3,6 +3,11 @@ import type { StylePack } from './types';
 import bauhausPrime from './bauhaus-prime.json';
 import linework from './linework-meridian.json';
 import risograph from './risograph-pulse.json';
+import olympiaWash from './olympia-wash.json';
+import athensInk from './athens-ink.json';
+import corfuGouache from './corfu-gouache.json';
+import amsterdamNocturne from './amsterdam-nocturne.json';
+import newyorkOil from './newyork-oil.json';
 
 export type { StylePack } from './types';
 
@@ -21,6 +26,11 @@ export const STYLE_PACKS: Record<string, StylePack> = {
   [risograph.id]: risograph as StylePack,
   [linework.id]: linework as StylePack,
   [bauhausPrime.id]: bauhausPrime as StylePack,
+  [olympiaWash.id]: olympiaWash as StylePack,
+  [athensInk.id]: athensInk as StylePack,
+  [corfuGouache.id]: corfuGouache as StylePack,
+  [amsterdamNocturne.id]: amsterdamNocturne as StylePack,
+  [newyorkOil.id]: newyorkOil as StylePack,
 };
 
 /** Synchronous lookup — JSON only. Use in client components. */

@@ -1,0 +1,29 @@
+{
+  "id": "amsterdam-nocturne",
+  "enabledForLaunch": true,
+  "vectorizesWell": false,
+  "isPrimary": true,
+  "persona": {
+    "name": "Amsterdam",
+    "tagline": "Old canal, new night.",
+    "bioMd": "Amsterdam works in soft painterly oil, a canal nocturne: warm lamplight and window glow reflected on dark water, luminous halos, a gentle dusk haze. The classic city at night.\n\nOver that painterly warmth sits a clean, modern graphic light: crisp glow shapes, refined reflections, and now and then a cool festival-violet accent from a distant stage. The frame stays open, water and sky given room to breathe.",
+    "processMd": "Each piece starts warm and atmospheric, then the light is tightened into clean graphic shapes so the modern and the classic meet in one frame. Color stays disciplined: amber does the warming, deep petrol holds the dark, and the festival accent appears once at most.",
+    "email": "amsterdam@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a07"
+  },
+  "prompt": {
+    "master": "Atmospheric dusk nocturne in soft painterly oil, warm lamplight and window glow reflected on dark canal water, luminous halos and gentle dusk haze in the classic nocturne tradition, combined with clean modern graphic light: crisp geometric light shapes, refined reflections, an occasional cool electric accent from distant festival or stage lights. Classic Amsterdam canal-house forms with modern restraint, deep dusk blues warmed by amber, generous open water and sky",
+    "negative": "flat rustic print, harsh contrast, garish neon, photoreal clutter, daytime flat lighting, muddy blending, busy scenes filling the frame, text, watermark"
+  },
+  "palette": {
+    "colors": ["#F4E6C4", "#EBAD54", "#A65E44", "#3E7B84", "#1B3742", "#7A5AC9"],
+    "description": "A canal nocturne. Deep dusk petrol is the night water and the dark anchor; amber lamplight and cream glow are the warm light; warm brick is the architecture; canal teal carries the reflections. Festival violet is a single cool electric accent, one per piece at most, used as reflected stage light. Keep open water and sky."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3", "1:1"],
+    "subjectPlacement": "calm and off-center, light sources high with their glow reflected below, generous open water and sky",
+    "maxSubjects": 2,
+    "notes": "Painterly oil glow finished with clean modern graphic light shapes. Warm amber light against deep dusk water; one cool festival-violet accent at most. Keep open water and sky; do not fill the frame."
+  },
+  "referenceAssetPaths": []
+}

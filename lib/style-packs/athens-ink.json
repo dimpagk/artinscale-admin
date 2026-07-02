@@ -1,0 +1,29 @@
+{
+  "id": "athens-ink",
+  "enabledForLaunch": true,
+  "vectorizesWell": false,
+  "isPrimary": true,
+  "persona": {
+    "name": "Athens",
+    "tagline": "Old stone, bold ink.",
+    "bioMd": "Athens works in bold graphic ink: flat high-contrast shapes pulled like a screenprint, edged with a loaded brush rather than a clean vector line. One or two colors carry each piece, with a spot of cobalt or sun ochre against marble and anthracite.\n\nThe city sits underneath everything: a fluted column, a cornice, a run of Greek-key meander, dropped in quietly as an anchor, never the whole subject. Shapes stay loose and slightly off-register, and large areas of bare marble ground are left to breathe.",
+    "processMd": "Each piece starts from a single strong silhouette, brushed and then flattened into screenprint ink. A neoclassical fragment is added only if the composition asks for it. Color is rationed: anthracite does the work, one accent at most, never more than three colors, and the frame is left mostly open.",
+    "email": "athens@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a05"
+  },
+  "prompt": {
+    "master": "Bold graphic ink screenprint, high-contrast flat ink shapes, hand-brushed ink edges with a loaded-brush quality, coarse halftone grain, loose hand-cut shapes with slight misregistration, a subtle neoclassical motif (a fluted column, a cornice fragment, a hint of Greek-key meander) used sparingly, single strong-silhouette subject, generous untouched negative space, composition that does not fill the frame, relaxed and unforced",
+    "negative": "spray paint, graffiti, aerosol stipple, stencil edges, rigid symmetry, mechanical precision, soft gradients, watercolor, pastel, photoreal, muddy color, more than three flat colors per piece, busy clutter filling the frame, text, watermark"
+  },
+  "palette": {
+    "colors": ["#F4F1EA", "#A7A29A", "#23252A", "#1F4FD1", "#E6A62E"],
+    "description": "Marble white is the paper and stays mostly bare. Anthracite is the primary ink; concrete grey for secondary shapes. Cobalt and sun ochre are spot accents, at most one accent per piece. Never more than three of these colors in a single composition."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3", "1:1"],
+    "subjectPlacement": "off-center, rule-of-thirds with a strong diagonal and plenty of bare marble ground",
+    "maxSubjects": 2,
+    "notes": "Bold flat brushed silhouette, loose hand-cut edges, slight screenprint misregistration. Leave large areas of untouched marble-white ground; the subject occupies only part of the frame. A small neoclassical element (column, cornice, meander) may anchor a corner, used sparingly."
+  },
+  "referenceAssetPaths": []
+}

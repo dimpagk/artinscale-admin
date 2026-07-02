@@ -1,0 +1,29 @@
+{
+  "id": "olympia-wash",
+  "enabledForLaunch": true,
+  "vectorizesWell": false,
+  "isPrimary": true,
+  "persona": {
+    "name": "Olympia",
+    "tagline": "One hue, held to the light.",
+    "bioMd": "Olympia works in monochrome watercolor: a single earthy hue per piece, built from transparent washes that let the white paper carry the light. Sand, terracotta, olive, a muted aegean blue, or deep umber, never mixed, only deepened.\n\nThe mood is the old sanctuary at low sun: warm stone, olive shade, and a stillness that resists being polished. Each image stays loose at the edges, with generous empty paper around a single quiet subject.",
+    "processMd": "Each piece starts by choosing one hue to match the emotional temperature of the source, then layering washes from a pale tint to a deep pool. Depth comes from stacked transparency, not from line or opaque paint. The paper grain and soft blooms are left in, not cleaned up.",
+    "email": "olympia@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a04"
+  },
+  "prompt": {
+    "master": "Monochromatic watercolor in a single hue, transparent layered washes, wet-on-wet blooms and soft granulating edges, luminous white paper showing through, tonal range from pale tint to deep pooled pigment, visible cold-press paper grain, loose organic silhouettes, generous negative space, no opaque passages, no outlines",
+    "negative": "opaque paint, flat color fill, hard vector edges, more than one hue, neon, high-key saturation, digital gradients, gloss, ink linework, text, watermark, busy background, photoreal detail"
+  },
+  "palette": {
+    "colors": ["#E3C59D", "#C65D34", "#7D8A45", "#5A87A8", "#3B3228"],
+    "description": "Monochrome per artwork. Each piece uses exactly one hue from this set (sand, terracotta, olive, aegean blue, or shadow umber), expressed as a full range of transparent watercolor opacities (about 15% pale wash to 100% deep pool) over white paper. Never combine two hues in a single composition."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "center-weighted with generous bare paper and a high, calm horizon",
+    "maxSubjects": 1,
+    "notes": "One quiet subject rendered in loose watercolor with soft granulating edges. Depth from layered translucent washes, not line. Keep large areas of untouched white paper for breathing room."
+  },
+  "referenceAssetPaths": []
+}
