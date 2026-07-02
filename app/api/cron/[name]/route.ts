@@ -4,6 +4,7 @@ import { runContributionModerator } from '@/lib/agents/contribution-moderator'
 import { runInsightAgent } from '@/lib/agents/insight-agent'
 import { runPostingWorker } from '@/lib/publishers/posting-worker'
 import { runTopicStatusUpdater } from '@/lib/topic-status-updater'
+import { runOrderSync } from '@/lib/orders'
 
 /**
  * GET-callable scheduled triggers.
@@ -85,6 +86,8 @@ async function runScheduled(name: string): Promise<unknown> {
       return runPostingWorker()
     case 'topic_status_updater':
       return runTopicStatusUpdater()
+    case 'order_sync':
+      return runOrderSync()
     default:
       throw new Error(`Unknown scheduled job: ${name}`)
   }

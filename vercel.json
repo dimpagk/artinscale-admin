@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/posting_worker",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/order_sync",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
