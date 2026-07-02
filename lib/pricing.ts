@@ -139,3 +139,36 @@ export function netMarginPct(
   const profit = netRev - gelatoCost - fee;
   return (profit / netRev) * 100;
 }
+
+// ─── Discount campaigns (migration 033) ─────────────────────────────
+
+export interface PricingCampaign {
+  id: string;
+  name: string;
+  scope: 'classics' | 'originals' | 'all';
+  discount_percent: number;
+  status: 'draft' | 'active' | 'ended';
+  starts_at: string | null;
+  ends_at: string | null;
+  applied_at: string | null;
+  reverted_at: string | null;
+  created_at: string;
+}
+
+/** All campaigns newest-first. Empty when the table is absent (033 not run). */
+export async function getCampaigns(): Promise<PricingCampaign[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('pricing_campaigns')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error || !data) return [];
+    return data as PricingCampaign[];
+  } catch {
+    return [];
+  }
+}
+
+export function findActiveCampaign(campaigns: PricingCampaign[]): PricingCampaign | null {
+  return campaigns.find((c) => c.status === 'active') ?? null;
+}

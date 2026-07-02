@@ -2,11 +2,19 @@ import { PageHeader } from '@/components/admin-ui';
 import {
   getPrintSizePricing,
   getPricingFinance,
+  getCampaigns,
+  findActiveCampaign,
   netMarginPct,
   type PrintSizePrice,
   type PricingFinance,
+  type PricingCampaign,
 } from '@/lib/pricing';
-import { updatePriceAction } from './actions';
+import {
+  updatePriceAction,
+  createCampaignAction,
+  applyCampaignAction,
+  revertCampaignAction,
+} from './actions';
 
 // Classics pricing is operator-editable and margin-aware; never cache it.
 export const dynamic = 'force-dynamic';
@@ -23,10 +31,12 @@ function fmtPct(pct: number | null): string {
 }
 
 export default async function PricingPage() {
-  const [{ rows, source }, finance] = await Promise.all([
+  const [{ rows, source }, finance, campaigns] = await Promise.all([
     getPrintSizePricing(),
     getPricingFinance(),
+    getCampaigns(),
   ]);
+  const active = findActiveCampaign(campaigns);
 
   return (
     <div>
@@ -34,6 +44,14 @@ export default async function PricingPage() {
         title="Pricing"
         description="Classics (public-domain print) prices. One row per ship size — edit a price and it applies to new pieces and reprices existing listings. Originals are priced per piece in Shopify and reviewed separately."
       />
+
+      {active && (
+        <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <strong>Sale live:</strong> “{active.name}” — {active.discount_percent}% off all
+          classics. Prices below are the pre-sale base; Shopify shows the discounted price with a
+          strikethrough. Revert it in the campaigns panel to end the sale.
+        </div>
+      )}
 
       {source === 'fallback' && (
         <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -76,8 +94,126 @@ export default async function PricingPage() {
           </tbody>
         </table>
       </div>
+
+      <CampaignPanel campaigns={campaigns} hasActive={!!active} />
     </div>
   );
+}
+
+function CampaignPanel({
+  campaigns,
+  hasActive,
+}: {
+  campaigns: PricingCampaign[];
+  hasActive: boolean;
+}) {
+  return (
+    <section className="mt-10">
+      <h2 className="mb-1 text-base font-semibold text-gray-900">Discount campaigns</h2>
+      <p className="mb-4 text-sm text-gray-500">
+        A campaign discounts every classics listing by a percentage via Shopify’s
+        compare-at-price (the “was €X” strikethrough). Only one can be live at a time.
+      </p>
+
+      {/* Create */}
+      <form
+        action={createCampaignAction}
+        className="mb-5 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
+      >
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Campaign name
+          <input
+            type="text"
+            name="name"
+            required
+            placeholder="Summer sale"
+            className="w-56 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Discount %
+          <input
+            type="number"
+            name="discount_percent"
+            required
+            min="1"
+            max="99"
+            step="1"
+            placeholder="20"
+            className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-sm tabular-nums focus:border-gray-900 focus:outline-none"
+          />
+        </label>
+        <button
+          type="submit"
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100"
+        >
+          Create draft
+        </button>
+      </form>
+
+      {/* List */}
+      {campaigns.length === 0 ? (
+        <p className="text-sm text-gray-400">No campaigns yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {campaigns.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-gray-900">
+                  {c.name}{' '}
+                  <span className="text-gray-500">· {c.discount_percent}% off classics</span>
+                </p>
+                <p className="text-xs text-gray-400">
+                  <CampaignStatus status={c.status} />
+                  {c.applied_at && c.status === 'active' ? ` · applied` : ''}
+                  {c.reverted_at && c.status === 'ended' ? ` · ended` : ''}
+                </p>
+              </div>
+              <div className="shrink-0">
+                {c.status === 'draft' && (
+                  <form action={applyCampaignAction}>
+                    <input type="hidden" name="campaign_id" value={c.id} />
+                    <button
+                      type="submit"
+                      disabled={hasActive}
+                      title={hasActive ? 'Revert the live sale first' : ''}
+                      className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Apply
+                    </button>
+                  </form>
+                )}
+                {c.status === 'active' && (
+                  <form action={revertCampaignAction}>
+                    <input type="hidden" name="campaign_id" value={c.id} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      Revert
+                    </button>
+                  </form>
+                )}
+                {c.status === 'ended' && <span className="text-xs text-gray-400">closed</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function CampaignStatus({ status }: { status: PricingCampaign['status'] }) {
+  const map: Record<PricingCampaign['status'], string> = {
+    draft: 'text-gray-500',
+    active: 'text-green-700 font-medium',
+    ended: 'text-gray-400',
+  };
+  return <span className={map[status]}>{status}</span>;
 }
 
 function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFinance }) {

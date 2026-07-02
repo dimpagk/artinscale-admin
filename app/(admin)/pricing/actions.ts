@@ -123,3 +123,159 @@ async function patchShopifyVariantsForSize(displayName: string, price: number): 
   }
   return patched;
 }
+
+// ─── Discount campaigns ─────────────────────────────────────────────
+
+/** Create a draft classics campaign. Apply it separately to go live. */
+export async function createCampaignAction(formData: FormData): Promise<void> {
+  const name = String(formData.get('name') ?? '').trim();
+  const discount = Number(formData.get('discount_percent'));
+  if (!name || !Number.isFinite(discount) || discount <= 0 || discount >= 100) return;
+
+  const { error } = await supabaseAdmin.from('pricing_campaigns').insert({
+    name,
+    scope: 'classics',
+    discount_percent: discount,
+    status: 'draft',
+  });
+  if (error) console.error('[pricing] createCampaign failed:', error.message);
+  revalidatePath('/pricing');
+}
+
+/**
+ * Apply a draft campaign: mark it active (the DB's one-active partial
+ * unique index rejects a second active campaign — that's the guard), then
+ * discount every classics Shopify variant, stashing the pre-sale price in
+ * compare_at_price for the strikethrough. Variants already on sale are
+ * skipped so re-applies don't compound.
+ */
+export async function applyCampaignAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('campaign_id') ?? '').trim();
+  if (!id) return;
+
+  const { data: camp } = await supabaseAdmin
+    .from('pricing_campaigns')
+    .select('id, status, discount_percent')
+    .eq('id', id)
+    .maybeSingle();
+  if (!camp || camp.status !== 'draft') return;
+
+  // Activate first — fails on the unique index if another campaign is
+  // already active, so we never discount while one sale is live.
+  const { error: actErr } = await supabaseAdmin
+    .from('pricing_campaigns')
+    .update({ status: 'active', applied_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('status', 'draft');
+  if (actErr) {
+    console.error('[pricing] applyCampaign activate blocked:', actErr.message);
+    revalidatePath('/pricing');
+    return;
+  }
+
+  const discount = Number(camp.discount_percent);
+  const variants = await listExternalVariants().catch(() => []);
+  for (const v of variants) {
+    if (v.compareAtPrice != null) continue; // already on sale
+    const base = Number(v.price);
+    if (!Number.isFinite(base) || base <= 0) continue;
+    const newPrice = (base * (1 - discount / 100)).toFixed(2);
+    await putVariantPricing(v.id, newPrice, base.toFixed(2)).catch((e) =>
+      console.error(`[pricing] apply variant ${v.id} failed:`, e)
+    );
+  }
+  revalidatePath('/pricing');
+}
+
+/**
+ * Revert an active campaign: restore every on-sale classics variant's
+ * price from compare_at_price (and clear it), then mark the campaign
+ * ended. Prices are restored first so the customer-facing state is
+ * corrected even if the status write hiccups.
+ */
+export async function revertCampaignAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('campaign_id') ?? '').trim();
+  if (!id) return;
+
+  const { data: camp } = await supabaseAdmin
+    .from('pricing_campaigns')
+    .select('id, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (!camp || camp.status !== 'active') return;
+
+  const variants = await listExternalVariants().catch(() => []);
+  for (const v of variants) {
+    if (v.compareAtPrice == null) continue; // not on sale
+    await putVariantPricing(v.id, v.compareAtPrice, null).catch((e) =>
+      console.error(`[pricing] revert variant ${v.id} failed:`, e)
+    );
+  }
+
+  const { error } = await supabaseAdmin
+    .from('pricing_campaigns')
+    .update({ status: 'ended', reverted_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) console.error('[pricing] revertCampaign status write failed:', error.message);
+  revalidatePath('/pricing');
+}
+
+interface ExtVariant {
+  id: string;
+  price: string;
+  compareAtPrice: string | null;
+}
+
+/** Every classics (tag:external) Shopify variant with price + sale price. */
+async function listExternalVariants(): Promise<ExtVariant[]> {
+  if (!SHOP_DOMAIN || !SHOP_TOKEN) return [];
+  const query = `
+    { products(first: 100, query: "tag:external") {
+        edges { node { variants(first: 5) { edges { node { id price compareAtPrice } } } } }
+    } }`;
+  const res = await fetch(`https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/graphql.json`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': SHOP_TOKEN },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error(`Shopify product list HTTP ${res.status}`);
+  const body = (await res.json()) as {
+    data?: {
+      products?: {
+        edges?: Array<{
+          node: { variants: { edges: Array<{ node: { id: string; price: string; compareAtPrice: string | null } }> } };
+        }>;
+      };
+    };
+  };
+  const out: ExtVariant[] = [];
+  for (const p of body.data?.products?.edges ?? []) {
+    for (const v of p.node.variants.edges) {
+      out.push({
+        id: v.node.id.replace('gid://shopify/ProductVariant/', ''),
+        price: v.node.price,
+        compareAtPrice: v.node.compareAtPrice,
+      });
+    }
+  }
+  return out;
+}
+
+/** PUT a variant's price and compare_at_price (null clears the sale). */
+async function putVariantPricing(
+  variantId: string,
+  price: string,
+  compareAtPrice: string | null
+): Promise<void> {
+  const res = await fetch(
+    `https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/variants/${variantId}.json`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': SHOP_TOKEN },
+      body: JSON.stringify({
+        variant: { id: Number(variantId), price, compare_at_price: compareAtPrice },
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(`variant ${variantId} PUT HTTP ${res.status}`);
+}
