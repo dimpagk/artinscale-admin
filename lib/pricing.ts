@@ -9,8 +9,10 @@
  * live. Once 030 is applied and VAT/fees are configured there, this page
  * picks them up automatically.
  *
- * Classics only — ArtInScale originals are priced per-piece in Shopify
- * and are out of scope here (see docs/PRICING_PLAN.md).
+ * Covers both tabs: classics size pricing (below) and, for the originals
+ * editor, a light lookup of each piece's Shopify refs (getArtworkShopifyRefs)
+ * so the price editor knows which pieces are published. Per-piece economics
+ * come from lib/costs/economics (artwork_economics view).
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -179,4 +181,41 @@ export async function getCampaigns(): Promise<PricingCampaign[]> {
 
 export function findActiveCampaign(campaigns: PricingCampaign[]): PricingCampaign | null {
   return campaigns.find((c) => c.status === 'active') ?? null;
+}
+
+// ─── Originals editor: per-piece Shopify refs ───────────────────────
+
+export interface ArtworkShopifyRef {
+  shopify_product_id: string | null;
+  shopify_handle: string | null;
+}
+
+/**
+ * Map of artwork id → its Shopify product refs. The originals price editor
+ * uses this to tell published pieces (repriceable on Shopify) from drafts
+ * (DB price only). The artwork_economics view doesn't carry these columns,
+ * so we read them straight from artworks. Empty map on any error so the
+ * page still renders.
+ */
+export async function getArtworkShopifyRefs(): Promise<Record<string, ArtworkShopifyRef>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('artworks')
+      .select('id, shopify_product_id, shopify_handle');
+    if (error || !data) return {};
+    const map: Record<string, ArtworkShopifyRef> = {};
+    for (const r of data as Array<{
+      id: string;
+      shopify_product_id: string | null;
+      shopify_handle: string | null;
+    }>) {
+      map[r.id] = {
+        shopify_product_id: r.shopify_product_id,
+        shopify_handle: r.shopify_handle,
+      };
+    }
+    return map;
+  } catch {
+    return {};
+  }
 }

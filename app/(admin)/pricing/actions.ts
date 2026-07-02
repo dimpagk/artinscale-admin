@@ -124,6 +124,93 @@ async function patchShopifyVariantsForSize(displayName: string, price: number): 
   return patched;
 }
 
+// ─── Originals (per-piece) pricing ──────────────────────────────────
+
+/**
+ * Originals price edit action.
+ *
+ * Unlike classics (one shared price per size), each original is a unique
+ * artworks row with its own price. On save: (1) write artworks.price so
+ * the admin + storefront read the new number, and (2) reprice the piece's
+ * Shopify variant(s) so the live listing updates. Originals are
+ * single-variant, so this normally patches one variant; the loop tolerates
+ * multi-variant pieces by repricing them all to the same number.
+ *
+ * A piece with no shopify_product_id (not yet published) still gets its DB
+ * price saved — there's simply no Shopify listing to patch.
+ */
+export async function updateOriginalPriceAction(formData: FormData): Promise<void> {
+  const artworkId = String(formData.get('artwork_id') ?? '').trim();
+  const price = Number(formData.get('price'));
+  if (!artworkId || !Number.isFinite(price) || price <= 0) return;
+
+  const { error: dbErr } = await supabaseAdmin
+    .from('artworks')
+    .update({ price })
+    .eq('id', artworkId);
+  if (dbErr) console.error('[pricing] artwork price update failed:', dbErr.message);
+
+  // Reprice the live Shopify listing if this piece is published.
+  const { data: art } = await supabaseAdmin
+    .from('artworks')
+    .select('shopify_product_id')
+    .eq('id', artworkId)
+    .maybeSingle();
+  const gid = (art?.shopify_product_id as string | null | undefined) ?? null;
+  if (gid) {
+    // shopify_product_id is stored as a GID ("gid://shopify/Product/123").
+    // Strip to the numeric id the REST endpoints expect.
+    const numericId = gid.replace(/\D/g, '');
+    if (numericId) {
+      await repriceOriginalShopifyVariants(numericId, price).catch((e) =>
+        console.error('[pricing] original Shopify reprice failed:', e)
+      );
+    }
+  }
+
+  revalidatePath('/pricing');
+}
+
+/**
+ * PUT the new price onto every variant of one originals Shopify product.
+ * Fetches the product's variants, then patches each whose price differs.
+ * Leaves compare_at_price untouched (no active sale is assumed in the
+ * per-piece editor). Returns how many variants were repriced.
+ */
+async function repriceOriginalShopifyVariants(
+  numericProductId: string,
+  price: number
+): Promise<number> {
+  if (!SHOP_DOMAIN || !SHOP_TOKEN) return 0;
+  const priceStr = price.toFixed(2);
+
+  const getRes = await fetch(
+    `https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/products/${numericProductId}.json?fields=id,variants`,
+    { headers: { 'X-Shopify-Access-Token': SHOP_TOKEN } }
+  );
+  if (!getRes.ok) throw new Error(`Shopify product GET HTTP ${getRes.status}`);
+  const body = (await getRes.json()) as {
+    product?: { variants?: Array<{ id: number; price: string }> };
+  };
+  const variants = body.product?.variants ?? [];
+
+  let patched = 0;
+  for (const v of variants) {
+    if (v.price === priceStr) continue;
+    const put = await fetch(
+      `https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/variants/${v.id}.json`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': SHOP_TOKEN },
+        body: JSON.stringify({ variant: { id: v.id, price: priceStr } }),
+      }
+    );
+    if (put.ok) patched++;
+    else console.error(`[pricing] original variant ${v.id} PUT HTTP ${put.status}`);
+  }
+  return patched;
+}
+
 // ─── Discount campaigns ─────────────────────────────────────────────
 
 /** Create a draft classics campaign. Apply it separately to go live. */

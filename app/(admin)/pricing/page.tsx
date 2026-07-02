@@ -6,14 +6,17 @@ import {
   getPricingFinance,
   getCampaigns,
   findActiveCampaign,
+  getArtworkShopifyRefs,
   netMarginPct,
   type PrintSizePrice,
   type PricingFinance,
   type PricingCampaign,
+  type ArtworkShopifyRef,
 } from '@/lib/pricing';
 import { getArtworkEconomics, type ArtworkEconomics } from '@/lib/costs/economics';
 import {
   updatePriceAction,
+  updateOriginalPriceAction,
   createCampaignAction,
   applyCampaignAction,
   revertCampaignAction,
@@ -51,7 +54,7 @@ export default async function PricingPage({
     <div>
       <PageHeader
         title="Pricing"
-        description="Classics (public-domain print) prices are edited here; originals show read-only unit economics (edit per-piece in Shopify for now)."
+        description="Edit prices for both catalogs: classics by print size, originals per piece. Each save reprices the live Shopify listing and shows the margin it earns."
       />
 
       <div className="mb-6 flex gap-1 border-b border-gray-200">
@@ -326,15 +329,26 @@ function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFin
 }
 
 async function OriginalsView() {
-  const [rows, finance] = await Promise.all([getArtworkEconomics(), getPricingFinance()]);
+  const [rows, finance, refs] = await Promise.all([
+    getArtworkEconomics(),
+    getPricingFinance(),
+    getArtworkShopifyRefs(),
+  ]);
 
   return (
     <div>
       <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        Read-only. Originals are priced per piece in Shopify; this surfaces their unit economics
-        from cost tracking. Net margin/unit uses the same VAT {finance.vatPercent}% + fee{' '}
-        {finance.paymentFeePercent}% assumptions as Classics. Creation cost is one-time and shown
-        separately (amortised over units sold to date).
+        Originals are priced per piece. Saving writes the price and reprices the live Shopify
+        listing. Margin uses the same VAT {finance.vatPercent}% + fee {finance.paymentFeePercent}%
+        model as Classics; creation cost is one-time, amortised over units sold to date.
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
+          <strong>Margin</strong> = floor at {finance.vatPercent}% VAT (Greek domestic).{' '}
+          <strong>No-VAT</strong> = export / EU-B2B / exempt ceiling. <strong>At −20%</strong>{' '}
+          previews a sale. Margin vs unit production cost only (creation cost amortised separately).
+        </span>
       </div>
 
       {rows.length === 0 ? (
@@ -350,9 +364,11 @@ async function OriginalsView() {
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Piece</th>
-                <th className="px-4 py-3 font-medium">Price</th>
+                <th className="px-4 py-3 font-medium">Price (€)</th>
                 <th className="px-4 py-3 font-medium">Prod. cost</th>
-                <th className="px-4 py-3 font-medium">Net margin/unit</th>
+                <th className="px-4 py-3 font-medium">Margin · {finance.vatPercent}% VAT</th>
+                <th className="px-4 py-3 font-medium">No-VAT</th>
+                <th className="px-4 py-3 font-medium">At −20%</th>
                 <th className="px-4 py-3 font-medium">Creation</th>
                 <th className="px-4 py-3 font-medium">Amort./unit</th>
                 <th className="px-4 py-3 font-medium">Sold</th>
@@ -361,7 +377,7 @@ async function OriginalsView() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((a) => (
-                <OriginalsRow key={a.id} a={a} finance={finance} />
+                <OriginalsRow key={a.id} a={a} finance={finance} shopifyRef={refs[a.id]} />
               ))}
             </tbody>
           </table>
@@ -371,20 +387,60 @@ async function OriginalsView() {
   );
 }
 
-function OriginalsRow({ a, finance }: { a: ArtworkEconomics; finance: PricingFinance }) {
-  const net = a.price != null ? netMarginPct(a.price, a.unit_production_cost, finance) : null;
+function OriginalsRow({
+  a,
+  finance,
+  shopifyRef,
+}: {
+  a: ArtworkEconomics;
+  finance: PricingFinance;
+  shopifyRef?: ArtworkShopifyRef;
+}) {
+  const cost = a.unit_production_cost;
+  const price = a.price;
+  // Same margin band as Classics: floor (Greek VAT) / ceiling (no VAT) /
+  // preview at −20%. Null until the piece has both a price and a unit cost.
+  const floor = price != null ? netMarginPct(price, cost, finance) : null;
+  const ceiling = price != null ? netMarginPct(price, cost, { ...finance, vatPercent: 0 }) : null;
+  const floorAt20 = price != null ? netMarginPct(price * 0.8, cost, finance) : null;
+  const published = !!shopifyRef?.shopify_product_id;
+
   return (
     <tr className="hover:bg-gray-50/50">
       <td className="px-4 py-3">
-        <p className="truncate font-medium text-gray-900">{a.title}</p>
+        <p className="max-w-[16rem] truncate font-medium text-gray-900">{a.title}</p>
         <p className="text-xs text-gray-400">
           {a.creation_source}
           {a.status ? ` · ${a.status}` : ''}
+          {!published && <span className="ml-1 text-amber-600">· not published</span>}
         </p>
       </td>
-      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.price)}</td>
-      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.unit_production_cost)}</td>
-      <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(net)}`}>{fmtPct(net)}</td>
+      <td className="px-4 py-3">
+        <form action={updateOriginalPriceAction} className="flex items-center gap-2">
+          <input type="hidden" name="artwork_id" value={a.id} />
+          <input
+            type="number"
+            name="price"
+            step="0.01"
+            min="0"
+            defaultValue={price != null ? price.toFixed(2) : ''}
+            placeholder="—"
+            className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm tabular-nums focus:border-gray-900 focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
+          >
+            Save
+          </button>
+        </form>
+      </td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(cost)}</td>
+      <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(floor)}`}>
+        {fmtPct(floor)}
+      </td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(ceiling)}`}>{fmtPct(ceiling)}</td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(floorAt20)}`}>{fmtPct(floorAt20)}</td>
       <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.creation_cost)}</td>
       <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.amortized_creation_per_unit)}</td>
       <td className="px-4 py-3 tabular-nums text-gray-700">{a.units_sold}</td>
