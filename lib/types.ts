@@ -1,6 +1,12 @@
 // User types
 export type UserRole = 'CONTRIBUTOR' | 'ARTIST' | 'ADMIN';
 
+// Artist provenance taxonomy (migration 027). Internal bookkeeping only.
+//   studio:    house AI personas we created
+//   community: real people we onboard
+//   classic:   public-domain / historical artists
+export type ArtistKind = 'studio' | 'community' | 'classic';
+
 export type User = {
   id: string;
   email: string;
@@ -9,9 +15,8 @@ export type User = {
   bio: string | null;
   portfolio: string | null;
   role: UserRole;
-  // Studio-created (house) artist personas — internal bookkeeping only.
-  // Set via migration 026 for the seeded @artinscale.studio personas.
-  is_studio_artist: boolean;
+  // Null for non-artist rows (contributors/admins) and unclassified artists.
+  artist_kind: ArtistKind | null;
   created_at: string;
   updated_at: string;
 };

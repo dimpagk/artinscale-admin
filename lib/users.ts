@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase/admin';
-import type { User } from './types';
+import type { ArtistKind, User } from './types';
 
 export async function getAllUsers(): Promise<User[]> {
   const { data, error } = await supabaseAdmin
@@ -40,6 +40,7 @@ export async function createUser(user: {
   portfolio?: string;
   image?: string;
   role: 'CONTRIBUTOR' | 'ARTIST' | 'ADMIN';
+  artistKind?: ArtistKind;
 }): Promise<User | null> {
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -50,6 +51,7 @@ export async function createUser(user: {
       portfolio: user.portfolio || null,
       image: user.image || null,
       role: user.role,
+      artist_kind: user.artistKind ?? null,
     })
     .select()
     .single();
@@ -68,6 +70,7 @@ export async function updateUser(
     bio?: string | null;
     portfolio?: string | null;
     image?: string | null;
+    artist_kind?: ArtistKind | null;
   }
 ): Promise<boolean> {
   const { error } = await supabaseAdmin

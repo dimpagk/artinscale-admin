@@ -2,6 +2,7 @@
 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
 import { FormActions, FormCard } from '@/components/admin-ui';
 import type { User } from '@/lib/types';
 import {
@@ -46,6 +47,20 @@ export function ArtistForm({ artist }: ArtistFormProps) {
           label="Name"
           defaultValue={artist?.name || ''}
           placeholder="Artist name"
+        />
+
+        <Select
+          name="kind"
+          label="Kind"
+          required
+          defaultValue={artist?.artist_kind ?? ''}
+          placeholder="Select a kind..."
+          options={[
+            { value: 'community', label: 'Community: a real person we onboard' },
+            { value: 'studio', label: 'Studio: a house persona we created' },
+            { value: 'classic', label: 'Classic: public-domain / historical' },
+          ]}
+          helperText="Internal classification. Not shown publicly."
         />
 
         <Textarea

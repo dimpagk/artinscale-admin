@@ -8,7 +8,18 @@ import {
   EmptyState,
   type DataTableColumn,
 } from '@/components/admin-ui';
-import type { User } from '@/lib/types';
+import type { ArtistKind, User } from '@/lib/types';
+
+// Label + badge style per artist kind. Distinct, low-key variants so the
+// three groups are scannable without shouting.
+const ARTIST_KIND_BADGE: Record<
+  ArtistKind,
+  { label: string; variant: 'secondary' | 'success' | 'outline' }
+> = {
+  studio: { label: 'Studio', variant: 'secondary' },
+  community: { label: 'Community', variant: 'success' },
+  classic: { label: 'Classic', variant: 'outline' },
+};
 
 interface ArtistRow extends User {
   stylePackName: string | null;
@@ -46,21 +57,24 @@ export default async function ArtistsPage() {
     {
       key: 'name',
       header: 'Name',
-      render: (a) => (
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="font-medium text-gray-900">{a.name || 'Unnamed'}</p>
-            {a.is_studio_artist && (
-              <Badge variant="secondary" size="sm">
-                Studio
-              </Badge>
+      render: (a) => {
+        const kind = a.artist_kind ? ARTIST_KIND_BADGE[a.artist_kind] : null;
+        return (
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-900">{a.name || 'Unnamed'}</p>
+              {kind && (
+                <Badge variant={kind.variant} size="sm">
+                  {kind.label}
+                </Badge>
+              )}
+            </div>
+            {a.bio && (
+              <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{a.bio}</p>
             )}
           </div>
-          {a.bio && (
-            <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{a.bio}</p>
-          )}
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'style',
