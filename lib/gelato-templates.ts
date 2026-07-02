@@ -338,9 +338,9 @@ export const MAX_UPSCALE_FACTOR = 3;
 
 /**
  * Largest size we auto-target. Capped at 50×70: reachable from a 4K base
- * with Real-ESRGAN x2 (most faithful, cheapest), and the sweet-spot hero
- * size. Raise to 'museum-poster-70x100' to let Clarity push every piece
- * bigger; operators can still pin a larger size per piece.
+ * with a mild faithful resize (~1.7x), and the sweet-spot hero size. Raise
+ * to 'museum-poster-70x100' to let Clarity push every piece bigger;
+ * operators can still pin a larger size per piece.
  */
 export const MAX_AUTO_PRINT_SIZE: GelatoTemplateKey = 'museum-poster-50x70';
 
@@ -349,9 +349,17 @@ export interface UpscalePlan {
   productType: GelatoTemplateKey;
   /** Upscale ratio needed to hit QUALITY_DPI for that size (1 = none). */
   factor: number;
-  /** Which upscaler to use — null when the base already prints at size. */
-  model: 'real-esrgan' | 'clarity' | null;
-  /** Scale passed to the upscaler (2 for Real-ESRGAN, exact for Clarity). */
+  /**
+   * How to reach the target resolution:
+   *  - 'none'   — base already prints at size.
+   *  - 'resize' — mild (≤2x) faithful Lanczos resize, in-process (sharp).
+   *               No detail invented, no GPU/input caps — right for a real
+   *               4K base going to 50×70. (Real-ESRGAN can't be used here:
+   *               Replicate caps its input at ~2.1MP, well under a 4K image.)
+   *  - 'clarity'— big jump (>2x, e.g. a small base): tiled AI super-res.
+   */
+  method: 'none' | 'resize' | 'clarity';
+  /** Scale factor for Clarity (ignored for resize/none). */
   scale: number;
   targetWidthPx: number;
   targetHeightPx: number;
@@ -370,18 +378,18 @@ function buildPlan(
 ): UpscalePlan {
   // Tiny tolerance so a base that's essentially at-size isn't upscaled.
   if (factor <= 1.02) {
-    return { productType: key, factor: 1, model: null, scale: 1, targetWidthPx: needW, targetHeightPx: needH };
+    return { productType: key, factor: 1, method: 'none', scale: 1, targetWidthPx: needW, targetHeightPx: needH };
   }
-  // Up to 2x: Real-ESRGAN x2 — cheap, fast, faithful. It overshoots
-  // slightly (fine: higher DPI), and the binding axis keeps the size correct.
+  // Up to 2x: a plain high-quality resize to the target px. The base is
+  // real 4K detail; a mild upsample is faithful and free — no API, no caps.
   if (factor <= 2) {
-    return { productType: key, factor, model: 'real-esrgan', scale: 2, targetWidthPx: needW, targetHeightPx: needH };
+    return { productType: key, factor, method: 'resize', scale: factor, targetWidthPx: needW, targetHeightPx: needH };
   }
-  // Bigger jumps (60×90, 70×100): Clarity at the exact factor — tiles to
-  // reach the needed megapixels without the integer-only / cap limits of
-  // Real-ESRGAN. Round up to a tenth, clamp to the faithful ceiling.
+  // Bigger jumps (small base → large print): Clarity at the exact factor —
+  // tiles to reach the needed megapixels and genuinely adds detail. Round
+  // up to a tenth, clamp to the faithful ceiling.
   const scale = Math.min(MAX_UPSCALE_FACTOR, Math.ceil(factor * 10) / 10);
-  return { productType: key, factor, model: 'clarity', scale, targetWidthPx: needW, targetHeightPx: needH };
+  return { productType: key, factor, method: 'clarity', scale, targetWidthPx: needW, targetHeightPx: needH };
 }
 
 /**

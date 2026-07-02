@@ -14,6 +14,7 @@
  * Auto-upscaling on artwork creation removes a manual click.
  */
 import crypto from 'node:crypto';
+import sharp from 'sharp';
 import { upscaleImage } from './upscaler';
 import { uploadFile, getPublicUrl } from './storage';
 import { supabaseAdmin } from './supabase/admin';
@@ -85,17 +86,16 @@ export async function runUpscaleForGeneratedImage(args: {
     };
   }
 
-  // Plan the upscale from the base image's actual resolution: how far do
-  // we go, and with which upscaler, to hit 300 DPI for the largest size
-  // this image can reach. Real-ESRGAN x2 for the small jumps, Clarity for
-  // 60×90 / 70×100.
+  // Plan from the base image's actual resolution: how far to go and how,
+  // to hit 300 DPI for the largest size it can reach. Mild jumps (a real
+  // 4K base → 50×70) are a faithful in-process resize; big jumps from a
+  // small base use Clarity. When we can't measure the base, don't guess —
+  // keep the original as the master (print-safety still gates the push).
   const base = await fetchImageDimensions(image.image_url);
   const plan = base ? planUpscaleForBase(base.width, base.height) : null;
 
-  // Base already prints at the target size (or we couldn't measure it and
-  // fall through to Real-ESRGAN x2): when no upscale is needed, the
-  // original IS the print master.
-  if (base && plan && plan.model === null) {
+  if (!base || !plan || plan.method === 'none') {
+    const dims = base ? { width: base.width, height: base.height } : null;
     await supabaseAdmin
       .from('generated_images')
       .update({
@@ -103,8 +103,9 @@ export async function runUpscaleForGeneratedImage(args: {
           ...meta,
           upscaledImageUrl: image.image_url,
           upscaledScale: 1,
-          upscaledProductType: plan.productType,
-          upscaledDimensions: { width: base.width, height: base.height },
+          upscaledMethod: 'none',
+          upscaledProductType: plan?.productType ?? null,
+          upscaledDimensions: dims,
           upscaledAt: new Date().toISOString(),
           upscaledIsDryRun: false,
         },
@@ -114,22 +115,40 @@ export async function runUpscaleForGeneratedImage(args: {
       generatedImageId,
       upscaledImageUrl: image.image_url,
       scale: 1,
-      dimensions: { width: base.width, height: base.height },
+      dimensions: dims,
       alreadyUpscaled: false,
       isDryRun: false,
     };
   }
 
-  const { buffer, scale, model, isDryRun } = await upscaleImage({
-    imageUrl: image.image_url,
-    model: plan?.model ?? 'real-esrgan',
-    scale: plan?.scale ?? 2,
-  });
+  // Produce the print master.
+  let buffer: Buffer;
+  let isDryRun = false;
+  if (plan.method === 'resize') {
+    // Faithful Lanczos upsample to cover the target print px (fit:'outside'
+    // preserves aspect; Gelato crops to the exact poster ratio at print).
+    const src = await fetch(image.image_url);
+    if (!src.ok) throw new Error(`Could not fetch base image for resize: ${src.status}`);
+    buffer = await sharp(Buffer.from(await src.arrayBuffer()))
+      .resize({
+        width: plan.targetWidthPx,
+        height: plan.targetHeightPx,
+        fit: 'outside',
+        withoutEnlargement: false,
+        kernel: 'lanczos3',
+      })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+  } else {
+    const out = await upscaleImage({ imageUrl: image.image_url, model: 'clarity', scale: plan.scale });
+    buffer = out.buffer;
+    isDryRun = out.isDryRun ?? false;
+  }
 
-  const originalName = image.storage_path.split('/').pop() ?? `${generatedImageId}.png`;
+  const originalName = image.storage_path.split('/').pop() ?? `${generatedImageId}.jpg`;
   const baseName = originalName.replace(/\.[a-z0-9]+$/i, '');
-  const ext = extensionForMime(isDryRun ? undefined : 'image/png');
-  const upscaledPath = `upscaled/${baseName}-${model}-x${scale}-${crypto
+  const ext = plan.method === 'resize' ? 'jpg' : extensionForMime(isDryRun ? undefined : 'image/png');
+  const upscaledPath = `upscaled/${baseName}-${plan.method}-${crypto
     .randomBytes(3)
     .toString('hex')}.${ext}`;
 
@@ -146,12 +165,12 @@ export async function runUpscaleForGeneratedImage(args: {
         ...meta,
         upscaledImageUrl,
         upscaledStoragePath: upscaledPath,
-        upscaledScale: scale,
-        upscaledModel: model,
-        upscaledProductType: plan?.productType ?? null,
+        upscaledScale: plan.method === 'clarity' ? plan.scale : plan.factor,
+        upscaledMethod: plan.method,
+        upscaledProductType: plan.productType,
         upscaledDimensions: dims ? { width: dims.width, height: dims.height } : null,
         upscaledAt: new Date().toISOString(),
-        upscaledIsDryRun: isDryRun ?? false,
+        upscaledIsDryRun: isDryRun,
       },
     })
     .eq('id', generatedImageId);
@@ -159,10 +178,10 @@ export async function runUpscaleForGeneratedImage(args: {
   return {
     generatedImageId,
     upscaledImageUrl,
-    scale,
+    scale: plan.method === 'clarity' ? plan.scale : plan.factor,
     dimensions: dims,
     alreadyUpscaled: false,
-    isDryRun: isDryRun ?? false,
+    isDryRun,
   };
 }
 
