@@ -9,18 +9,30 @@
 // Model Configuration
 // ============================================
 
+// Model IDs verified against the project's Google API key (models.list).
+// The prior 'pro' id (nano-banana-pro-preview) was not a real model and
+// failed at generate time. Corrected to gemini-3-pro-image. All three
+// are the Nano Banana family and run through the same generateContent
+// path the route already uses. (Imagen 4 is also available on the key but
+// needs a different API call, so it's not wired here.)
 export const MODEL_OPTIONS = [
   {
+    key: 'lite',
+    label: 'Nano Banana 2 Lite (Fastest)',
+    modelId: 'gemini-3.1-flash-lite-image',
+    description: 'Fastest + cheapest. Best for rapid iteration (1K).',
+  },
+  {
     key: 'flash',
-    label: 'Nano Banana 2 (Fast)',
-    modelId: 'gemini-2.5-flash-image',
-    description: 'Fast generation, good for iteration',
+    label: 'Nano Banana 2 (Balanced)',
+    modelId: 'gemini-3.1-flash-image',
+    description: 'Versatile workhorse. Up to 4K.',
   },
   {
     key: 'pro',
     label: 'Nano Banana Pro (Quality)',
-    modelId: 'nano-banana-pro-preview',
-    description: 'Studio-quality output, slower',
+    modelId: 'gemini-3-pro-image',
+    description: 'Premium quality + world knowledge. Up to 4K, slower.',
   },
 ] as const
 

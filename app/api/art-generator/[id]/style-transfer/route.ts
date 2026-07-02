@@ -7,6 +7,7 @@ import {
   createGeneratedImage,
 } from '@/lib/generated-images'
 import { buildStyledPrompt } from '@/lib/style-packs'
+import { MODEL_OPTIONS } from '@/lib/constants/art-generator'
 import { getStylePackAsync } from '@/lib/style-packs/server'
 import { tagVisualContent } from '@/lib/agents/visual-tagger'
 import { checkStyleSimilarity } from '@/lib/agents/style-similarity-check'
@@ -92,9 +93,13 @@ export async function POST(
   const srcBuf = Buffer.from(await srcRes.arrayBuffer())
   const srcBase64 = srcBuf.toString('base64')
 
-  // Call Gemini with the source image + the target voice as prompt
+  // Call Gemini with the source image + the target voice as prompt.
+  // Resolve the model id from MODEL_OPTIONS so this honors the requested
+  // model and stays in sync with the generator's lineup.
   const modelKey = body.model ?? 'flash'
-  const modelId = 'gemini-2.5-flash-image' // matches the constants file
+  const modelId =
+    MODEL_OPTIONS.find((m) => m.key === modelKey)?.modelId ??
+    MODEL_OPTIONS[0].modelId
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: modelId })
 
