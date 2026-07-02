@@ -19,7 +19,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@supabase/supabase-js'
 import { MOCKUP_SCENES } from '../lib/mockup-scenes-catalog.mjs'
 
@@ -51,7 +51,7 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY)
+const genAI = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY })
 // Nano Banana 2, verified working on this key via the art generator.
 const MODEL_ID = 'gemini-3.1-flash-image'
 
@@ -78,12 +78,12 @@ async function generateScene(scene) {
 
   console.log(`[gen ] ${scene.key} (${scene.aspectRatio})`)
   const t0 = Date.now()
-  const model = genAI.getGenerativeModel({ model: MODEL_ID })
-  const result = await model.generateContent({
+  const result = await genAI.models.generateContent({
+    model: MODEL_ID,
     contents: [{ role: 'user', parts: [{ text: scene.prompt }] }],
   })
 
-  const parts = result?.response?.candidates?.[0]?.content?.parts ?? []
+  const parts = result?.candidates?.[0]?.content?.parts ?? []
   const imagePart = parts.find((p) => p.inlineData)
   if (!imagePart) {
     console.error(`[fail] ${scene.key} — no inlineData in response`)
