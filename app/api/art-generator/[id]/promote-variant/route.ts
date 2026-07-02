@@ -127,7 +127,9 @@ export async function POST(
       edition_size: body.edition_size ?? null,
       price: body.price ?? null,
       currency: body.currency ?? 'EUR',
-      product_type: 'museum-poster-21x30',
+      // Leave size unset — pushToGelatoAction derives the largest size
+      // this high-res vector render supports at museum-quality DPI.
+      product_type: null,
       inspiration_summary: image.prompt,
     })
   } catch (err) {

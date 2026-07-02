@@ -276,6 +276,46 @@ export function getTemplateConfig(productType: string): GelatoTemplateConfig | n
   return GELATO_TEMPLATES[productType] ?? null;
 }
 
+/**
+ * Gelato's recommended DPI for museum-quality fine-art posters. Their
+ * accepted floor is 150 DPI, but the museum-matte product line is
+ * explicitly documented as "at least 300 DPI" for good quality, so we
+ * size to 300. See lib/product-copy sizing + pushToGelatoAction.
+ */
+export const QUALITY_DPI = 300;
+
+/** Smallest template — the safe fallback when nothing else qualifies. */
+export const SMALLEST_TEMPLATE: GelatoTemplateKey = 'museum-poster-21x30';
+
+/**
+ * Given a finalized image's pixel dimensions, return the LARGEST template
+ * whose physical size still prints at >= `dpi` in both axes — i.e. the
+ * biggest print we can sell at good quality for this image. Every piece
+ * gets exactly one size, and it's the maximum the resolution supports.
+ *
+ * All templates are portrait, so callers should pass portrait-oriented
+ * px (width <= height). The check is per-axis and conservative; it
+ * assumes the image aspect roughly matches the template's (our
+ * generations are composed portrait). Returns null when the image is too
+ * small for even the smallest size at `dpi`.
+ */
+export function pickLargestPrintSize(
+  imageWidthPx: number,
+  imageHeightPx: number,
+  dpi: number = QUALITY_DPI
+): GelatoTemplateKey | null {
+  const bySizeDesc = (
+    Object.entries(GELATO_TEMPLATES) as [GelatoTemplateKey, GelatoTemplateConfig][]
+  ).sort((a, b) => b[1].widthCm * b[1].heightCm - a[1].widthCm * a[1].heightCm);
+
+  for (const [key, cfg] of bySizeDesc) {
+    if (imageWidthPx >= pxAtDpi(cfg.widthCm, dpi) && imageHeightPx >= pxAtDpi(cfg.heightCm, dpi)) {
+      return key;
+    }
+  }
+  return null;
+}
+
 export function isLaunchEnabled(productType: string): boolean {
   return GELATO_TEMPLATES[productType]?.enabledForLaunch ?? false;
 }

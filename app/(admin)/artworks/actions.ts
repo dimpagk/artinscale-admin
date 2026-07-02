@@ -9,7 +9,7 @@ import {
   getArtworkById,
 } from '@/lib/artworks';
 import { createGelatoProduct } from '@/lib/gelato';
-import { getTemplateConfig } from '@/lib/gelato-templates';
+import { getTemplateConfig, pickLargestPrintSize, SMALLEST_TEMPLATE } from '@/lib/gelato-templates';
 import { buildProductCopy } from '@/lib/product-copy';
 import { syncArtworkToShopify, getArtistPrimaryStyle } from '@/lib/listing-sync';
 import { generateListingMeta } from '@/lib/agents/listing-generator';
@@ -22,7 +22,7 @@ import {
 import { runSoldOutFollowUp } from '@/lib/agents/sold-out-follow-up';
 import { EMPTY_LISTING_META, type ListingMeta } from '@/lib/types';
 import { startAgentTask, finishAgentTask } from '@/lib/agents/base';
-import { validatePrintSafety } from '@/lib/image-dimensions';
+import { validatePrintSafety, fetchImageDimensions } from '@/lib/image-dimensions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
@@ -397,12 +397,29 @@ export async function pushToGelatoAction(id: string) {
   if (!artwork) throw new Error('Artwork not found');
   if (!artwork.image_url) throw new Error('Artwork must have an image URL to push to Gelato');
 
-  const productType = artwork.product_type || 'museum-poster-21x30';
-
   // If the original image was upscaled at some point, prefer the
   // upscaled URL — print-safety check should pass then.
   const upscaledUrl = await findUpscaledImageUrl(artwork.image_url);
   const sourceImageUrl = upscaledUrl ?? artwork.image_url;
+
+  // Every piece gets exactly ONE size, and it's the largest this image
+  // can print at museum-quality DPI (300). If the operator already
+  // pinned a product_type we honor it; otherwise we derive the size from
+  // the finalized (upscaled) image and persist it + its pricing defaults,
+  // so the artwork carries a single, resolution-appropriate dimension
+  // instead of the old blanket 21×30 fallback.
+  let productType = artwork.product_type;
+  if (!productType) {
+    const dims = await fetchImageDimensions(sourceImageUrl);
+    const picked = (dims && pickLargestPrintSize(dims.width, dims.height)) || SMALLEST_TEMPLATE;
+    productType = picked;
+    const defaults = getProductDefaults(picked);
+    await updateArtwork(id, {
+      product_type: picked,
+      ...(artwork.price == null && defaults ? { price: defaults.price } : {}),
+      ...(artwork.edition_size == null && defaults ? { edition_size: defaults.editionSize } : {}),
+    });
+  }
 
   // Print-safety guardrail (PHASE_0_AUDIT §3.6) — refuses pushes for
   // images smaller than the template's minimum print-safe dimensions.

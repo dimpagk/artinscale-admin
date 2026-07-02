@@ -70,7 +70,10 @@ export async function POST(request: Request) {
       artist_id: body.artist_id || null,
       topic_id: body.topic_id || null,
       status: 'created',
-      product_type: body.product_type || 'museum-poster-21x30',
+      // No hardcoded size — when the operator doesn't pass one,
+      // pushToGelatoAction derives the largest size the final image
+      // supports at museum-quality DPI instead of defaulting to 21×30.
+      product_type: body.product_type || null,
       inspiration_summary: body.inspiration_summary || null,
     })
   } catch (err) {
