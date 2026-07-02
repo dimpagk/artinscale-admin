@@ -70,10 +70,18 @@ export interface PricingFinance {
   source: 'defaults' | 'finance_settings';
 }
 
+// vatPercent here is the pricing FLOOR assumption: the worst-case VAT we
+// might remit on a sale (Greek domestic standard rate, 24%). Pricing to
+// this floor guarantees the margin on every sale — export / EU-B2B
+// reverse-charge / small-business-exempt sales carry no VAT and earn more
+// (the "ceiling", computed at 0% VAT). VAT is a pass-through, never our
+// money; this only affects how much of the inclusive list price is ours.
+const GREEK_STANDARD_VAT = 24;
+
 const DEFAULT_FINANCE: PricingFinance = {
   paymentFeePercent: 2.9,
   paymentFeeFixed: 0.3,
-  vatPercent: 19,
+  vatPercent: GREEK_STANDARD_VAT,
   source: 'defaults',
 };
 
@@ -86,13 +94,13 @@ export async function getPricingFinance(): Promise<PricingFinance> {
       .eq('id', true)
       .maybeSingle();
     if (error || !data) return DEFAULT_FINANCE;
-    const vat = Number(data.default_vat_percent);
     return {
       paymentFeePercent: Number(data.payment_fee_percent ?? 2.9),
       paymentFeeFixed: Number(data.payment_fee_fixed ?? 0.3),
-      // finance_settings.default_vat_percent defaults to 0 ("don't model");
-      // a pricing preview still needs a VAT assumption, so fall back to 19.
-      vatPercent: vat > 0 ? vat : 19,
+      // Respect the operator's configured rate as the floor assumption,
+      // including 0 (a fully VAT-exempt seller). Only fall back to the
+      // Greek standard rate when the column is null/unset.
+      vatPercent: data.default_vat_percent == null ? GREEK_STANDARD_VAT : Number(data.default_vat_percent),
       source: 'finance_settings',
     };
   } catch {

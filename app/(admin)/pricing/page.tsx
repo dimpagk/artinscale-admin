@@ -110,13 +110,14 @@ async function ClassicsView() {
 
       <div className="mb-5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
         <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
-          Margin assumes VAT {finance.vatPercent}% · payment fee{' '}
-          {finance.paymentFeePercent}% + €{finance.paymentFeeFixed.toFixed(2)}
+          <strong>Margin</strong> = floor at {finance.vatPercent}% VAT (Greek domestic — price
+          against this). <strong>No-VAT</strong> = export / EU-B2B / exempt sales (your ceiling).
+          Fee {finance.paymentFeePercent}% + €{finance.paymentFeeFixed.toFixed(2)}.
         </span>
         <span className="text-gray-400">
           {finance.source === 'finance_settings'
-            ? 'from finance settings'
-            : 'defaults — configure in Economics once cost tracking is live'}
+            ? 'rates from finance settings'
+            : 'defaults — configure in Economics'}
         </span>
       </div>
 
@@ -127,10 +128,9 @@ async function ClassicsView() {
               <th className="px-4 py-3 font-medium">Size</th>
               <th className="px-4 py-3 font-medium">Est. cost</th>
               <th className="px-4 py-3 font-medium">Price (€)</th>
-              <th className="px-4 py-3 font-medium">Net margin</th>
-              <th className="px-4 py-3 font-medium">−10%</th>
-              <th className="px-4 py-3 font-medium">−20%</th>
-              <th className="px-4 py-3" />
+              <th className="px-4 py-3 font-medium">Margin · {finance.vatPercent}% VAT</th>
+              <th className="px-4 py-3 font-medium">No-VAT</th>
+              <th className="px-4 py-3 font-medium">At −20%</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -264,9 +264,11 @@ function CampaignStatus({ status }: { status: PricingCampaign['status'] }) {
 
 function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFinance }) {
   const cost = row.gelato_cost_estimate_eur;
-  const margin = netMarginPct(row.price_eur, cost, finance);
-  const margin10 = netMarginPct(row.price_eur * 0.9, cost, finance);
-  const margin20 = netMarginPct(row.price_eur * 0.8, cost, finance);
+  // Floor: worst-case VAT (Greek domestic) — the margin you're guaranteed.
+  // Ceiling: no VAT (export / EU-B2B reverse-charge / exempt) — the upside.
+  const floor = netMarginPct(row.price_eur, cost, finance);
+  const ceiling = netMarginPct(row.price_eur, cost, { ...finance, vatPercent: 0 });
+  const floorAt20 = netMarginPct(row.price_eur * 0.8, cost, finance);
 
   return (
     <tr className="hover:bg-gray-50/50">
@@ -314,14 +316,11 @@ function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFin
           </button>
         </form>
       </td>
-      <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(margin)}`}>
-        {fmtPct(margin)}
+      <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(floor)}`}>
+        {fmtPct(floor)}
       </td>
-      <td className={`px-4 py-3 tabular-nums ${marginColor(margin10)}`}>{fmtPct(margin10)}</td>
-      <td className={`px-4 py-3 tabular-nums ${marginColor(margin20)}`}>{fmtPct(margin20)}</td>
-      <td className="px-4 py-3 text-right text-xs text-gray-400">
-        {row.cost_source === 'estimated' ? 'cost estimated' : ''}
-      </td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(ceiling)}`}>{fmtPct(ceiling)}</td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(floorAt20)}`}>{fmtPct(floorAt20)}</td>
     </tr>
   );
 }
