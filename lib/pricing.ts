@@ -183,6 +183,29 @@ export function findActiveCampaign(campaigns: PricingCampaign[]): PricingCampaig
   return campaigns.find((c) => c.status === 'active') ?? null;
 }
 
+/**
+ * The active campaign that applies to a catalog: one whose scope is that
+ * catalog or the store-wide 'all'. Lets Classics and Originals each show
+ * (and gate) their own live sale independently.
+ */
+export function findActiveCampaignForScope(
+  campaigns: PricingCampaign[],
+  scope: 'classics' | 'originals'
+): PricingCampaign | null {
+  return (
+    campaigns.find((c) => c.status === 'active' && (c.scope === scope || c.scope === 'all')) ??
+    null
+  );
+}
+
+/** Campaigns that belong to a catalog (its own scope or 'all'), for its panel. */
+export function campaignsForScope(
+  campaigns: PricingCampaign[],
+  scope: 'classics' | 'originals'
+): PricingCampaign[] {
+  return campaigns.filter((c) => c.scope === scope || c.scope === 'all');
+}
+
 // ─── Originals editor: per-piece Shopify refs ───────────────────────
 
 export interface ArtworkShopifyRef {

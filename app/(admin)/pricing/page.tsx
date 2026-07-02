@@ -5,7 +5,8 @@ import {
   getPrintSizePricing,
   getPricingFinance,
   getCampaigns,
-  findActiveCampaign,
+  findActiveCampaignForScope,
+  campaignsForScope,
   getArtworkShopifyRefs,
   netMarginPct,
   type PrintSizePrice,
@@ -90,7 +91,7 @@ async function ClassicsView() {
     getPricingFinance(),
     getCampaigns(),
   ]);
-  const active = findActiveCampaign(campaigns);
+  const active = findActiveCampaignForScope(campaigns, 'classics');
 
   return (
     <div>
@@ -144,24 +145,31 @@ async function ClassicsView() {
         </table>
       </div>
 
-      <CampaignPanel campaigns={campaigns} hasActive={!!active} />
+      <CampaignPanel
+        scope="classics"
+        campaigns={campaignsForScope(campaigns, 'classics')}
+        hasActive={!!active}
+      />
     </div>
   );
 }
 
 function CampaignPanel({
+  scope,
   campaigns,
   hasActive,
 }: {
+  scope: 'classics' | 'originals';
   campaigns: PricingCampaign[];
   hasActive: boolean;
 }) {
+  const label = scope === 'originals' ? 'originals' : 'classics';
   return (
     <section className="mt-10">
       <h2 className="mb-1 text-base font-semibold text-gray-900">Discount campaigns</h2>
       <p className="mb-4 text-sm text-gray-500">
-        A campaign discounts every classics listing by a percentage via Shopify’s
-        compare-at-price (the “was €X” strikethrough). Only one can be live at a time.
+        A campaign discounts every {label} listing by a percentage via Shopify’s
+        compare-at-price (the “was €X” strikethrough). One can be live per catalog at a time.
       </p>
 
       {/* Create */}
@@ -169,6 +177,7 @@ function CampaignPanel({
         action={createCampaignAction}
         className="mb-5 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
       >
+        <input type="hidden" name="scope" value={scope} />
         <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
           Campaign name
           <input
@@ -213,7 +222,7 @@ function CampaignPanel({
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-gray-900">
                   {c.name}{' '}
-                  <span className="text-gray-500">· {c.discount_percent}% off classics</span>
+                  <span className="text-gray-500">· {c.discount_percent}% off {label}</span>
                 </p>
                 <p className="text-xs text-gray-400">
                   <CampaignStatus status={c.status} />
@@ -329,14 +338,25 @@ function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFin
 }
 
 async function OriginalsView() {
-  const [rows, finance, refs] = await Promise.all([
+  const [rows, finance, refs, campaigns] = await Promise.all([
     getArtworkEconomics(),
     getPricingFinance(),
     getArtworkShopifyRefs(),
+    getCampaigns(),
   ]);
+  const active = findActiveCampaignForScope(campaigns, 'originals');
 
   return (
     <div>
+      {active && (
+        <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <strong>Sale live:</strong> “{active.name}” — {active.discount_percent}% off all
+          originals. Prices below are the pre-sale base; Shopify shows the discounted price with a
+          strikethrough. Editing a piece while the sale is live keeps it discounted. Revert it in
+          the campaigns panel to end the sale.
+        </div>
+      )}
+
       <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
         Originals are priced per piece. Saving writes the price and reprices the live Shopify
         listing. Margin uses the same VAT {finance.vatPercent}% + fee {finance.paymentFeePercent}%
@@ -383,6 +403,12 @@ async function OriginalsView() {
           </table>
         </div>
       )}
+
+      <CampaignPanel
+        scope="originals"
+        campaigns={campaignsForScope(campaigns, 'originals')}
+        hasActive={!!active}
+      />
     </div>
   );
 }

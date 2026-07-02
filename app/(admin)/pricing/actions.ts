@@ -162,8 +162,14 @@ export async function updateOriginalPriceAction(formData: FormData): Promise<voi
     // Strip to the numeric id the REST endpoints expect.
     const numericId = gid.replace(/\D/g, '');
     if (numericId) {
-      await repriceOriginalShopifyVariants(numericId, price).catch((e) =>
-        console.error('[pricing] original Shopify reprice failed:', e)
+      // If an originals sale is live, keep this piece consistent with it:
+      // list the discounted price and stash the new base in compare_at.
+      // Otherwise list the base price and leave compare_at untouched.
+      const discount = await getActiveOriginalsDiscountPercent();
+      const listedPrice = discount != null ? price * (1 - discount / 100) : price;
+      const compareAt = discount != null ? price.toFixed(2) : undefined;
+      await repriceOriginalShopifyVariants(numericId, listedPrice.toFixed(2), compareAt).catch(
+        (e) => console.error('[pricing] original Shopify reprice failed:', e)
       );
     }
   }
@@ -171,18 +177,31 @@ export async function updateOriginalPriceAction(formData: FormData): Promise<voi
   revalidatePath('/pricing');
 }
 
+/** Active originals-campaign discount %, or null (scoped to originals/all). */
+async function getActiveOriginalsDiscountPercent(): Promise<number | null> {
+  const { data } = await supabaseAdmin
+    .from('pricing_campaigns')
+    .select('discount_percent')
+    .eq('status', 'active')
+    .in('scope', ['originals', 'all'])
+    .limit(1)
+    .maybeSingle();
+  const d = data ? Number(data.discount_percent) : NaN;
+  return Number.isFinite(d) && d > 0 && d < 100 ? d : null;
+}
+
 /**
- * PUT the new price onto every variant of one originals Shopify product.
- * Fetches the product's variants, then patches each whose price differs.
- * Leaves compare_at_price untouched (no active sale is assumed in the
- * per-piece editor). Returns how many variants were repriced.
+ * PUT a price onto every variant of one originals Shopify product. When
+ * compareAtPrice is provided (an active sale), also writes compare_at so the
+ * strikethrough stays correct; when omitted, only the price is set and
+ * compare_at is left as-is. Returns how many variants were patched.
  */
 async function repriceOriginalShopifyVariants(
   numericProductId: string,
-  price: number
+  priceStr: string,
+  compareAtPrice?: string
 ): Promise<number> {
   if (!SHOP_DOMAIN || !SHOP_TOKEN) return 0;
-  const priceStr = price.toFixed(2);
 
   const getRes = await fetch(
     `https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/products/${numericProductId}.json?fields=id,variants`,
@@ -196,13 +215,17 @@ async function repriceOriginalShopifyVariants(
 
   let patched = 0;
   for (const v of variants) {
-    if (v.price === priceStr) continue;
+    // Skip only when nothing changes. With a sale we also write compare_at,
+    // so don't short-circuit on price-equal in that case.
+    if (compareAtPrice === undefined && v.price === priceStr) continue;
+    const variantPayload: Record<string, unknown> = { id: v.id, price: priceStr };
+    if (compareAtPrice !== undefined) variantPayload.compare_at_price = compareAtPrice;
     const put = await fetch(
       `https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/variants/${v.id}.json`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': SHOP_TOKEN },
-        body: JSON.stringify({ variant: { id: v.id, price: priceStr } }),
+        body: JSON.stringify({ variant: variantPayload }),
       }
     );
     if (put.ok) patched++;
@@ -213,15 +236,19 @@ async function repriceOriginalShopifyVariants(
 
 // ─── Discount campaigns ─────────────────────────────────────────────
 
-/** Create a draft classics campaign. Apply it separately to go live. */
+/** Create a draft campaign for a catalog (classics or originals). Apply it
+ *  separately to go live. Scope defaults to classics for safety. */
 export async function createCampaignAction(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim();
   const discount = Number(formData.get('discount_percent'));
+  const scope = String(formData.get('scope') ?? 'classics').trim() === 'originals'
+    ? 'originals'
+    : 'classics';
   if (!name || !Number.isFinite(discount) || discount <= 0 || discount >= 100) return;
 
   const { error } = await supabaseAdmin.from('pricing_campaigns').insert({
     name,
-    scope: 'classics',
+    scope,
     discount_percent: discount,
     status: 'draft',
   });
@@ -242,13 +269,15 @@ export async function applyCampaignAction(formData: FormData): Promise<void> {
 
   const { data: camp } = await supabaseAdmin
     .from('pricing_campaigns')
-    .select('id, status, discount_percent')
+    .select('id, status, discount_percent, scope')
     .eq('id', id)
     .maybeSingle();
   if (!camp || camp.status !== 'draft') return;
 
-  // Activate first — fails on the unique index if another campaign is
-  // already active, so we never discount while one sale is live.
+  // Activate first — fails on the per-scope unique index (migration 038) if
+  // another campaign in the SAME scope is already active, so we never stack
+  // two sales on the same products. (Pre-038 the global index makes this
+  // one-active store-wide — stricter, still safe.)
   const { error: actErr } = await supabaseAdmin
     .from('pricing_campaigns')
     .update({ status: 'active', applied_at: new Date().toISOString() })
@@ -261,7 +290,12 @@ export async function applyCampaignAction(formData: FormData): Promise<void> {
   }
 
   const discount = Number(camp.discount_percent);
-  const variants = await listExternalVariants().catch(() => []);
+  // Discount the catalog this campaign targets: originals resolve from the
+  // artworks table, classics from tag:external.
+  const variants = await (camp.scope === 'originals'
+    ? listOriginalVariants()
+    : listExternalVariants()
+  ).catch(() => [] as ExtVariant[]);
   for (const v of variants) {
     if (v.compareAtPrice != null) continue; // already on sale
     const base = Number(v.price);
@@ -286,12 +320,15 @@ export async function revertCampaignAction(formData: FormData): Promise<void> {
 
   const { data: camp } = await supabaseAdmin
     .from('pricing_campaigns')
-    .select('id, status')
+    .select('id, status, scope')
     .eq('id', id)
     .maybeSingle();
   if (!camp || camp.status !== 'active') return;
 
-  const variants = await listExternalVariants().catch(() => []);
+  const variants = await (camp.scope === 'originals'
+    ? listOriginalVariants()
+    : listExternalVariants()
+  ).catch(() => [] as ExtVariant[]);
   for (const v of variants) {
     if (v.compareAtPrice == null) continue; // not on sale
     await putVariantPricing(v.id, v.compareAtPrice, null).catch((e) =>
@@ -343,6 +380,72 @@ async function listExternalVariants(): Promise<ExtVariant[]> {
         price: v.node.price,
         compareAtPrice: v.node.compareAtPrice,
       });
+    }
+  }
+  return out;
+}
+
+/**
+ * Every published-original Shopify variant with price + sale price.
+ * Originals are the artworks-table catalog (not tag:external), so we resolve
+ * their Shopify products from artworks.shopify_product_id, then fetch each
+ * product's variants via GraphQL nodes(). Unpublished pieces (null id) are
+ * skipped. Returns the same ExtVariant shape as listExternalVariants so
+ * apply/revert share one loop.
+ */
+async function listOriginalVariants(): Promise<ExtVariant[]> {
+  if (!SHOP_DOMAIN || !SHOP_TOKEN) return [];
+
+  const { data: arts } = await supabaseAdmin
+    .from('artworks')
+    .select('shopify_product_id')
+    .not('shopify_product_id', 'is', null);
+
+  const gids = Array.from(
+    new Set(
+      (arts ?? [])
+        .map((a: { shopify_product_id: string | null }) => a.shopify_product_id)
+        .filter((x): x is string => !!x)
+        .map((x) =>
+          x.startsWith('gid://') ? x : `gid://shopify/Product/${x.replace(/\D/g, '')}`
+        )
+    )
+  );
+  if (gids.length === 0) return [];
+
+  const out: ExtVariant[] = [];
+  // nodes() caps at 250 ids per call; chunk defensively.
+  for (let i = 0; i < gids.length; i += 250) {
+    const chunk = gids.slice(i, i + 250);
+    const query = `
+      query($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on Product { variants(first: 10) { edges { node { id price compareAtPrice } } } }
+        }
+      }`;
+    const res = await fetch(`https://${SHOP_DOMAIN}/admin/api/${API_VERSION}/graphql.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': SHOP_TOKEN },
+      body: JSON.stringify({ query, variables: { ids: chunk } }),
+    });
+    if (!res.ok) throw new Error(`Shopify nodes HTTP ${res.status}`);
+    const body = (await res.json()) as {
+      data?: {
+        nodes?: Array<
+          | { variants?: { edges: Array<{ node: { id: string; price: string; compareAtPrice: string | null } }> } }
+          | null
+        >;
+      };
+    };
+    for (const n of body.data?.nodes ?? []) {
+      if (!n || !n.variants) continue;
+      for (const v of n.variants.edges) {
+        out.push({
+          id: v.node.id.replace('gid://shopify/ProductVariant/', ''),
+          price: v.node.price,
+          compareAtPrice: v.node.compareAtPrice,
+        });
+      }
     }
   }
   return out;
