@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 /* eslint-disable @next/next/no-img-element */
 import { PageHeader, RelativeTime } from '@/components/admin-ui';
-import { getOrderById, orderNeedsApproval, type OrderRow } from '@/lib/orders';
+import { getOrderById, orderNeedsApproval } from '@/lib/orders';
+import { getOrderEconomics } from '@/lib/costs/economics';
 import { approveOrderAction } from '../actions';
 import { ApproveButton } from '../approve-button';
 
@@ -19,24 +20,23 @@ function shopifyAdminOrderUrl(shopifyOrderId: string): string | null {
   return `https://${store}.myshopify.com/admin/orders/${shopifyOrderId}`;
 }
 
-function margin(o: OrderRow): number | null {
-  if (o.gelato_item_cost == null || o.subtotal_price == null) return null;
-  return o.subtotal_price - o.gelato_item_cost;
-}
-
 export default async function OrderDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const order = await getOrderById(id);
+  const [order, econ] = await Promise.all([getOrderById(id), getOrderEconomics(id)]);
   if (!order) notFound();
 
   const needsApproval = orderNeedsApproval(order);
   const adminUrl = shopifyAdminOrderUrl(order.shopify_order_id);
   const ship = order.shipping_address;
-  const m = margin(order);
+  const m = econ?.contribution_margin ?? null;
+  const marginPct =
+    econ && econ.contribution_margin != null && econ.gross_revenue > 0
+      ? (econ.contribution_margin / econ.gross_revenue) * 100
+      : null;
 
   return (
     <div>
@@ -86,15 +86,57 @@ export default async function OrderDetailPage({
             </ul>
             <dl className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-sm">
               <Row label="Subtotal" value={money(order.subtotal_price, order.currency)} />
-              <Row label="Shipping" value={money(order.shipping_price, order.currency)} />
-              <Row label="Total" value={money(order.total_price, order.currency)} bold />
-              {order.gelato_item_cost != null && (
-                <>
-                  <Row label="Gelato cost" value={money(order.gelato_item_cost, order.currency)} muted />
-                  <Row label="Margin" value={money(m, order.currency)} bold />
-                </>
+              {!!order.total_discounts && (
+                <Row label="Discounts" value={`- ${money(order.total_discounts, order.currency)}`} muted />
               )}
+              <Row label="Shipping charged" value={money(order.shipping_price, order.currency)} />
+              {order.total_tax != null && (
+                <Row
+                  label={`VAT / tax${order.taxes_included ? ' (incl.)' : ''}`}
+                  value={money(order.total_tax, order.currency)}
+                  muted
+                />
+              )}
+              <Row label="Total" value={money(order.total_price, order.currency)} bold />
             </dl>
+          </Card>
+
+          <Card title="Unit economics">
+            {econ ? (
+              <dl className="space-y-1 text-sm">
+                <Row
+                  label="Net revenue (ex-VAT, less discounts)"
+                  value={money(econ.net_revenue_ex_vat, order.currency)}
+                />
+                <Row label="+ Shipping charged" value={money(econ.shipping_charged, order.currency)} muted />
+                <Row
+                  label="− Production (Gelato)"
+                  value={econ.production_cost == null ? 'not synced' : `- ${money(econ.production_cost, order.currency)}`}
+                  muted
+                />
+                {econ.shipping_cost > 0 && (
+                  <Row label="− Gelato shipping" value={`- ${money(econ.shipping_cost, order.currency)}`} muted />
+                )}
+                <Row label="− Payment fee (est.)" value={`- ${money(econ.payment_fee, order.currency)}`} muted />
+                <div className="mt-2 border-t border-gray-100 pt-2">
+                  <Row
+                    label="Contribution margin"
+                    value={
+                      m == null
+                        ? 'pending production sync'
+                        : `${money(m, order.currency)}${marginPct != null ? ` · ${marginPct.toFixed(0)}%` : ''}`
+                    }
+                    bold
+                  />
+                </div>
+                <p className="pt-2 text-xs text-gray-400">
+                  Contribution margin is per-order and excludes the artwork&apos;s one-time creation
+                  cost, which is amortised across all its sales (see the piece on the Economics page).
+                </p>
+              </dl>
+            ) : (
+              <p className="text-sm text-gray-500">Economics unavailable for this order.</p>
+            )}
           </Card>
 
           {order.gelato_preview_url && (

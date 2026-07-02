@@ -73,24 +73,41 @@ export async function createArtwork(data: {
   product_type?: string | null
   creation_date?: string | null
   inspiration_summary?: string | null
-}) {
-  const { error } = await supabaseAdmin.from('artworks').insert({
-    title: data.title,
-    description: data.description || null,
-    image_url: data.image_url || null,
-    artist_id: data.artist_id || null,
-    topic_id: data.topic_id || null,
-    status: data.status || 'created',
-    edition_size: data.edition_size ?? null,
-    edition_sold: data.edition_sold ?? 0,
-    price: data.price ?? null,
-    currency: data.currency || 'EUR',
-    product_type: data.product_type || null,
-    creation_date: data.creation_date || null,
-    inspiration_summary: data.inspiration_summary || null,
-  })
+  creation_source?: string
+  creation_cost?: number | null
+  creation_cost_currency?: string
+  creation_cost_breakdown?: Record<string, unknown>
+}): Promise<string> {
+  const { data: created, error } = await supabaseAdmin
+    .from('artworks')
+    .insert({
+      title: data.title,
+      description: data.description || null,
+      image_url: data.image_url || null,
+      artist_id: data.artist_id || null,
+      topic_id: data.topic_id || null,
+      status: data.status || 'created',
+      edition_size: data.edition_size ?? null,
+      edition_sold: data.edition_sold ?? 0,
+      price: data.price ?? null,
+      currency: data.currency || 'EUR',
+      product_type: data.product_type || null,
+      creation_date: data.creation_date || null,
+      inspiration_summary: data.inspiration_summary || null,
+      ...(data.creation_source ? { creation_source: data.creation_source } : {}),
+      ...(data.creation_cost != null ? { creation_cost: data.creation_cost } : {}),
+      ...(data.creation_cost_currency
+        ? { creation_cost_currency: data.creation_cost_currency }
+        : {}),
+      ...(data.creation_cost_breakdown
+        ? { creation_cost_breakdown: data.creation_cost_breakdown }
+        : {}),
+    })
+    .select('id')
+    .single()
 
   if (error) throw error
+  return (created as { id: string }).id
 }
 
 export async function updateArtwork(
@@ -114,6 +131,11 @@ export async function updateArtwork(
     shopify_product_id?: string | null
     shopify_handle?: string | null
     listing_meta?: ListingMeta | null
+    creation_source?: string
+    creation_cost?: number | null
+    creation_cost_currency?: string
+    creation_cost_breakdown?: Record<string, unknown>
+    unit_production_cost?: number | null
   }
 ) {
   const { error } = await supabaseAdmin.from('artworks').update(data).eq('id', id)

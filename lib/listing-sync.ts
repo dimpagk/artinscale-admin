@@ -229,6 +229,22 @@ export async function syncArtworkToShopify(
         });
         updated++;
       }
+
+      // Stamp the base print cost per unit for pre-sale margin estimates.
+      // Each piece is a single size, so the cheapest variant cost is the
+      // per-unit production cost. Non-fatal — this is bookkeeping, not part
+      // of the price-sync contract.
+      const costs = variants
+        .map((v) => v.cost)
+        .filter((c): c is number => typeof c === 'number');
+      if (costs.length > 0) {
+        const unitCost = Math.min(...costs);
+        await supabaseAdmin
+          .from('artworks')
+          .update({ unit_production_cost: unitCost })
+          .eq('id', artwork.id);
+      }
+
       steps.push({
         name: 'gelato_price',
         ok: true,

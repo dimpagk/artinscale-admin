@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getArtworkById } from '@/lib/artworks';
 import { composeArtworkMockups } from '@/lib/mockup-composer';
+import { mockupSetToShopifyOrder } from '@/lib/mockup-publisher';
 import { replaceShopifyProductImages } from '@/lib/shopify-admin';
 import { startAgentTask, finishAgentTask } from '@/lib/agents/base';
 
@@ -8,12 +9,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // mockup compositing is image-heavy
 
 /**
- * Compose the 6-image mockup set for an artwork:
- *   1 original (kept), 3 detail crops, 1 framed close-up, 1 in-room shot.
+ * Compose the 5-image mockup set for an artwork:
+ *   1 original (kept), 2 focal detail crops, 1 framed close-up, 1 in-room shot.
  *
  * Uses fire-and-forget via agent_tasks so the UI doesn't block. The
  * status pill on the artwork edit page surfaces progress; on completion
- * the artwork's `image_urls` JSONB is updated with the composed set.
+ * the artwork's `mockup_urls` JSONB is updated with the composed set.
  *
  * POST /api/artworks/[id]/compose-mockups
  *   { force?: boolean, aestheticHint?: 'minimal'|'warm'|... }
@@ -48,6 +49,9 @@ export async function POST(
   const task = await startAgentTask({
     agentName: 'mockup-composer',
     triggerKind: 'manual',
+    // Same correlation convention as the post-Gelato chain so the
+    // artwork page's pipeline-activity card shows compose progress.
+    correlationId: `artwork:${id}`,
     input: { artwork_id: id, product_type: artwork.product_type, force, aestheticHint: aestheticHint ?? null },
   });
   if (!task) {
@@ -71,20 +75,10 @@ export async function POST(
       let shopifyError: string | null = null;
       if (artwork.shopify_handle && result.imageUrls) {
         try {
-          // Display order: original first (the artwork itself), then
-          // framed close-up, in-room context, then 3 detail crops. Same
-          // ordering used by lib/mockup-publisher.ts — keep them in
-          // sync. Original-first is the right cover for an art store
-          // where buyers want to see what they're actually getting
-          // before context shots.
-          const orderedImages = [
-            { src: result.imageUrls.original, alt: `${artwork.title} — original artwork` },
-            { src: result.imageUrls.framed, alt: `${artwork.title} — framed museum-quality matte print` },
-            { src: result.imageUrls.inRoom, alt: `${artwork.title} — shown in a styled room interior` },
-            { src: result.imageUrls.details[0], alt: `${artwork.title} — detail (center)` },
-            { src: result.imageUrls.details[1], alt: `${artwork.title} — detail (upper third)` },
-            { src: result.imageUrls.details[2], alt: `${artwork.title} — detail (lower third)` },
-          ];
+          // Display order comes from mockupSetToShopifyOrder (original
+          // first as the cover, then framed, in-room, focal details) so
+          // this stays in lockstep with lib/mockup-publisher.ts.
+          const orderedImages = mockupSetToShopifyOrder(result.imageUrls, artwork.title);
           const uploadRes = await replaceShopifyProductImages({
             shopifyHandle: artwork.shopify_handle,
             images: orderedImages,
@@ -118,4 +112,23 @@ export async function POST(
     );
 
   return NextResponse.json({ task_id: task.id, status: 'running' }, { status: 202 });
+}
+
+/**
+ * GET /api/artworks/[id]/compose-mockups
+ *
+ * Returns the artwork's current composed set (or null). The mockup
+ * gallery card polls this after triggering a compose to pick up the
+ * result without a full page reload.
+ */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const artwork = await getArtworkById(id);
+  if (!artwork) {
+    return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
+  }
+  return NextResponse.json({ mockup_urls: artwork.mockup_urls ?? null });
 }

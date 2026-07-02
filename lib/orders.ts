@@ -53,16 +53,21 @@ export interface OrderRow {
   gelato_fulfillment_status: string | null;
   gelato_financial_status: string | null;
   gelato_item_cost: number | null;
+  gelato_shipping_cost: number | null;
   gelato_preview_url: string | null;
   gelato_tracking_url: string | null;
   gelato_synced_at: string | null;
+  total_discounts: number | null;
+  total_tax: number | null;
+  taxes_included: boolean | null;
+  payment_fee: number | null;
   placed_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 const ORDER_COLUMNS =
-  'id, shopify_order_id, shopify_order_number, name, customer_name, customer_email, currency, subtotal_price, shipping_price, total_price, financial_status, shopify_fulfillment_status, shipping_address, line_items, gelato_order_id, gelato_reference_id, gelato_order_type, gelato_fulfillment_status, gelato_financial_status, gelato_item_cost, gelato_preview_url, gelato_tracking_url, gelato_synced_at, placed_at, created_at, updated_at';
+  'id, shopify_order_id, shopify_order_number, name, customer_name, customer_email, currency, subtotal_price, shipping_price, total_price, total_discounts, total_tax, taxes_included, financial_status, shopify_fulfillment_status, shipping_address, line_items, gelato_order_id, gelato_reference_id, gelato_order_type, gelato_fulfillment_status, gelato_financial_status, gelato_item_cost, gelato_shipping_cost, payment_fee, gelato_preview_url, gelato_tracking_url, gelato_synced_at, placed_at, created_at, updated_at';
 
 // A Gelato order needs the operator's approval before it prints. This is
 // the state the Orders view exists to make visible and actionable.
@@ -116,6 +121,10 @@ export interface ShopifyOrderInput {
   currency?: string;
   subtotal_price?: string | number | null;
   total_price?: string | number | null;
+  total_discounts?: string | number | null;
+  total_tax?: string | number | null;
+  total_tax_set?: { shop_money?: { amount?: string } };
+  taxes_included?: boolean | null;
   total_shipping_price_set?: { shop_money?: { amount?: string } };
   shipping_lines?: Array<{ price?: string | number }>;
   financial_status?: string | null;
@@ -198,6 +207,9 @@ function mapShopifyOrder(o: ShopifyOrderInput): Record<string, unknown> {
     subtotal_price: num(o.subtotal_price ?? null),
     shipping_price: shippingPrice(o),
     total_price: num(o.total_price ?? null),
+    total_discounts: num(o.total_discounts ?? null),
+    total_tax: num(o.total_tax ?? o.total_tax_set?.shop_money?.amount ?? null),
+    taxes_included: o.taxes_included ?? null,
     financial_status: o.financial_status ?? null,
     shopify_fulfillment_status: o.fulfillment_status ?? null,
     line_items: lineItems,

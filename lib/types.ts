@@ -166,6 +166,31 @@ export type Artwork = {
   inspiration_summary: string | null;
   contributor_count: number;
   listing_meta: ListingMeta | null;
+  /** How the piece was made — drives which creation-cost breakdown applies. */
+  creation_source: ArtworkCreationSource;
+  /** One-time cost to bring this artwork into existence, in creation_cost_currency. */
+  creation_cost: number | null;
+  creation_cost_currency: string;
+  /** Itemised creation cost: { ai_generation, upscale, mockups, purchase, manual_adjustment }. */
+  creation_cost_breakdown: Record<string, unknown>;
+  /** Base Gelato print cost for one unit of the chosen size (pre-sale margin estimate). */
+  unit_production_cost: number | null;
+  /**
+   * Composed product-photo set (migration 031), written by the mockup
+   * composer: { original, details: [2], framed, inRoom, composedAt }.
+   * Null until mockups have been generated for this artwork.
+   */
+  mockup_urls: MockupUrls | null;
   created_at: string;
   updated_at: string;
 };
+
+export interface MockupUrls {
+  original: string;
+  details: string[];
+  framed: string;
+  inRoom: string;
+  composedAt?: string;
+}
+
+export type ArtworkCreationSource = 'ai' | 'purchased' | 'public_domain' | 'manual';

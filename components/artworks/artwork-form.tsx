@@ -228,6 +228,37 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
         </FormCard>
 
         <FormCard
+          title="Creation cost"
+          description="One-time cost to make this piece — the basis for unit economics. It's distributed across every unit sold, so it falls the more the piece sells."
+        >
+          <FormGrid columns={2}>
+            <Select
+              name="creation_source"
+              label="Source"
+              options={[
+                { value: 'ai', label: 'AI-generated' },
+                { value: 'purchased', label: 'Purchased / licensed' },
+                { value: 'public_domain', label: 'Public domain' },
+                { value: 'manual', label: 'Other / manual' },
+              ]}
+              defaultValue={artwork?.creation_source || 'ai'}
+            />
+            <Input
+              name="creation_cost"
+              label={`Creation cost (${artwork?.creation_cost_currency || 'EUR'})`}
+              type="number"
+              step="0.01"
+              defaultValue={artwork?.creation_cost != null ? String(artwork.creation_cost) : ''}
+              helperText={
+                isEditing
+                  ? 'Leave as-is to keep. For bought pieces, enter the purchase price.'
+                  : 'Leave blank for AI pieces to auto-estimate from the generation ledger.'
+              }
+            />
+          </FormGrid>
+        </FormCard>
+
+        <FormCard
           title="Provenance"
           description="Surfaces on the public storefront under 'The Story Behind This Artwork' alongside the linked topic and contributions."
         >

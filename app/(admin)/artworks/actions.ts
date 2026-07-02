@@ -13,7 +13,12 @@ import { getTemplateConfig, pickLargestPrintSize, SMALLEST_TEMPLATE } from '@/li
 import { buildProductCopy } from '@/lib/product-copy';
 import { syncArtworkToShopify, getArtistPrimaryStyle } from '@/lib/listing-sync';
 import { generateListingMeta } from '@/lib/agents/listing-generator';
+import {
+  draftArtworkFields,
+  type ArtworkFieldDraft,
+} from '@/lib/agents/artwork-field-drafter';
 import { getProductDefaults } from '@/lib/pricing-defaults';
+import { estimateArtworkCreationCost } from '@/lib/costs/creation-cost';
 import { ensureUpscaledForArtworkImage } from '@/lib/upscale-runner';
 import {
   applyListedState,
@@ -103,9 +108,32 @@ export async function createArtworkAction(formData: FormData) {
   const currency = formData.get('currency') as string;
   const productType = formData.get('product_type') as string;
   const inspirationSummary = formData.get('inspiration_summary') as string;
+  const creationSource = (formData.get('creation_source') as string) || 'ai';
+  const creationCostRaw = formData.get('creation_cost') as string;
 
   const inferred = await inferredArtistFromImage(imageUrl || null);
   const finalArtistId = reconcileArtist(artistId || null, inferred, title);
+
+  // Creation cost (Layer 1). If the operator left it blank, auto-estimate
+  // from the generation ledger (AI generation incl. curation waste +
+  // upscale + mockups). A typed value always wins — e.g. a purchase price
+  // for a bought piece. See lib/costs/creation-cost.ts.
+  let finalCreationCost: number | null = creationCostRaw
+    ? parseFloat(creationCostRaw)
+    : null;
+  let creationCostCurrency = 'EUR';
+  let creationCostBreakdown: Record<string, unknown> = {};
+  if (finalCreationCost == null && creationSource === 'ai') {
+    const est = await estimateArtworkCreationCost(imageUrl || null);
+    finalCreationCost = est.creationCost;
+    creationCostCurrency = est.currency;
+    creationCostBreakdown = est.breakdown;
+  } else if (finalCreationCost != null) {
+    creationCostBreakdown = {
+      manual_adjustment: finalCreationCost,
+      source: 'operator',
+    };
+  }
 
   // Apply per-product-type defaults when the form fields are empty.
   // Mirrors the client-side prefill in artwork-form so the result is
@@ -133,13 +161,17 @@ export async function createArtworkAction(formData: FormData) {
     currency: finalCurrency,
     product_type: productType || null,
     inspiration_summary: inspirationSummary || null,
+    creation_source: creationSource,
+    creation_cost: finalCreationCost,
+    creation_cost_currency: creationCostCurrency,
+    creation_cost_breakdown: creationCostBreakdown,
   });
 
-  // Auto-upscale: print-safety guardrail rejects 1024×1024 against
-  // any of our museum-poster sizes. Fire the upscale in the background
-  // via agent_tasks so the operator can keep working while it runs
-  // (~30s for 4x via Real-ESRGAN). Idempotent — skips if already
-  // upscaled.
+  // Auto-upscale: enlarge the base to the largest size it can print at
+  // 300 DPI (Real-ESRGAN for small jumps, Clarity for 60×90 / 70×100).
+  // Fire in the background via agent_tasks so the operator can keep
+  // working while it runs (Clarity can take ~1-2 min). Idempotent —
+  // skips if already upscaled; pushToGelatoAction also ensures it.
   if (imageUrl) {
     try {
       // No correlationId here — the artwork was just created and we
@@ -188,6 +220,8 @@ export async function updateArtworkAction(id: string, formData: FormData) {
   const currency = formData.get('currency') as string;
   const productType = formData.get('product_type') as string;
   const inspirationSummary = formData.get('inspiration_summary') as string;
+  const creationSource = (formData.get('creation_source') as string) || 'ai';
+  const creationCostRaw = formData.get('creation_cost') as string;
 
   const inferred = await inferredArtistFromImage(imageUrl || null);
   const finalArtistId = reconcileArtist(artistId || null, inferred, title);
@@ -260,6 +294,16 @@ export async function updateArtworkAction(id: string, formData: FormData) {
     currency: currency || 'EUR',
     product_type: productType || null,
     inspiration_summary: inspirationSummary || null,
+    creation_source: creationSource,
+    creation_cost: creationCostRaw ? parseFloat(creationCostRaw) : null,
+    ...(creationCostRaw
+      ? {
+          creation_cost_breakdown: {
+            manual_adjustment: parseFloat(creationCostRaw),
+            source: 'operator',
+          },
+        }
+      : {}),
     ...(nextMeta ? { listing_meta: nextMeta } : {}),
   });
 
@@ -402,17 +446,26 @@ export async function pushToGelatoAction(id: string) {
   if (!artwork) throw new Error('Artwork not found');
   if (!artwork.image_url) throw new Error('Artwork must have an image URL to push to Gelato');
 
-  // If the original image was upscaled at some point, prefer the
-  // upscaled URL — print-safety check should pass then.
-  const upscaledUrl = await findUpscaledImageUrl(artwork.image_url);
-  const sourceImageUrl = upscaledUrl ?? artwork.image_url;
+  // Ensure the size-aware print master exists: the upscaler enlarges the
+  // 4K base to the largest size it can print at 300 DPI (Real-ESRGAN for
+  // small jumps, Clarity for 60×90 / 70×100). Idempotent — reuses the
+  // create-time job's output when ready, else runs it now so the piece is
+  // never sized off the un-upscaled base.
+  let sourceImageUrl = artwork.image_url;
+  try {
+    const up = await ensureUpscaledForArtworkImage(artwork.image_url);
+    if ('upscaledImageUrl' in up && up.upscaledImageUrl) {
+      sourceImageUrl = up.upscaledImageUrl;
+    }
+  } catch (err) {
+    console.warn('[push] upscale ensure failed, using original image:', err);
+  }
 
-  // Every piece gets exactly ONE size, and it's the largest this image
-  // can print at museum-quality DPI (300). If the operator already
-  // pinned a product_type we honor it; otherwise we derive the size from
-  // the finalized (upscaled) image and persist it + its pricing defaults,
-  // so the artwork carries a single, resolution-appropriate dimension
-  // instead of the old blanket 21×30 fallback.
+  // Every piece gets exactly ONE size, and it's the largest this master
+  // can print at museum-quality DPI (300). If the operator already pinned
+  // a product_type we honor it; otherwise we derive the size from the
+  // upscaled master and persist it + its pricing defaults, so the artwork
+  // carries a single, resolution-appropriate dimension.
   let productType = artwork.product_type;
   if (!productType) {
     const dims = await fetchImageDimensions(sourceImageUrl);
@@ -518,27 +571,6 @@ export async function pushToGelatoAction(id: string) {
 }
 
 /**
- * If the original image was upscaled (via /api/art-generator/[id]/upscale),
- * prefer the upscaled URL. Lookup is by `image_url` against the
- * generated_images metadata — so it works even when artworks were
- * created before the upscale ran.
- */
-async function findUpscaledImageUrl(originalUrl: string): Promise<string | null> {
-  const { data } = await supabaseAdmin
-    .from('generated_images')
-    .select('metadata')
-    .eq('image_url', originalUrl)
-    .maybeSingle();
-
-  const meta = (data as { metadata?: Record<string, unknown> } | null)?.metadata;
-  const upscaledUrl = meta?.upscaledImageUrl;
-  if (typeof upscaledUrl === 'string' && upscaledUrl.length > 0) {
-    return upscaledUrl;
-  }
-  return null;
-}
-
-/**
  * Mark an artwork as live on Shopify.
  *
  * Gelato auto-publishes products to the connected Shopify store, but no
@@ -578,4 +610,39 @@ export async function markArtworkAsListedAction(id: string, formData: FormData) 
 
   revalidatePath(`/artworks/${id}`);
   revalidatePath('/artworks');
+}
+
+/**
+ * Draft every listing field for operator review: title, description,
+ * SEO/OG copy (one Claude call) plus deterministic product size, price,
+ * edition and currency suggestions. Persists NOTHING: the form fills the
+ * suggestions in as highlighted values and only Save writes them.
+ */
+export async function draftArtworkFieldsAction(id: string): Promise<ArtworkFieldDraft> {
+  return draftArtworkFields(id);
+}
+
+/**
+ * Manual "Sync now" for an already-listed artwork: one full
+ * listing-sync pass (listing meta, Gelato price, Shopify core, price,
+ * metafields, inventory, collections, channels). Returns the per-step
+ * result so the form can show a summary toast.
+ */
+export async function syncListingAction(id: string) {
+  const artwork = await getArtworkById(id);
+  if (!artwork) throw new Error('Artwork not found');
+  if (!artwork.shopify_handle) {
+    throw new Error('Artwork is not listed yet. Use "Sync and publish" first.');
+  }
+
+  const result = await syncArtworkToShopify(id);
+  revalidatePath(`/artworks/${id}`);
+
+  const failed = result.steps.filter((s) => !s.ok).map((s) => s.name);
+  return {
+    ok: failed.length === 0,
+    failedSteps: failed,
+    warnings: result.warnings,
+    stepCount: result.steps.length,
+  };
 }

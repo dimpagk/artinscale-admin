@@ -52,7 +52,8 @@ const supabase = createClient(
 )
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY)
-const MODEL_ID = 'gemini-2.5-flash-image'
+// Nano Banana 2, verified working on this key via the art generator.
+const MODEL_ID = 'gemini-3.1-flash-image'
 
 const BUCKET = 'ai-generated'
 

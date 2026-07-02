@@ -166,6 +166,10 @@ export interface GeneratedImage {
   topic_id: string | null
   artwork_id: string | null
   metadata: Record<string, unknown>
+  /** Estimated (or actual) API cost of this generation, in USD. */
+  cost_usd?: number | null
+  /** 'estimated' (from the pricing table) or 'actual' (billed usage). */
+  cost_source?: string | null
   created_at: string
 }
 

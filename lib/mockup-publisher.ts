@@ -1,14 +1,14 @@
 /**
  * Bridges the per-artwork mockup composer to Shopify product images.
  *
- *   composeArtworkMockups → MockupSet { original, details[3], framed, inRoom }
+ *   composeArtworkMockups → MockupSet { original, details[2], framed, inRoom }
  *   pushArtworkMockupsToShopify → upload that set in display order
  *
  * Display order chosen for fine-art conversion (in this priority):
  *   1. Original artwork       — the art itself, full bleed (cover)
  *   2. Framed close-up        — "this is a print", studio-clean
  *   3. In-room shot           — lifestyle context, helps with sizing
- *   4-6. Three details        — texture / craftsmanship close-ups
+ *   4-5. Two focal details    — texture / craftsmanship close-ups
  *
  * Idempotent: re-running with the same MockupSet produces the same
  * gallery. Calls `replaceShopifyProductImages` which deletes existing
@@ -55,8 +55,14 @@ export async function pushArtworkMockupsToShopify(
     sourceImageUrl: artwork.image_url,
     productType: artwork.product_type,
   });
-  if (composed.errors.length > 0 && composed.errors.length === 5) {
-    // Catastrophic — nothing produced
+  // Catastrophic only when every composite fell back to the raw source
+  // image — then the "gallery" would just be the original five times over.
+  const set = composed.imageUrls;
+  const nothingProduced =
+    set.framed === artwork.image_url &&
+    set.inRoom === artwork.image_url &&
+    set.details.every((d) => d === artwork.image_url);
+  if (nothingProduced && composed.errors.length > 0) {
     return {
       ok: false,
       error: `Mockup compose failed completely: ${composed.errors.join('; ')}`,
@@ -85,17 +91,17 @@ export async function pushArtworkMockupsToShopify(
 /**
  * Convert the composer's MockupSet to the Shopify image array in
  * display order, with descriptive alt text for SEO + accessibility.
+ * Exported so the compose-mockups route shares the exact ordering.
  */
-function mockupSetToShopifyOrder(
+export function mockupSetToShopifyOrder(
   set: MockupSet,
   artworkTitle: string
 ): Array<{ src: string; alt: string }> {
   return [
-    { src: set.original, alt: `${artworkTitle} — original artwork` },
-    { src: set.framed, alt: `${artworkTitle} — framed museum-quality matte print` },
-    { src: set.inRoom, alt: `${artworkTitle} — shown in a styled room interior` },
-    { src: set.details[0], alt: `${artworkTitle} — detail (center)` },
-    { src: set.details[1], alt: `${artworkTitle} — detail (upper third)` },
-    { src: set.details[2], alt: `${artworkTitle} — detail (lower third)` },
+    { src: set.original, alt: `${artworkTitle} - original artwork` },
+    { src: set.framed, alt: `${artworkTitle} - framed museum-quality matte print` },
+    { src: set.inRoom, alt: `${artworkTitle} - shown in a styled room interior` },
+    { src: set.details[0], alt: `${artworkTitle} - close-up detail` },
+    { src: set.details[1], alt: `${artworkTitle} - close-up detail (texture)` },
   ];
 }

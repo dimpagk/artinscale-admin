@@ -17,6 +17,7 @@ import { loadExemplars } from '@/lib/style-packs/exemplars'
 import { checkStyleSimilarity } from '@/lib/agents/style-similarity-check'
 import { tagVisualContent } from '@/lib/agents/visual-tagger'
 import { updateGeneratedImage } from '@/lib/generated-images'
+import { estimateGenerationCostUsd } from '@/lib/costs/pricing'
 
 export async function POST(request: Request) {
   try {
@@ -138,6 +139,14 @@ export async function POST(request: Request) {
 
     const publicUrl = getPublicUrl('ai-generated', storagePath)
 
+    // Modelled cost of this generation (image call + the vision passes it
+    // triggers). Rate card lives in lib/costs/pricing.ts; stamped on the
+    // row so creation cost can roll up from the generated_images ledger.
+    const estimatedCostUsd = estimateGenerationCostUsd({
+      model: modelOption.key,
+      usedStylePack: !!body.stylePackId,
+    })
+
     const image = await createGeneratedImage({
       prompt: body.prompt,
       edit_history: [],
@@ -148,6 +157,8 @@ export async function POST(request: Request) {
       storage_path: storagePath,
       topic_id: body.topicId || null,
       artwork_id: null,
+      cost_usd: estimatedCostUsd,
+      cost_source: 'estimated',
       metadata: {
         fullPrompt,
         medium: body.medium || null,
@@ -159,11 +170,9 @@ export async function POST(request: Request) {
         referenceFromApprovedExemplars: referenceSourceCounts.approved,
         referenceFromStaticFallback: referenceSourceCounts.static_fallback,
         measuredDimensions,
-        // Cost ledger: ~$0.04 Gemini image generation (varies, but a
-        // safe round number) + ~$0.02 Claude vision similarity check
-        // when a style pack is in use. Not exact — surfaced as a rough
-        // running total in the gallery so the operator has a feel.
-        estimatedCostUsd: 0.04 + (body.stylePackId ? 0.02 : 0),
+        // Kept for back-compat with the gallery's running-total badge;
+        // the authoritative figure now lives in the cost_usd column.
+        estimatedCostUsd,
       },
     })
 

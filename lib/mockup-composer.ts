@@ -1,27 +1,32 @@
 /**
  * Per-artwork mockup composer.
  *
- * Produces the 6-image set every product needs:
+ * Produces the 5-image set every product needs:
  *   1. Original art piece                    (just the source image)
- *   2-4. Three zoomed-in detail crops        (deterministic smart crops)
- *   5. Framed close-up                       (Gemini edit)
- *   6. In-room shot at scale                 (Gemini edit, on a pre-generated scene)
+ *   2-3. Two zoomed-in detail crops          (content-aware, Gemini-picked focal regions)
+ *   4. Framed close-up                       (Gemini edit)
+ *   5. In-room shot at scale                 (Gemini edit, on a pre-generated scene)
  *
- * Detail crops are pixel-real — no AI. The framed and in-room shots
- * are AI composites because we don't have a clean way to overlay onto
- * a real frame/wall photo with correct perspective and lighting at
- * print quality. Gemini's image-edit model handles this well enough for
- * marketing imagery; we hold these to "sells the product" quality, not
- * "print-safe" quality.
+ * Detail crops are pixel-real: a cheap Gemini vision call picks the two
+ * most interesting elements of the artwork, then sharp crops exactly
+ * those regions (geometric crops as fallback when vision fails). The
+ * framed and in-room shots are AI composites because we don't have a
+ * clean way to overlay onto a real frame/wall photo with correct
+ * perspective and lighting at print quality. Gemini's image-edit model
+ * handles this well enough for marketing imagery; we hold these to
+ * "sells the product" quality, not "print-safe" quality.
  *
  * Usage from a route handler:
  *
  *   const result = await composeArtworkMockups({
  *     artworkId, sourceImageUrl, productType, stylePackId
  *   })
- *   // result.image_urls = { original, details: [...], framed, inRoom }
+ *   // result.imageUrls = { original, details: [...], framed, inRoom }
  *
- * Idempotent: skips any image whose storage object already exists.
+ * Idempotent: skips any image whose storage object already exists. On
+ * completion the set is also persisted to artworks.mockup_urls so the
+ * admin page and storefront can read it without digging through
+ * agent_tasks output (no-op until migration 031 adds the column).
  */
 
 import crypto from 'node:crypto';
@@ -40,11 +45,15 @@ const STORAGE_BUCKET = 'ai-generated';
 const MOCKUP_PREFIX = 'mockups';
 
 const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
-const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image';
+// Image-edit composites (framed + in-room). Nano Banana 2, verified on this key.
+const GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-image';
+// Cheap vision call that picks the focal regions for the detail crops.
+// Same text model the contribution clusterer already uses.
+const GEMINI_VISION_MODEL = 'gemini-2.5-flash';
 
 export interface MockupSet {
   original: string;
-  details: [string, string, string];
+  details: [string, string];
   framed: string;
   inRoom: string;
 }
@@ -87,23 +96,43 @@ export async function composeArtworkMockups(args: ComposeArgs): Promise<ComposeR
     throw new Error('Could not read source image dimensions');
   }
 
-  // 2-4: Detail crops (server-side, deterministic)
+  // 2-3: Detail crops (content-aware, geometric fallback)
   const detailUrls: string[] = [];
-  for (let i = 0; i < 3; i++) {
-    const key = mockupKey(args.artworkId, `detail-${i + 1}`);
-    const path = `${MOCKUP_PREFIX}/${key}.jpg`;
-    if (!args.force && (await storageObjectExists(path))) {
-      detailUrls.push(publicUrl(path));
-      continue;
-    }
+  const detailPaths = [1, 2].map(
+    (n) => `${MOCKUP_PREFIX}/${mockupKey(args.artworkId, `detail-${n}`)}.jpg`
+  );
+  const detailsCached =
+    !args.force &&
+    (await storageObjectExists(detailPaths[0])) &&
+    (await storageObjectExists(detailPaths[1]));
+  if (detailsCached) {
+    detailUrls.push(publicUrl(detailPaths[0]), publicUrl(detailPaths[1]));
+  } else {
+    // One vision call picks the two most interesting elements; only spend
+    // it when at least one crop actually needs rendering.
+    let regions: FocalRegion[] | null = null;
     try {
-      const cropBuf = await renderDetailCrop(sourceBuf, sourceMeta, i);
-      await uploadBuffer(path, cropBuf, 'image/jpeg');
-      detailUrls.push(publicUrl(path));
-      generated.details++;
+      regions = await pickFocalRegions(sourceBuf);
     } catch (e) {
-      errors.push(`detail-${i + 1}: ${msg(e)}`);
-      detailUrls.push(args.sourceImageUrl); // fallback to original so the set is never short
+      errors.push(`focal-regions (fell back to geometric crops): ${msg(e)}`);
+    }
+    for (let i = 0; i < 2; i++) {
+      const path = detailPaths[i];
+      if (!args.force && (await storageObjectExists(path))) {
+        detailUrls.push(publicUrl(path));
+        continue;
+      }
+      try {
+        const cropBuf = regions?.[i]
+          ? await renderFocalCrop(sourceBuf, sourceMeta, regions[i])
+          : await renderDetailCrop(sourceBuf, sourceMeta, i);
+        await uploadBuffer(path, cropBuf, 'image/jpeg');
+        detailUrls.push(publicUrl(path));
+        generated.details++;
+      } catch (e) {
+        errors.push(`detail-${i + 1}: ${msg(e)}`);
+        detailUrls.push(args.sourceImageUrl); // fallback to original so the set is never short
+      }
     }
   }
 
@@ -145,29 +174,162 @@ export async function composeArtworkMockups(args: ComposeArgs): Promise<ComposeR
     }
   }
 
+  const imageUrls: MockupSet = {
+    original: args.sourceImageUrl,
+    details: [detailUrls[0], detailUrls[1]],
+    framed: framedUrl,
+    inRoom: inRoomUrl,
+  };
+
+  // Persist the set on the artwork row so the admin page (and later the
+  // storefront) can read it directly. Best-effort: before migration 031
+  // the column doesn't exist (42703) and we skip silently.
+  try {
+    const { error } = await supabaseAdmin
+      .from('artworks')
+      .update({
+        mockup_urls: { ...imageUrls, composedAt: new Date().toISOString() },
+      })
+      .eq('id', args.artworkId);
+    if (error && error.code !== '42703' && !/mockup_urls/.test(error.message)) {
+      errors.push(`persist mockup_urls: ${error.message}`);
+    }
+  } catch (e) {
+    errors.push(`persist mockup_urls: ${msg(e)}`);
+  }
+
   return {
     artworkId: args.artworkId,
     productType: args.productType,
-    imageUrls: {
-      original: args.sourceImageUrl,
-      details: [detailUrls[0], detailUrls[1], detailUrls[2]],
-      framed: framedUrl,
-      inRoom: inRoomUrl,
-    },
+    imageUrls,
     generated,
     errors,
   };
 }
 
 // ============================================
-// Detail crop — deterministic, no AI
+// Detail crops
 // ============================================
 
+interface FocalRegion {
+  /** Normalized [0..1] box around an interesting element */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label: string;
+}
+
 /**
- * Three crops with different intents:
+ * Ask Gemini vision for the two most visually interesting elements of the
+ * artwork, as normalized bounding boxes. One cheap text-model call; any
+ * parse/validation failure throws so the caller falls back to the
+ * deterministic geometric crops.
+ */
+async function pickFocalRegions(sourceBuf: Buffer): Promise<FocalRegion[]> {
+  if (!GEMINI_API_KEY) {
+    throw new Error('GOOGLE_GEMINI_API_KEY missing');
+  }
+  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_VISION_MODEL,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/png', data: sourceBuf.toString('base64') } },
+          {
+            text:
+              'This is an art print. Identify the TWO most visually interesting, ' +
+              'distinct elements a shopper would want to see up close (texture, a focal ' +
+              'subject, a signature detail). Avoid empty background areas and avoid two ' +
+              'boxes covering the same element. Reply with ONLY a JSON array of exactly 2 ' +
+              'objects: [{"x":0-1,"y":0-1,"w":0-1,"h":0-1,"label":"short description"}]. ' +
+              'Coordinates are normalized fractions of image width/height, box = top-left ' +
+              'corner + size, each box covering roughly 25-45% of the image dimension.',
+          },
+        ],
+      },
+    ],
+    config: { responseMimeType: 'application/json' },
+  });
+
+  const text = response.text;
+  if (!text) throw new Error('Vision model returned no text');
+  const parsed = JSON.parse(text) as unknown;
+  if (!Array.isArray(parsed) || parsed.length < 2) {
+    throw new Error('Vision model did not return 2 regions');
+  }
+
+  const regions: FocalRegion[] = [];
+  for (const r of parsed.slice(0, 2)) {
+    const box = r as Partial<FocalRegion>;
+    if (
+      typeof box.x !== 'number' ||
+      typeof box.y !== 'number' ||
+      typeof box.w !== 'number' ||
+      typeof box.h !== 'number' ||
+      box.w <= 0.05 ||
+      box.h <= 0.05
+    ) {
+      throw new Error('Vision region failed validation');
+    }
+    regions.push({
+      x: clamp01(box.x),
+      y: clamp01(box.y),
+      w: clamp01(box.w),
+      h: clamp01(box.h),
+      label: typeof box.label === 'string' ? box.label : 'detail',
+    });
+  }
+  return regions;
+}
+
+/**
+ * Crop a vision-picked focal region with sharp. The box is clamped to the
+ * image bounds and gently padded (10% each side) so the element breathes;
+ * output matches the geometric crops (JPEG 85, <=1600 px long side).
+ */
+async function renderFocalCrop(
+  source: Buffer,
+  meta: sharp.Metadata,
+  region: FocalRegion
+): Promise<Buffer> {
+  const width = meta.width!;
+  const height = meta.height!;
+
+  const pad = 0.1;
+  const x = clamp01(region.x - region.w * pad);
+  const y = clamp01(region.y - region.h * pad);
+  const w = Math.min(region.w * (1 + 2 * pad), 1 - x);
+  const h = Math.min(region.h * (1 + 2 * pad), 1 - y);
+
+  const left = Math.round(x * width);
+  const top = Math.round(y * height);
+  const cropW = Math.max(64, Math.round(w * width));
+  const cropH = Math.max(64, Math.round(h * height));
+
+  return sharp(source)
+    .extract({
+      left: Math.min(left, width - 64),
+      top: Math.min(top, height - 64),
+      width: Math.min(cropW, width - Math.min(left, width - 64)),
+      height: Math.min(cropH, height - Math.min(top, height - 64)),
+    })
+    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85, mozjpeg: true })
+    .toBuffer();
+}
+
+function clamp01(n: number): number {
+  return Math.max(0, Math.min(1, n));
+}
+
+/**
+ * Geometric fallback crops, used when the vision pick fails:
  *   #0 — Center-weighted close-up at ~40% of source (pure subject).
- *   #1 — Top-third detail at ~30% (composition / texture in upper edge).
- *   #2 — Bottom-third detail at ~30% (signature / detail in lower edge).
+ *   #1 — Upper-third detail at ~30% (composition / texture).
  *
  * All output JPEG quality 85, capped at 1600 px on the long side so
  * marketing images stay under ~400 KB while detail still reads.
