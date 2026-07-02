@@ -10,6 +10,7 @@ import {
   toGeminiAspectRatio,
   type GenerateParams,
 } from '@/lib/constants/art-generator'
+import { parseImageDimensions, extensionForMime } from '@/lib/image-dimensions'
 import { buildStyledPrompt } from '@/lib/style-packs'
 import { getStylePackAsync } from '@/lib/style-packs/server'
 import { loadExemplars } from '@/lib/style-packs/exemplars'
@@ -113,18 +114,15 @@ export async function POST(request: Request) {
     }
 
     const imageBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+    const outMime = imagePart.inlineData.mimeType || 'image/png'
 
-    // Measure dimensions cheaply via the parsePng helper — first 24 bytes
-    // tell us width × height. Stamped on metadata for the gallery
-    // dimensions badge + the print-safety guardrail later.
+    // Measure dimensions from the buffer header. Gemini 3.x returns
+    // JPEG, so parse format-aware (PNG + JPEG) rather than assuming PNG.
+    // Stamped on metadata for the gallery badge + print-safety later.
     let measuredDimensions: { width: number; height: number } | null = null
     try {
-      // Reuse the PNG header parser we already have for print-safety
-      const { fetchImageDimensions: _ } = await import('@/lib/image-dimensions')
-      void _
-      const w = imageBuffer.readUInt32BE(16)
-      const h = imageBuffer.readUInt32BE(20)
-      if (w > 0 && h > 0) measuredDimensions = { width: w, height: h }
+      const dims = parseImageDimensions(imageBuffer)
+      if (dims) measuredDimensions = { width: dims.width, height: dims.height }
     } catch {
       // ignore — non-fatal
     }
@@ -132,10 +130,10 @@ export async function POST(request: Request) {
     const now = new Date()
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
-    const storagePath = `${year}/${month}/${crypto.randomUUID()}.png`
+    const storagePath = `${year}/${month}/${crypto.randomUUID()}.${extensionForMime(outMime)}`
 
     await uploadFile('ai-generated', storagePath, imageBuffer, {
-      contentType: 'image/png',
+      contentType: outMime,
     })
 
     const publicUrl = getPublicUrl('ai-generated', storagePath)

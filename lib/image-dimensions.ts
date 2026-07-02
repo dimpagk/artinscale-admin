@@ -37,6 +37,28 @@ export async function fetchImageDimensions(url: string): Promise<ImageDimensions
   return parsePng(bytes) ?? parseJpeg(bytes)
 }
 
+/**
+ * Parse width/height from an in-memory image buffer (PNG or JPEG).
+ * Gemini 3.x image models return JPEG, so the old PNG-only header read
+ * (`buf.readUInt32BE(16)`) yields garbage — use this instead.
+ */
+export function parseImageDimensions(buf: Buffer): ImageDimensions | null {
+  return parsePng(buf) ?? parseJpeg(buf)
+}
+
+/** File extension for an image mime type (defaults to 'png'). */
+export function extensionForMime(mime: string | undefined | null): string {
+  switch ((mime ?? '').toLowerCase()) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg'
+    case 'image/webp':
+      return 'webp'
+    default:
+      return 'png'
+  }
+}
+
 function parsePng(buf: Buffer): ImageDimensions | null {
   if (buf.length < 24) return null
   // PNG signature: 89 50 4E 47 0D 0A 1A 0A

@@ -7,6 +7,7 @@ import {
   createGeneratedImage,
 } from '@/lib/generated-images'
 import { buildStyledPrompt } from '@/lib/style-packs'
+import { parseImageDimensions, extensionForMime } from '@/lib/image-dimensions'
 import { MODEL_OPTIONS, maxImageSizeForModel } from '@/lib/constants/art-generator'
 import { getStylePackAsync } from '@/lib/style-packs/server'
 import { tagVisualContent } from '@/lib/agents/visual-tagger'
@@ -129,14 +130,14 @@ export async function POST(
     )
   }
   const outBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+  const outMime = imagePart.inlineData.mimeType || 'image/png'
 
-  // Measure dimensions cheaply (PNG header)
+  // Measure dimensions from the buffer header (PNG or JPEG — Gemini 3.x
+  // returns JPEG).
   let measuredDimensions: { width: number; height: number } | null = null
   try {
-    measuredDimensions = {
-      width: outBuffer.readUInt32BE(16),
-      height: outBuffer.readUInt32BE(20),
-    }
+    const dims = parseImageDimensions(outBuffer)
+    if (dims) measuredDimensions = { width: dims.width, height: dims.height }
   } catch {
     /* ignore */
   }
@@ -144,10 +145,10 @@ export async function POST(
   const now = new Date()
   const yr = now.getFullYear()
   const mo = String(now.getMonth() + 1).padStart(2, '0')
-  const storagePath = `${yr}/${mo}/${crypto.randomUUID()}.png`
+  const storagePath = `${yr}/${mo}/${crypto.randomUUID()}.${extensionForMime(outMime)}`
 
   await uploadFile('ai-generated', storagePath, outBuffer, {
-    contentType: 'image/png',
+    contentType: outMime,
   })
   const publicUrl = getPublicUrl('ai-generated', storagePath)
 

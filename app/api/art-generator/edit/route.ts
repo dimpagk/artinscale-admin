@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { GoogleGenAI } from '@google/genai'
 import { uploadFile, getPublicUrl } from '@/lib/storage'
+import { extensionForMime } from '@/lib/image-dimensions'
 import {
   getGeneratedImageById,
   updateGeneratedImage,
@@ -96,14 +97,15 @@ export async function POST(request: Request) {
     }
 
     const newImageBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+    const outMime = imagePart.inlineData.mimeType || 'image/png'
 
     const now = new Date()
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
-    const newStoragePath = `${year}/${month}/${crypto.randomUUID()}.png`
+    const newStoragePath = `${year}/${month}/${crypto.randomUUID()}.${extensionForMime(outMime)}`
 
     await uploadFile('ai-generated', newStoragePath, newImageBuffer, {
-      contentType: 'image/png',
+      contentType: outMime,
     })
 
     const newPublicUrl = getPublicUrl('ai-generated', newStoragePath)
