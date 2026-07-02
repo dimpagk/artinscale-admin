@@ -299,6 +299,18 @@ export const SMALLEST_TEMPLATE: GelatoTemplateKey = 'museum-poster-21x30';
  * generations are composed portrait). Returns null when the image is too
  * small for even the smallest size at `dpi`.
  */
+/**
+ * The image width (px) needed to print the LARGEST template at `dpi` —
+ * i.e. render a resolution-independent source (vector SVG) at least this
+ * wide and `pickLargestPrintSize` can reach the top size (70×100 →
+ * 8268px @ 300 DPI). Portrait, so this is the shorter physical side.
+ */
+export function maxPrintWidthPx(dpi: number = QUALITY_DPI): number {
+  return Math.max(
+    ...Object.values(GELATO_TEMPLATES).map((cfg) => pxAtDpi(cfg.widthCm, dpi))
+  );
+}
+
 export function pickLargestPrintSize(
   imageWidthPx: number,
   imageHeightPx: number,

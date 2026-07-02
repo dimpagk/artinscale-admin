@@ -4,6 +4,7 @@ import { renderSvgToPng } from '@/lib/svg-render'
 import { uploadFile, getPublicUrl } from '@/lib/storage'
 import { getGeneratedImageById } from '@/lib/generated-images'
 import { createArtwork, getArtworkById } from '@/lib/artworks'
+import { maxPrintWidthPx } from '@/lib/gelato-templates'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
@@ -85,9 +86,13 @@ export async function POST(
   // Render to PNG via sharp
   let rendered
   try {
+    // Render wide enough to support the LARGEST print size at
+    // museum-quality DPI (70×100 → 8268px). Vectors are resolution-
+    // independent, so this lets auto-sizing list them at the biggest
+    // size instead of being capped by a 4096px raster.
     rendered = await renderSvgToPng({
       svg,
-      width: body.render_width ?? 4096,
+      width: body.render_width ?? maxPrintWidthPx(),
     })
   } catch (err) {
     return NextResponse.json(
