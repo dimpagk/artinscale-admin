@@ -193,18 +193,13 @@ export function defaultVariantTitle(cfg: GelatoTemplateConfig): string {
 }
 
 function cmToInches(widthCm: number, heightCm: number): string {
-  const w = roundOne(widthCm / 2.54);
-  const h = roundOne(heightCm / 2.54);
-  return `${trimZero(w)}x${trimZero(h)}`;
-}
-
-function roundOne(n: number): number {
-  return Math.round(n * 10) / 10;
-}
-
-function trimZero(n: number): string {
-  // 16 not 16.0; 8.3 stays 8.3
-  return Number.isInteger(n) ? String(n) : String(n);
+  // Whole inches, matching the operator's live products and the Gelato
+  // variant titles (e.g. 50x70 cm → "20x28", 40x60 cm → "16x24",
+  // 21x30 cm → "8x12"). Gelato's own SKUs use these rounded values, so
+  // the storefront dimension must match to stay consistent.
+  const w = Math.round(widthCm / 2.54);
+  const h = Math.round(heightCm / 2.54);
+  return `${w}x${h}`;
 }
 
 function escapeHtml(s: string): string {
