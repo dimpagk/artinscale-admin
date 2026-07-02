@@ -48,7 +48,14 @@ export default async function ArtistsPage() {
       header: 'Name',
       render: (a) => (
         <div>
-          <p className="font-medium text-gray-900">{a.name || 'Unnamed'}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-gray-900">{a.name || 'Unnamed'}</p>
+            {a.is_studio_artist && (
+              <Badge variant="secondary" size="sm">
+                Studio
+              </Badge>
+            )}
+          </div>
           {a.bio && (
             <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{a.bio}</p>
           )}

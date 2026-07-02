@@ -9,6 +9,9 @@ export type User = {
   bio: string | null;
   portfolio: string | null;
   role: UserRole;
+  // Studio-created (house) artist personas — internal bookkeeping only.
+  // Set via migration 026 for the seeded @artinscale.studio personas.
+  is_studio_artist: boolean;
   created_at: string;
   updated_at: string;
 };
