@@ -97,7 +97,10 @@ export async function draftArtworkFields(artworkId: string): Promise<ArtworkFiel
 
   const config = productType ? getTemplateConfig(productType) : null;
   const sizeStr = config ? `${config.widthCm}x${config.heightCm} cm` : null;
-  const editionSize = defaults?.editionSize ?? artwork.edition_size ?? null;
+  // Edition defaults to open. The drafter never proposes a limit: it keeps
+  // whatever the artwork already has (a no-op suggestion), so "Generate all
+  // fields" won't quietly turn an open edition into a limited one.
+  const editionSize = artwork.edition_size ?? null;
   const editionLabel =
     editionSize != null ? `Limited edition of ${editionSize}` : 'Open edition';
 
