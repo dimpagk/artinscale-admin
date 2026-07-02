@@ -167,9 +167,9 @@ async function dispatch(name: string, body: Record<string, unknown>): Promise<un
       // Pass either `generatedImageId` (direct) or `imageUrl` (we'll
       // look up the matching generated_images row). Idempotent.
       if (typeof body.generatedImageId === 'string') {
+        // Scale is now derived from the target print size, not passed in.
         return runUpscaleForGeneratedImage({
           generatedImageId: body.generatedImageId,
-          scale: body.scale === 2 ? 2 : 4,
         })
       }
       return ensureUpscaledForArtworkImage(requireString(body, 'imageUrl'))

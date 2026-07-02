@@ -17,12 +17,13 @@ import crypto from 'node:crypto';
 import { upscaleImage } from './upscaler';
 import { uploadFile, getPublicUrl } from './storage';
 import { supabaseAdmin } from './supabase/admin';
-import { fetchImageDimensions } from './image-dimensions';
+import { fetchImageDimensions, extensionForMime } from './image-dimensions';
+import { planUpscaleForBase } from './gelato-templates';
 
 export interface UpscaleRunResult {
   generatedImageId: string;
   upscaledImageUrl: string;
-  scale: 2 | 4;
+  scale: number;
   dimensions: { width: number; height: number } | null;
   alreadyUpscaled: boolean;
   isDryRun: boolean;
@@ -58,9 +59,8 @@ export async function findGeneratedImageForArtworkUrl(
  */
 export async function runUpscaleForGeneratedImage(args: {
   generatedImageId: string;
-  scale?: 2 | 4;
 }): Promise<UpscaleRunResult> {
-  const { generatedImageId, scale: requestedScale = 4 } = args;
+  const { generatedImageId } = args;
 
   const { data: image } = await supabaseAdmin
     .from('generated_images')
@@ -78,26 +78,63 @@ export async function runUpscaleForGeneratedImage(args: {
     return {
       generatedImageId,
       upscaledImageUrl: existingUrl,
-      scale: (meta.upscaledScale as 2 | 4) ?? 4,
+      scale: (meta.upscaledScale as number) ?? 1,
       dimensions: dims,
       alreadyUpscaled: true,
       isDryRun: meta.upscaledIsDryRun === true,
     };
   }
 
-  const { buffer, scale, isDryRun } = await upscaleImage({
+  // Plan the upscale from the base image's actual resolution: how far do
+  // we go, and with which upscaler, to hit 300 DPI for the largest size
+  // this image can reach. Real-ESRGAN x2 for the small jumps, Clarity for
+  // 60×90 / 70×100.
+  const base = await fetchImageDimensions(image.image_url);
+  const plan = base ? planUpscaleForBase(base.width, base.height) : null;
+
+  // Base already prints at the target size (or we couldn't measure it and
+  // fall through to Real-ESRGAN x2): when no upscale is needed, the
+  // original IS the print master.
+  if (base && plan && plan.model === null) {
+    await supabaseAdmin
+      .from('generated_images')
+      .update({
+        metadata: {
+          ...meta,
+          upscaledImageUrl: image.image_url,
+          upscaledScale: 1,
+          upscaledProductType: plan.productType,
+          upscaledDimensions: { width: base.width, height: base.height },
+          upscaledAt: new Date().toISOString(),
+          upscaledIsDryRun: false,
+        },
+      })
+      .eq('id', generatedImageId);
+    return {
+      generatedImageId,
+      upscaledImageUrl: image.image_url,
+      scale: 1,
+      dimensions: { width: base.width, height: base.height },
+      alreadyUpscaled: false,
+      isDryRun: false,
+    };
+  }
+
+  const { buffer, scale, model, isDryRun } = await upscaleImage({
     imageUrl: image.image_url,
-    scale: requestedScale,
+    model: plan?.model ?? 'real-esrgan',
+    scale: plan?.scale ?? 2,
   });
 
   const originalName = image.storage_path.split('/').pop() ?? `${generatedImageId}.png`;
-  const baseName = originalName.replace(/\.png$/, '');
-  const upscaledPath = `upscaled/${baseName}-x${scale}-${crypto
+  const baseName = originalName.replace(/\.[a-z0-9]+$/i, '');
+  const ext = extensionForMime(isDryRun ? undefined : 'image/png');
+  const upscaledPath = `upscaled/${baseName}-${model}-x${scale}-${crypto
     .randomBytes(3)
-    .toString('hex')}.png`;
+    .toString('hex')}.${ext}`;
 
   await uploadFile('ai-generated', upscaledPath, buffer, {
-    contentType: 'image/png',
+    contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
   });
   const upscaledImageUrl = getPublicUrl('ai-generated', upscaledPath);
   const dims = await fetchImageDimensions(upscaledImageUrl);
@@ -110,6 +147,8 @@ export async function runUpscaleForGeneratedImage(args: {
         upscaledImageUrl,
         upscaledStoragePath: upscaledPath,
         upscaledScale: scale,
+        upscaledModel: model,
+        upscaledProductType: plan?.productType ?? null,
         upscaledDimensions: dims ? { width: dims.width, height: dims.height } : null,
         upscaledAt: new Date().toISOString(),
         upscaledIsDryRun: isDryRun ?? false,
@@ -120,7 +159,7 @@ export async function runUpscaleForGeneratedImage(args: {
   return {
     generatedImageId,
     upscaledImageUrl,
-    scale: (scale === 2 ? 2 : 4) as 2 | 4,
+    scale,
     dimensions: dims,
     alreadyUpscaled: false,
     isDryRun: isDryRun ?? false,
@@ -140,5 +179,5 @@ export async function ensureUpscaledForArtworkImage(
   if (!row) {
     return { skipped: true, reason: 'no generated_images row matches artwork.image_url' };
   }
-  return runUpscaleForGeneratedImage({ generatedImageId: row.id, scale: 4 });
+  return runUpscaleForGeneratedImage({ generatedImageId: row.id });
 }

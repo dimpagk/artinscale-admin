@@ -30,11 +30,27 @@ const MODEL_OWNER = 'nightmareai'
 const MODEL_NAME = 'real-esrgan'
 const MODEL_VERSION = process.env.REPLICATE_UPSCALER_MODEL_VERSION ?? null
 
+// Clarity handles the big jumps (60×90 / 70×100) Real-ESRGAN's integer
+// x2/x4 + ~128MP cap can't: arbitrary scale_factor, tiles to print
+// resolution. Faithful settings (low creativity, high resemblance) keep
+// it true to the source rather than inventing detail.
+const CLARITY_OWNER = 'philz1337x'
+const CLARITY_NAME = 'clarity-upscaler'
+// Community models (unlike official ones such as real-esrgan) have no
+// `/models/{owner}/{name}/predictions` endpoint — they must be run via
+// `/v1/predictions` with a pinned version SHA. Pin via env, else resolve
+// the latest at call time.
+const CLARITY_VERSION = process.env.REPLICATE_CLARITY_MODEL_VERSION ?? null
+
+export type UpscaleModel = 'real-esrgan' | 'clarity'
+
 export interface UpscaleArgs {
   imageUrl: string
-  /** 2 or 4. Default 4 — biggest gain in print quality. */
-  scale?: 2 | 4
-  /** Whether to run face enhancement (off by default — we do flat art) */
+  /** Upscale ratio. Real-ESRGAN accepts 2 or 4; Clarity takes any value. */
+  scale?: number
+  /** Which upscaler. Default Real-ESRGAN (cheap/fast/faithful). */
+  model?: UpscaleModel
+  /** Whether to run face enhancement (Real-ESRGAN only; off — we do flat art) */
   faceEnhance?: boolean
 }
 
@@ -42,10 +58,13 @@ export interface UpscaleResult {
   buffer: Buffer
   /** Original → upscaled dimension ratio actually applied */
   scale: number
+  model: UpscaleModel
   isDryRun?: boolean
 }
 
 export async function upscaleImage(args: UpscaleArgs): Promise<UpscaleResult> {
+  const model: UpscaleModel = args.model ?? 'real-esrgan'
+
   if (DRY_RUN) {
     console.log('[Upscaler] DRY RUN — would upscale:', args.imageUrl)
     // Fetch the original and return it as-is — operator can wire real
@@ -57,6 +76,7 @@ export async function upscaleImage(args: UpscaleArgs): Promise<UpscaleResult> {
     return {
       buffer: Buffer.from(await res.arrayBuffer()),
       scale: 1,
+      model,
       isDryRun: true,
     }
   }
@@ -67,28 +87,8 @@ export async function upscaleImage(args: UpscaleArgs): Promise<UpscaleResult> {
     )
   }
 
-  // Use the model-name endpoint when a version is not pinned — Replicate
-  // resolves "latest" server-side. When REPLICATE_UPSCALER_MODEL_VERSION
-  // is set, fall back to the SHA-pinned predictions endpoint.
-  const url = MODEL_VERSION
-    ? 'https://api.replicate.com/v1/predictions'
-    : `https://api.replicate.com/v1/models/${MODEL_OWNER}/${MODEL_NAME}/predictions`
-  const body = MODEL_VERSION
-    ? {
-        version: MODEL_VERSION,
-        input: {
-          image: args.imageUrl,
-          scale: args.scale ?? 4,
-          face_enhance: args.faceEnhance ?? false,
-        },
-      }
-    : {
-        input: {
-          image: args.imageUrl,
-          scale: args.scale ?? 4,
-          face_enhance: args.faceEnhance ?? false,
-        },
-      }
+  const { url, body, timeoutMs } = await buildRequest(model, args)
+
   const startRes = await fetch(url, {
     method: 'POST',
     headers: {
@@ -102,8 +102,7 @@ export async function upscaleImage(args: UpscaleArgs): Promise<UpscaleResult> {
   }
   const started = (await startRes.json()) as { id: string; urls: { get: string } }
 
-  // Poll for completion (max 90s)
-  const deadline = Date.now() + 90_000
+  const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 2000))
     const pollRes = await fetch(started.urls.get, {
@@ -114,21 +113,79 @@ export async function upscaleImage(args: UpscaleArgs): Promise<UpscaleResult> {
     }
     const polled = (await pollRes.json()) as {
       status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled'
-      output?: string
+      // Real-ESRGAN returns a single URL; Clarity returns an array.
+      output?: string | string[]
       error?: string
     }
     if (polled.status === 'succeeded') {
-      if (!polled.output) throw new Error('Replicate succeeded but no output URL')
-      const dl = await fetch(polled.output)
-      if (!dl.ok) throw new Error(`Failed to download upscaled PNG: ${dl.status}`)
+      const outputUrl = Array.isArray(polled.output) ? polled.output[0] : polled.output
+      if (!outputUrl) throw new Error('Replicate succeeded but no output URL')
+      const dl = await fetch(outputUrl)
+      if (!dl.ok) throw new Error(`Failed to download upscaled image: ${dl.status}`)
       return {
         buffer: Buffer.from(await dl.arrayBuffer()),
-        scale: args.scale ?? 4,
+        scale: args.scale ?? (model === 'real-esrgan' ? 2 : 1),
+        model,
       }
     }
     if (polled.status === 'failed' || polled.status === 'canceled') {
       throw new Error(`Replicate ${polled.status}: ${polled.error ?? 'no detail'}`)
     }
   }
-  throw new Error('Replicate upscale timed out after 90s')
+  throw new Error(`Replicate upscale (${model}) timed out after ${timeoutMs / 1000}s`)
+}
+
+async function buildRequest(
+  model: UpscaleModel,
+  args: UpscaleArgs
+): Promise<{ url: string; body: Record<string, unknown>; timeoutMs: number }> {
+  if (model === 'clarity') {
+    const version = CLARITY_VERSION ?? (await resolveLatestVersion(CLARITY_OWNER, CLARITY_NAME))
+    return {
+      url: 'https://api.replicate.com/v1/predictions',
+      body: {
+        version,
+        input: {
+          image: args.imageUrl,
+          scale_factor: args.scale ?? 2,
+          // Faithful, not creative — this is reproduction, not reimagining.
+          creativity: 0.25,
+          resemblance: 1.2,
+          output_format: 'png',
+        },
+      },
+      // Clarity is SD-based and tiles large outputs — much slower than ESRGAN.
+      timeoutMs: 240_000,
+    }
+  }
+
+  // Real-ESRGAN — integer scale only (2 or 4).
+  const esrganScale = args.scale === 4 ? 4 : 2
+  const url = MODEL_VERSION
+    ? 'https://api.replicate.com/v1/predictions'
+    : `https://api.replicate.com/v1/models/${MODEL_OWNER}/${MODEL_NAME}/predictions`
+  const input = {
+    image: args.imageUrl,
+    scale: esrganScale,
+    face_enhance: args.faceEnhance ?? false,
+  }
+  return {
+    url,
+    body: MODEL_VERSION ? { version: MODEL_VERSION, input } : { input },
+    timeoutMs: 120_000,
+  }
+}
+
+/** Resolve a community model's latest version SHA for `/v1/predictions`. */
+async function resolveLatestVersion(owner: string, name: string): Promise<string> {
+  const res = await fetch(`https://api.replicate.com/v1/models/${owner}/${name}`, {
+    headers: { Authorization: `Token ${REPLICATE_API_TOKEN}` },
+  })
+  if (!res.ok) {
+    throw new Error(`Replicate model lookup failed for ${owner}/${name}: ${res.status}`)
+  }
+  const data = (await res.json()) as { latest_version?: { id?: string } }
+  const id = data.latest_version?.id
+  if (!id) throw new Error(`No latest version for ${owner}/${name}`)
+  return id
 }

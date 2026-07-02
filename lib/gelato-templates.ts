@@ -328,6 +328,95 @@ export function pickLargestPrintSize(
   return null;
 }
 
+/**
+ * Faithful upscale ceiling. Beyond this, upscaling invents too much to
+ * still call the result "museum quality". A real 4K Gemini base
+ * (~3584×4800) reaches 70×100 within ~2.5x, so 3x is enough headroom to
+ * unlock every size without over-reaching.
+ */
+export const MAX_UPSCALE_FACTOR = 3;
+
+/**
+ * Largest size we auto-target. Capped at 50×70: reachable from a 4K base
+ * with Real-ESRGAN x2 (most faithful, cheapest), and the sweet-spot hero
+ * size. Raise to 'museum-poster-70x100' to let Clarity push every piece
+ * bigger; operators can still pin a larger size per piece.
+ */
+export const MAX_AUTO_PRINT_SIZE: GelatoTemplateKey = 'museum-poster-50x70';
+
+export interface UpscalePlan {
+  /** The single size this piece will be sold at. */
+  productType: GelatoTemplateKey;
+  /** Upscale ratio needed to hit QUALITY_DPI for that size (1 = none). */
+  factor: number;
+  /** Which upscaler to use — null when the base already prints at size. */
+  model: 'real-esrgan' | 'clarity' | null;
+  /** Scale passed to the upscaler (2 for Real-ESRGAN, exact for Clarity). */
+  scale: number;
+  targetWidthPx: number;
+  targetHeightPx: number;
+}
+
+function areaCm(key: GelatoTemplateKey): number {
+  const c = GELATO_TEMPLATES[key];
+  return c.widthCm * c.heightCm;
+}
+
+function buildPlan(
+  key: GelatoTemplateKey,
+  needW: number,
+  needH: number,
+  factor: number
+): UpscalePlan {
+  // Tiny tolerance so a base that's essentially at-size isn't upscaled.
+  if (factor <= 1.02) {
+    return { productType: key, factor: 1, model: null, scale: 1, targetWidthPx: needW, targetHeightPx: needH };
+  }
+  // Up to 2x: Real-ESRGAN x2 — cheap, fast, faithful. It overshoots
+  // slightly (fine: higher DPI), and the binding axis keeps the size correct.
+  if (factor <= 2) {
+    return { productType: key, factor, model: 'real-esrgan', scale: 2, targetWidthPx: needW, targetHeightPx: needH };
+  }
+  // Bigger jumps (60×90, 70×100): Clarity at the exact factor — tiles to
+  // reach the needed megapixels without the integer-only / cap limits of
+  // Real-ESRGAN. Round up to a tenth, clamp to the faithful ceiling.
+  const scale = Math.min(MAX_UPSCALE_FACTOR, Math.ceil(factor * 10) / 10);
+  return { productType: key, factor, model: 'clarity', scale, targetWidthPx: needW, targetHeightPx: needH };
+}
+
+/**
+ * Given a base image's pixels, pick the largest print size reachable at
+ * QUALITY_DPI within MAX_UPSCALE_FACTOR (never above MAX_AUTO_PRINT_SIZE)
+ * and the plan to upscale to it. This is the single source of truth that
+ * ties "how big can we print this" to "how much do we upscale".
+ */
+export function planUpscaleForBase(baseWidthPx: number, baseHeightPx: number): UpscalePlan {
+  const cap = areaCm(MAX_AUTO_PRINT_SIZE);
+  const candidates = (
+    Object.entries(GELATO_TEMPLATES) as [GelatoTemplateKey, GelatoTemplateConfig][]
+  )
+    .filter(([k]) => areaCm(k) <= cap)
+    .sort((a, b) => b[1].widthCm * b[1].heightCm - a[1].widthCm * a[1].heightCm);
+
+  for (const [key, cfg] of candidates) {
+    const needW = pxAtDpi(cfg.widthCm, QUALITY_DPI);
+    const needH = pxAtDpi(cfg.heightCm, QUALITY_DPI);
+    const factor = Math.max(needW / baseWidthPx, needH / baseHeightPx);
+    if (factor <= MAX_UPSCALE_FACTOR) {
+      return buildPlan(key, needW, needH, factor);
+    }
+  }
+
+  // Base too small for even the smallest size within the ceiling — target
+  // the smallest and upscale as far as the ceiling allows (print-safety
+  // still gates the actual push).
+  const cfg = GELATO_TEMPLATES[SMALLEST_TEMPLATE];
+  const needW = pxAtDpi(cfg.widthCm, QUALITY_DPI);
+  const needH = pxAtDpi(cfg.heightCm, QUALITY_DPI);
+  const factor = Math.min(MAX_UPSCALE_FACTOR, Math.max(needW / baseWidthPx, needH / baseHeightPx));
+  return buildPlan(SMALLEST_TEMPLATE, needW, needH, factor);
+}
+
 export function isLaunchEnabled(productType: string): boolean {
   return GELATO_TEMPLATES[productType]?.enabledForLaunch ?? false;
 }
