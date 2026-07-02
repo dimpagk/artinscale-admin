@@ -262,6 +262,9 @@ async function applyGelatoToOrder(order: OrderRow, g: GelatoOrderSummary): Promi
     gelato_financial_status: g.financialStatus,
     gelato_item_cost: g.itemCost,
     gelato_preview_url: g.previewUrl,
+    // Only write shipping cost once Gelato has priced it, so a not-yet-
+    // calculated null doesn't overwrite a value a prior sync captured.
+    ...(g.shippingCost != null ? { gelato_shipping_cost: g.shippingCost } : {}),
     gelato_tracking_url: g.trackingUrl,
     gelato_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

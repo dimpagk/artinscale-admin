@@ -153,6 +153,13 @@ export interface GelatoOrderSummary {
   currency: string | null;
   /** Sum of Gelato item prices (our cost), for margin. Null if not priced yet. */
   itemCost: number | null;
+  /**
+   * Shipping cost Gelato bills us (excl VAT), from the order receipt. Null
+   * until Gelato has calculated it (often 0 / null on freshly-created
+   * orders, populated once the order moves toward production). This is our
+   * COST, distinct from the retail shipping the customer paid.
+   */
+  shippingCost: number | null;
   /** Rendered default preview of the first item, if Gelato has produced one. */
   previewUrl: string | null;
   /** First tracking URL, once shipped. */
@@ -184,7 +191,13 @@ interface RawGelatoOrder {
     price?: number | string;
     previews?: Array<{ type?: string; url?: string }>;
   }>;
-  shipment?: { trackingUrl?: string } | null;
+  // The order receipt is the authoritative cost breakdown Gelato bills us:
+  // per-receipt aggregate prices (excl VAT) plus typed line items.
+  receipts?: Array<{
+    shippingPrice?: number | string | null;
+    items?: Array<{ type?: string; price?: number | string | null }>;
+  }>;
+  shipment?: { trackingUrl?: string; price?: number | string | null } | null;
   shipments?: Array<{ trackingUrl?: string }>;
   shippingAddress?: {
     firstName?: string | null;
@@ -206,12 +219,39 @@ function extractExternalOrderId(raw: RawGelatoOrder): string | null {
 }
 
 export function normalizeGelatoOrder(raw: RawGelatoOrder): GelatoOrderSummary {
+  const toNum = (v: number | string | null | undefined): number | null => {
+    if (v === null || v === undefined) return null;
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    return Number.isNaN(n) ? null : n;
+  };
+
   const items = raw.items ?? [];
   let itemCost: number | null = null;
   for (const it of items) {
-    const p = typeof it.price === 'string' ? parseFloat(it.price) : it.price;
-    if (typeof p === 'number' && !Number.isNaN(p)) itemCost = (itemCost ?? 0) + p;
+    const p = toNum(it.price);
+    if (p !== null) itemCost = (itemCost ?? 0) + p;
   }
+
+  // Shipping cost we're billed. Prefer the receipt's aggregate shippingPrice
+  // (excl VAT), fall back to summing 'shipment'-type receipt line items, then
+  // to the shipment object's own price. Left null when Gelato hasn't priced
+  // shipping yet, so applyGelatoToOrder won't clobber a known value with null.
+  let shippingCost: number | null = null;
+  const receipts = raw.receipts ?? [];
+  for (const r of receipts) {
+    const agg = toNum(r.shippingPrice);
+    if (agg !== null) {
+      shippingCost = (shippingCost ?? 0) + agg;
+      continue;
+    }
+    for (const li of r.items ?? []) {
+      if (li.type === 'shipment') {
+        const p = toNum(li.price);
+        if (p !== null) shippingCost = (shippingCost ?? 0) + p;
+      }
+    }
+  }
+  if (shippingCost === null) shippingCost = toNum(raw.shipment?.price);
   const previewUrl =
     items[0]?.previews?.find((p) => p.type === 'preview_default')?.url ??
     items[0]?.previews?.[0]?.url ??
@@ -243,6 +283,7 @@ export function normalizeGelatoOrder(raw: RawGelatoOrder): GelatoOrderSummary {
     financialStatus: raw.financialStatus ?? null,
     currency: raw.currency ?? null,
     itemCost,
+    shippingCost,
     previewUrl,
     trackingUrl,
     customerName,
