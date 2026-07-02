@@ -16,6 +16,7 @@ const STATUS_MAP = {
     created: 'warning',
     listed: 'success',
     sold: 'secondary',
+    retired: 'outline',
   },
   topic: {
     active: 'success',

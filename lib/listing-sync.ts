@@ -206,7 +206,13 @@ export async function syncArtworkToShopify(
 
   const vendor = artist?.name?.trim() || 'Artinscale';
   const productType = 'Art Print';
-  const status: 'active' | 'draft' = 'active';
+  // Retiring a piece pulls it from the storefront: Shopify `draft`
+  // removes it from every sales channel while keeping the product (and
+  // its handle / history) intact, so a retire is fully reversible by
+  // flipping the status back to `listed`. Matches the external-prints
+  // retire convention (status=draft).
+  const isRetired = artwork.status === 'retired';
+  const status: 'active' | 'draft' = isRetired ? 'draft' : 'active';
 
   // ── 4. Gelato: push price (so Gelato dashboard isn't stale)
   if (artwork.gelato_product_id && artwork.price != null) {
@@ -485,7 +491,11 @@ export async function syncArtworkToShopify(
   // no-op (the GraphQL mutation handles it). Also covers the case
   // where the operator adds a new sales channel later: the next sync
   // backfills existing products.
-  if (artwork.shopify_product_id) {
+  // Skipped for retired pieces — republishing would re-associate the
+  // sales channels we're deliberately pulling it from. The `draft`
+  // status set above already hides it everywhere; this just avoids
+  // fighting that intent on every subsequent sync.
+  if (artwork.shopify_product_id && !isRetired) {
     const pubRes = await publishProductToAllChannels({
       productGid: artwork.shopify_product_id,
     });

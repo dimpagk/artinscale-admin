@@ -162,6 +162,7 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
                 { value: 'created', label: 'Created' },
                 { value: 'listed', label: 'Listed' },
                 { value: 'sold', label: 'Sold' },
+                { value: 'retired', label: 'Retired' },
               ]}
               defaultValue={artwork?.status || 'created'}
             />

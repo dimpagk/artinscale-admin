@@ -238,7 +238,12 @@ export async function updateArtworkAction(id: string, formData: FormData) {
     isLimitedEdition &&
     newEditionSold >= newEditionSize &&
     (prev?.edition_sold ?? 0) < (prev?.edition_size ?? Infinity);
-  if (isLimitedEdition && newEditionSold >= newEditionSize && finalStatus !== 'sold') {
+  if (
+    isLimitedEdition &&
+    newEditionSold >= newEditionSize &&
+    finalStatus !== 'sold' &&
+    finalStatus !== 'retired'
+  ) {
     finalStatus = 'sold';
   }
 
