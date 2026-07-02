@@ -15,6 +15,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import type { ArtworkCreationSource } from '@/lib/types';
 import { CURATION_WASTE_MULTIPLIER, MOCKUP_SET_USD, UPSCALE_USD } from './pricing';
 import { getFinanceSettings } from './economics';
 
@@ -109,4 +110,103 @@ export async function estimateArtworkCreationCost(
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Map an artist's kind (migration 027 taxonomy) to a creation source.
+ * The artist's kind is authoritative over the form's guess, so a piece by a
+ * community artist is always sourced 'community', a Classic 'public_domain',
+ * a studio persona 'ai'.
+ */
+function sourceForArtistKind(
+  kind: string | null,
+  fallback: ArtworkCreationSource
+): ArtworkCreationSource {
+  switch (kind) {
+    case 'community':
+      return 'community';
+    case 'classic':
+      return 'public_domain';
+    case 'studio':
+      return 'ai';
+    default:
+      return fallback;
+  }
+}
+
+export interface ResolvedCreationCost {
+  source: ArtworkCreationSource;
+  cost: number | null;
+  currency: string;
+  breakdown: Record<string, unknown>;
+}
+
+/**
+ * Resolve the creation source + cost for an artwork on save.
+ *
+ *   - An operator-entered cost always wins (recorded as a manual adjustment).
+ *   - Otherwise prefill by source: AI estimates from the generation ledger,
+ *     community uses the configurable default flat fee (varies per piece, so
+ *     it's a starting point), public-domain is free.
+ *
+ * The source is derived from the assigned artist's kind when there is one,
+ * falling back to the form's selection.
+ */
+export async function resolveCreationCost(args: {
+  imageUrl: string | null;
+  artistId: string | null;
+  providedCost: number | null;
+  formSource: ArtworkCreationSource;
+}): Promise<ResolvedCreationCost> {
+  const fs = await getFinanceSettings();
+  const currency = fs.reporting_currency;
+
+  let artistKind: string | null = null;
+  if (args.artistId) {
+    const { data } = await supabaseAdmin
+      .from('users')
+      .select('artist_kind')
+      .eq('id', args.artistId)
+      .maybeSingle();
+    artistKind = (data as { artist_kind?: string | null } | null)?.artist_kind ?? null;
+  }
+  const source = sourceForArtistKind(artistKind, args.formSource);
+
+  // Operator-entered value wins.
+  if (args.providedCost != null) {
+    return {
+      source,
+      cost: args.providedCost,
+      currency,
+      breakdown: { manual_adjustment: args.providedCost, source: 'operator' },
+    };
+  }
+
+  if (source === 'ai') {
+    const est = await estimateArtworkCreationCost(args.imageUrl);
+    return { source, cost: est.creationCost, currency, breakdown: est.breakdown };
+  }
+
+  if (source === 'community') {
+    const fee = fs.default_community_artist_fee;
+    return {
+      source,
+      cost: fee,
+      currency,
+      breakdown: { community_fee: fee, source: 'default', note: 'varies per artwork' },
+    };
+  }
+
+  if (source === 'public_domain') {
+    return {
+      source,
+      cost: 0,
+      currency,
+      breakdown: { purchase: 0, source: 'public_domain' },
+    };
+  }
+
+  // 'purchased' / 'manual' with no entered value — leave null for the
+  // operator to fill.
+  return { source, cost: null, currency, breakdown: {} };
 }

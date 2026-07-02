@@ -63,6 +63,16 @@ export function ArtistForm({ artist }: ArtistFormProps) {
           helperText="Internal classification. Not shown publicly."
         />
 
+        <Input
+          name="royalty_percent"
+          label="Royalty % per sale"
+          type="number"
+          step="0.1"
+          defaultValue={artist?.royalty_percent != null ? String(artist.royalty_percent) : ''}
+          placeholder="e.g. 15"
+          helperText="Community artists only. Deducted from each sale of their pieces. Blank uses the default from Economics settings."
+        />
+
         <Textarea
           name="bio"
           label="Bio"

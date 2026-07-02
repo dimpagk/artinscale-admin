@@ -41,6 +41,7 @@ export async function createUser(user: {
   image?: string;
   role: 'CONTRIBUTOR' | 'ARTIST' | 'ADMIN';
   artistKind?: ArtistKind;
+  royaltyPercent?: number | null;
 }): Promise<User | null> {
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -52,6 +53,7 @@ export async function createUser(user: {
       image: user.image || null,
       role: user.role,
       artist_kind: user.artistKind ?? null,
+      royalty_percent: user.royaltyPercent ?? null,
     })
     .select()
     .single();
@@ -71,6 +73,7 @@ export async function updateUser(
     portfolio?: string | null;
     image?: string | null;
     artist_kind?: ArtistKind | null;
+    royalty_percent?: number | null;
   }
 ): Promise<boolean> {
   const { error } = await supabaseAdmin

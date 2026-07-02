@@ -118,6 +118,9 @@ export default async function OrderDetailPage({
                   <Row label="− Gelato shipping" value={`- ${money(econ.shipping_cost, order.currency)}`} muted />
                 )}
                 <Row label="− Payment fee (est.)" value={`- ${money(econ.payment_fee, order.currency)}`} muted />
+                {econ.artist_royalty > 0 && (
+                  <Row label="− Artist royalty" value={`- ${money(econ.artist_royalty, order.currency)}`} muted />
+                )}
                 <div className="mt-2 border-t border-gray-100 pt-2">
                   <Row
                     label="Contribution margin"

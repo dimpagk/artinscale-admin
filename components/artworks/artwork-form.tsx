@@ -88,8 +88,10 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
     if (isEditing) return;
     const defaults = getProductDefaults(next);
     if (!defaults) return;
+    // Price prefills from the product type, but edition stays empty: new
+    // pieces default to an open (unlimited) edition; the operator sets a
+    // limit only when they want one.
     if (!priceOverride) setPriceOverride(String(defaults.price));
-    if (!editionOverride) setEditionOverride(String(defaults.editionSize));
   };
 
   const handleRegenerateListingMeta = async () => {
@@ -360,7 +362,7 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
                 type="number"
                 value={editionOverride}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditionOverride(e.target.value)}
-                helperText="Empty = open edition. Auto-prefills from product type on create; you can override."
+                helperText="Empty = open edition (the default). Enter a number to make it limited."
               />
             </div>
 
@@ -432,11 +434,13 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
               label="Source"
               options={[
                 { value: 'ai', label: 'AI-generated' },
+                { value: 'community', label: 'Community artist' },
                 { value: 'purchased', label: 'Purchased / licensed' },
                 { value: 'public_domain', label: 'Public domain' },
                 { value: 'manual', label: 'Other / manual' },
               ]}
               defaultValue={artwork?.creation_source || 'ai'}
+              helperText="Auto-set from the assigned artist's kind on save."
             />
             <Input
               name="creation_cost"
@@ -446,8 +450,8 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
               defaultValue={artwork?.creation_cost != null ? String(artwork.creation_cost) : ''}
               helperText={
                 isEditing
-                  ? 'Leave as-is to keep. For bought pieces, enter the purchase price.'
-                  : 'Leave blank for AI pieces to auto-estimate from the generation ledger.'
+                  ? 'Leave as-is to keep. Community = the flat fee you pay the artist.'
+                  : 'Blank auto-fills: AI estimates from the ledger, community uses the default flat fee.'
               }
             />
           </FormGrid>

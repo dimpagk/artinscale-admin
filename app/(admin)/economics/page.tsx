@@ -54,6 +54,7 @@ export default async function EconomicsPage() {
           <Row label="− Production (Gelato)" value={`- ${money(pnl.productionCost, cur)}`} muted />
           <Row label="− Gelato shipping" value={`- ${money(pnl.shippingCost, cur)}`} muted />
           <Row label="− Payment fees" value={`- ${money(pnl.paymentFees, cur)}`} muted />
+          <Row label="− Artist royalties" value={`- ${money(pnl.artistRoyalties, cur)}`} muted />
           <div className="border-t border-gray-100 pt-1">
             <Row label="Contribution margin" value={money(pnl.contributionMargin, cur)} bold />
           </div>
@@ -170,6 +171,8 @@ export default async function EconomicsPage() {
             <Field label="Default VAT %" name="default_vat_percent" defaultValue={settings.default_vat_percent} />
             <Field label="Monthly fixed cost" name="monthly_fixed_cost" defaultValue={settings.monthly_fixed_cost} />
             <Field label="FX USD→EUR" name="creation_fx_usd_to_eur" defaultValue={settings.creation_fx_usd_to_eur} step="0.0001" />
+            <Field label="Community flat fee default" name="default_community_artist_fee" defaultValue={settings.default_community_artist_fee} />
+            <Field label="Community royalty % (fallback)" name="default_community_royalty_percent" defaultValue={settings.default_community_royalty_percent} step="0.1" />
             <div>
               <label className="mb-1 block text-xs text-gray-500">Reporting currency</label>
               <input name="reporting_currency" defaultValue={settings.reporting_currency} className={inputCls} />

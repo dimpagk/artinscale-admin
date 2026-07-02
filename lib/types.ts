@@ -17,6 +17,9 @@ export type User = {
   role: UserRole;
   // Null for non-artist rows (contributors/admins) and unclassified artists.
   artist_kind: ArtistKind | null;
+  // Per-sale royalty % for a community artist. Null = use the finance_settings
+  // fallback. Ignored for studio / classic artists.
+  royalty_percent: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -193,4 +196,9 @@ export interface MockupUrls {
   composedAt?: string;
 }
 
-export type ArtworkCreationSource = 'ai' | 'purchased' | 'public_domain' | 'manual';
+export type ArtworkCreationSource =
+  | 'ai'
+  | 'community'
+  | 'purchased'
+  | 'public_domain'
+  | 'manual';

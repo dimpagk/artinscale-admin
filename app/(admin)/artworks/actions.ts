@@ -18,14 +18,14 @@ import {
   type ArtworkFieldDraft,
 } from '@/lib/agents/artwork-field-drafter';
 import { getProductDefaults } from '@/lib/pricing-defaults';
-import { estimateArtworkCreationCost } from '@/lib/costs/creation-cost';
+import { resolveCreationCost } from '@/lib/costs/creation-cost';
 import { ensureUpscaledForArtworkImage } from '@/lib/upscale-runner';
 import {
   applyListedState,
   autoPublishArtworkAfterGelatoCreate,
 } from '@/lib/post-create-publisher';
 import { runSoldOutFollowUp } from '@/lib/agents/sold-out-follow-up';
-import { EMPTY_LISTING_META, type ListingMeta } from '@/lib/types';
+import { EMPTY_LISTING_META, type ListingMeta, type ArtworkCreationSource } from '@/lib/types';
 import { startAgentTask, finishAgentTask } from '@/lib/agents/base';
 import { validatePrintSafety, fetchImageDimensions } from '@/lib/image-dimensions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -108,44 +108,37 @@ export async function createArtworkAction(formData: FormData) {
   const currency = formData.get('currency') as string;
   const productType = formData.get('product_type') as string;
   const inspirationSummary = formData.get('inspiration_summary') as string;
-  const creationSource = (formData.get('creation_source') as string) || 'ai';
+  const formSource = ((formData.get('creation_source') as string) || 'ai') as ArtworkCreationSource;
   const creationCostRaw = formData.get('creation_cost') as string;
 
   const inferred = await inferredArtistFromImage(imageUrl || null);
   const finalArtistId = reconcileArtist(artistId || null, inferred, title);
 
-  // Creation cost (Layer 1). If the operator left it blank, auto-estimate
-  // from the generation ledger (AI generation incl. curation waste +
-  // upscale + mockups). A typed value always wins — e.g. a purchase price
-  // for a bought piece. See lib/costs/creation-cost.ts.
-  let finalCreationCost: number | null = creationCostRaw
-    ? parseFloat(creationCostRaw)
-    : null;
-  let creationCostCurrency = 'EUR';
-  let creationCostBreakdown: Record<string, unknown> = {};
-  if (finalCreationCost == null && creationSource === 'ai') {
-    const est = await estimateArtworkCreationCost(imageUrl || null);
-    finalCreationCost = est.creationCost;
-    creationCostCurrency = est.currency;
-    creationCostBreakdown = est.breakdown;
-  } else if (finalCreationCost != null) {
-    creationCostBreakdown = {
-      manual_adjustment: finalCreationCost,
-      source: 'operator',
-    };
-  }
+  // Creation cost (Layer 1). Source + prefill are resolved from the assigned
+  // artist's kind: AI estimates from the generation ledger, community uses
+  // the configurable default flat fee, public-domain is free. An
+  // operator-entered value always wins. See lib/costs/creation-cost.ts.
+  const creation = await resolveCreationCost({
+    imageUrl: imageUrl || null,
+    artistId: finalArtistId,
+    providedCost: creationCostRaw ? parseFloat(creationCostRaw) : null,
+    formSource,
+  });
 
   // Apply per-product-type defaults when the form fields are empty.
   // Mirrors the client-side prefill in artwork-form so the result is
   // identical whether the operator confirmed the prefilled values or
   // submitted with empty fields (e.g. via the Quick Add flow).
+  //
+  // Edition is the exception: new pieces default to an OPEN edition, so an
+  // empty field stays null (unlimited) rather than falling back to a
+  // limited default. The operator sets a limit explicitly when they want
+  // one.
   const defaults = getProductDefaults(productType || null);
   const finalPrice = price
     ? parseFloat(price)
     : defaults?.price ?? null;
-  const finalEditionSize = editionSize
-    ? parseInt(editionSize)
-    : defaults?.editionSize ?? null;
+  const finalEditionSize = editionSize ? parseInt(editionSize) : null;
   const finalCurrency = currency || defaults?.currency || 'EUR';
 
   await createArtwork({
@@ -161,10 +154,10 @@ export async function createArtworkAction(formData: FormData) {
     currency: finalCurrency,
     product_type: productType || null,
     inspiration_summary: inspirationSummary || null,
-    creation_source: creationSource,
-    creation_cost: finalCreationCost,
-    creation_cost_currency: creationCostCurrency,
-    creation_cost_breakdown: creationCostBreakdown,
+    creation_source: creation.source,
+    creation_cost: creation.cost,
+    creation_cost_currency: creation.currency,
+    creation_cost_breakdown: creation.breakdown,
   });
 
   // Auto-upscale: enlarge the base to the largest size it can print at
@@ -220,11 +213,21 @@ export async function updateArtworkAction(id: string, formData: FormData) {
   const currency = formData.get('currency') as string;
   const productType = formData.get('product_type') as string;
   const inspirationSummary = formData.get('inspiration_summary') as string;
-  const creationSource = (formData.get('creation_source') as string) || 'ai';
+  const formSource = ((formData.get('creation_source') as string) || 'ai') as ArtworkCreationSource;
   const creationCostRaw = formData.get('creation_cost') as string;
 
   const inferred = await inferredArtistFromImage(imageUrl || null);
   const finalArtistId = reconcileArtist(artistId || null, inferred, title);
+
+  // Resolve creation source + cost from the artist's kind (operator-entered
+  // cost wins). The edit form prefills the field with the existing value, so
+  // an unchanged submit preserves it; clearing the field re-prefills.
+  const creation = await resolveCreationCost({
+    imageUrl: imageUrl || null,
+    artistId: finalArtistId,
+    providedCost: creationCostRaw ? parseFloat(creationCostRaw) : null,
+    formSource,
+  });
 
   const newEditionSize = editionSize ? parseInt(editionSize) : null;
   const newEditionSold = editionSold ? parseInt(editionSold) : 0;
@@ -294,16 +297,10 @@ export async function updateArtworkAction(id: string, formData: FormData) {
     currency: currency || 'EUR',
     product_type: productType || null,
     inspiration_summary: inspirationSummary || null,
-    creation_source: creationSource,
-    creation_cost: creationCostRaw ? parseFloat(creationCostRaw) : null,
-    ...(creationCostRaw
-      ? {
-          creation_cost_breakdown: {
-            manual_adjustment: parseFloat(creationCostRaw),
-            source: 'operator',
-          },
-        }
-      : {}),
+    creation_source: creation.source,
+    creation_cost: creation.cost,
+    creation_cost_currency: creation.currency,
+    creation_cost_breakdown: creation.breakdown,
     ...(nextMeta ? { listing_meta: nextMeta } : {}),
   });
 

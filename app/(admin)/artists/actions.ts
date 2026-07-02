@@ -15,12 +15,21 @@ function parseKind(formData: FormData): ArtistKind {
   throw new Error('A valid artist kind is required.');
 }
 
+// Per-sale royalty %. Blank leaves it null (finance_settings fallback applies).
+function parseRoyalty(formData: FormData): number | null {
+  const raw = (formData.get('royalty_percent') as string | null)?.trim();
+  if (!raw) return null;
+  const n = parseFloat(raw);
+  return Number.isNaN(n) ? null : n;
+}
+
 export async function createArtistAction(formData: FormData) {
   const email = formData.get('email') as string;
   const name = formData.get('name') as string;
   const bio = formData.get('bio') as string;
   const portfolio = formData.get('portfolio') as string;
   const artistKind = parseKind(formData);
+  const royaltyPercent = parseRoyalty(formData);
 
   const artist = await createUser({
     email,
@@ -29,6 +38,7 @@ export async function createArtistAction(formData: FormData) {
     portfolio: portfolio || undefined,
     role: 'ARTIST',
     artistKind,
+    royaltyPercent,
   });
 
   if (!artist) {
@@ -44,12 +54,14 @@ export async function updateArtistAction(id: string, formData: FormData) {
   const bio = formData.get('bio') as string;
   const portfolio = formData.get('portfolio') as string;
   const artistKind = parseKind(formData);
+  const royaltyPercent = parseRoyalty(formData);
 
   await updateUser(id, {
     name: name || null,
     bio: bio || null,
     portfolio: portfolio || null,
     artist_kind: artistKind,
+    royalty_percent: royaltyPercent,
   });
 
   revalidatePath('/artists');

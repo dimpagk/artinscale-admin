@@ -23,6 +23,8 @@ export async function saveFinanceSettingsAction(formData: FormData) {
     default_vat_percent: 'default_vat_percent',
     monthly_fixed_cost: 'monthly_fixed_cost',
     creation_fx_usd_to_eur: 'creation_fx_usd_to_eur',
+    default_community_artist_fee: 'default_community_artist_fee',
+    default_community_royalty_percent: 'default_community_royalty_percent',
   };
   for (const [field, col] of Object.entries(map)) {
     const v = numField(field);
