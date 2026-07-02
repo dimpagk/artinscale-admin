@@ -8,6 +8,7 @@ import athensInk from './athens-ink.json';
 import corfuGouache from './corfu-gouache.json';
 import amsterdamNocturne from './amsterdam-nocturne.json';
 import newyorkOil from './newyork-oil.json';
+import nordicDusk from './nordic-dusk.json';
 
 export type { StylePack } from './types';
 
@@ -31,6 +32,7 @@ export const STYLE_PACKS: Record<string, StylePack> = {
   [corfuGouache.id]: corfuGouache as StylePack,
   [amsterdamNocturne.id]: amsterdamNocturne as StylePack,
   [newyorkOil.id]: newyorkOil as StylePack,
+  [nordicDusk.id]: nordicDusk as StylePack,
 };
 
 /** Synchronous lookup — JSON only. Use in client components. */

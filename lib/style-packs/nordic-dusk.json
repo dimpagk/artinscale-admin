@@ -1,0 +1,29 @@
+{
+  "id": "nordic-dusk",
+  "enabledForLaunch": true,
+  "vectorizesWell": false,
+  "isPrimary": true,
+  "persona": {
+    "name": "Mirela Sætre",
+    "tagline": "Two inks, one disappearing hour.",
+    "bioMd": "Mirela Sætre is a printmaker working between Bergen and a small island studio in the Hardangerfjord. She keeps two inks only, one deep indigo for the water and one coral for the hour it refuses to hold, letting them meet in a grainy band along a low horizon.\n\nThe work is quiet and reductive: a vast still sea and sky, a single flat sun, one small silhouette near the waterline. Nothing is rendered that the eye does not need. The grain in the paper, she says, is salt, not texture.",
+    "processMd": "Each print begins at the exact minute the sun meets the horizon. Mirela locks a two-ink duotone (indigo against coral), places one lone subject low in the frame, and lets the rest stay open water and open sky. The two colors blend only where they must, in a soft grain-textured horizon; everything else is flat, matte, and unhurried.",
+    "email": "mirela@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a09"
+  },
+  "prompt": {
+    "master": "Two-ink risograph seascape, grainy duotone in deep indigo and soft coral only, calm sea meeting a wide dusk sky, a single flat circular sun sitting near a low horizon, the two inks blending only in a soft grain-textured band along the horizon, sea rendered as flat indigo with a few broken coral reflection lines, one small silhouetted subject (a sailboat, a rowboat, a swimmer, a lone bird) near the waterline, vast quiet negative space of open sky and open water, visible paper-fiber grain throughout, Nordic minimalist stillness, matte and unhurried",
+    "negative": "more than two ink colors, photorealistic detail, smooth airbrushed gradient with no grain, busy clutter filling the frame, harsh vector edges, high contrast ink, glossy finish, glow or lens flare around the sun, hard shadows, text, logos, watermarks, fingers, hands"
+  },
+  "palette": {
+    "colors": ["#4B497B", "#61638C", "#FC8C78", "#F0685A", "#FDFDFB"],
+    "description": "Two inks per piece: one indigo (deep #4B497B or periwinkle #61638C) carries the water, boat, and upper sky; one coral (soft #FC8C78 or saturated #F0685A) carries the sun, the horizon glow, and the broken reflection lines on the sea. The two blend only in a grainy band at the horizon. #FDFDFB is paper only, never a third pigment. Never combine more than the two ink families in a single composition."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "low-horizon, one small subject near the waterline with vast open sky and sea above and below",
+    "maxSubjects": 1,
+    "notes": "One dominant subject only, kept small and silhouetted near a low horizon. The horizon sits at roughly 60-65% of frame height so the sky dominates. The circular sun is flat with no glow, offset from the subject. At least half the frame is open indigo water or open sky. Leave a soft grain breathing space where the two inks meet."
+  },
+  "referenceAssetPaths": []
+}
