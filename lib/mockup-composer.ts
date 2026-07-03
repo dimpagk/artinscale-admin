@@ -51,6 +51,28 @@ const GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-image';
 // Same text model the contribution clusterer already uses.
 const GEMINI_VISION_MODEL = 'gemini-2.5-flash';
 
+// Hard ceiling for any single Gemini call. A standalone probe returned a
+// valid image in ~24s even from a full 10 MB source, so 60s is a safe
+// upper bound. Past it the request has stalled; we fail fast rather than
+// let the mockup-composer task hang in `running` state indefinitely.
+const GEMINI_CALL_TIMEOUT_MS = 60_000;
+
+/**
+ * Reject with a clear error if `promise` has not settled within `ms`. The
+ * underlying Gemini request may still be in flight, but the composer's
+ * try/catch records the timeout in the task's error list and fails fast.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms / 1000}s`)),
+      ms
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export interface MockupSet {
   original: string;
   details: [string, string];
@@ -239,7 +261,8 @@ async function pickFocalRegions(sourceBuf: Buffer): Promise<FocalRegion[]> {
   }
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-  const response = await ai.models.generateContent({
+  const response = await withTimeout(
+    ai.models.generateContent({
     model: GEMINI_VISION_MODEL,
     contents: [
       {
@@ -260,7 +283,10 @@ async function pickFocalRegions(sourceBuf: Buffer): Promise<FocalRegion[]> {
       },
     ],
     config: { responseMimeType: 'application/json' },
-  });
+    }),
+    GEMINI_CALL_TIMEOUT_MS,
+    'Gemini vision (focal regions)'
+  );
 
   const text = response.text;
   if (!text) throw new Error('Vision model returned no text');
@@ -449,10 +475,14 @@ async function geminiImageEdit(args: GeminiEditArgs): Promise<Buffer> {
   }
   parts.push({ text: args.prompt });
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_IMAGE_MODEL,
-    contents: [{ role: 'user', parts }],
-  });
+  const response = await withTimeout(
+    ai.models.generateContent({
+      model: GEMINI_IMAGE_MODEL,
+      contents: [{ role: 'user', parts }],
+    }),
+    GEMINI_CALL_TIMEOUT_MS,
+    'Gemini image-edit'
+  );
 
   const responseParts = response.candidates?.[0]?.content?.parts ?? [];
   const imagePart = responseParts.find((p) => p.inlineData);
