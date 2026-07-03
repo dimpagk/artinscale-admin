@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/cron/finalize_listings",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }
