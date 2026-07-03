@@ -82,6 +82,15 @@ export function getScene(key: string): MockupScene | undefined {
  * otherwise return any scene for the room. Cycles through scenes by
  * artwork id so two pieces in a row don't reuse the same backdrop.
  */
+/** Stable 32-bit hash of a string, always non-negative. */
+function hashString(s: string): number {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
 export function pickSceneForRoom(
   room: RoomType,
   artworkId: string,
@@ -98,11 +107,35 @@ export function pickSceneForRoom(
   const pool = filtered.length > 0 ? filtered : candidates;
 
   // Deterministic-but-spreading selection by hashing the artwork id
-  let hash = 0;
-  for (let i = 0; i < artworkId.length; i++) {
-    hash = (hash * 31 + artworkId.charCodeAt(i)) | 0;
+  return pool[hashString(artworkId) % pool.length];
+}
+
+/**
+ * Pick an in-room scene across ALL of a product size's recommended rooms,
+ * not just the first. Rotates the room by a salted hash of the artwork id
+ * (so the choice is stable per artwork but spreads the full room library
+ * across the catalog instead of collapsing to one hero room per size),
+ * then rotates the scene within that room via {@link pickSceneForRoom}.
+ *
+ * The room hash is salted so it doesn't track the scene hash: two
+ * artworks landing on the same room still spread across its scenes. Rooms
+ * with no generated scenes are skipped; if none of the recommended rooms
+ * have scenes it falls back to the first room (which itself falls back to
+ * the whole catalog).
+ */
+export function pickSceneForRooms(
+  rooms: RoomType[],
+  artworkId: string,
+  aestheticHint?: MockupScene['aesthetic']
+): MockupScene {
+  const usable = rooms.filter((room) =>
+    MOCKUP_SCENES.some((s) => s.room === room)
+  );
+  if (usable.length === 0) {
+    return pickSceneForRoom(rooms[0], artworkId, aestheticHint);
   }
-  return pool[Math.abs(hash) % pool.length];
+  const room = usable[hashString(`${artworkId}:room`) % usable.length];
+  return pickSceneForRoom(room, artworkId, aestheticHint);
 }
 
 /**

@@ -33,9 +33,9 @@ import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { GoogleGenAI, type Part } from '@google/genai';
 import { supabaseAdmin } from './supabase/admin';
-import { getTemplateConfig, type RoomType } from './gelato-templates';
+import { getTemplateConfig } from './gelato-templates';
 import {
-  pickSceneForRoom,
+  pickSceneForRooms,
   sceneStoragePath,
   MOCKUP_SCENES_BUCKET,
   type MockupScene,
@@ -186,7 +186,9 @@ export async function composeArtworkMockups(args: ComposeArgs): Promise<ComposeR
   // 6: In-room composite at correct scale
   let inRoomUrl = framedUrl; // fallback to framed if scene compositing fails
   {
-    const scene = pickRoomSceneForArtwork(args.artworkId, config.recommendedRooms[0], args.aestheticHint);
+    // Rotate across ALL recommended rooms for this size (not just the
+    // first), so the in-room shot uses the full scene library.
+    const scene = pickSceneForRooms(config.recommendedRooms, args.artworkId, args.aestheticHint);
     const path = `${MOCKUP_PREFIX}/${mockupKey(args.artworkId, `in-room-${scene.key}`)}.png`;
     if (!args.force && (await storageObjectExists(path))) {
       inRoomUrl = publicUrl(path);
@@ -517,14 +519,6 @@ async function downscaleForGemini(buf: Buffer): Promise<Buffer> {
 // ============================================
 // Scene helpers
 // ============================================
-
-function pickRoomSceneForArtwork(
-  artworkId: string,
-  room: RoomType,
-  aestheticHint?: MockupScene['aesthetic']
-): MockupScene {
-  return pickSceneForRoom(room, artworkId, aestheticHint);
-}
 
 async function fetchSceneBuffer(sceneKey: string): Promise<Buffer> {
   const path = sceneStoragePath(sceneKey);
