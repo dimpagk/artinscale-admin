@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/admin-ui';
 import { getArtworkEconomics, getFinanceSettings } from '@/lib/costs/economics';
 import {
   getPnl,
+  getMonthlyMetricSeries,
   getCostEntries,
   getRecurringCosts,
   getPendingProductionCount,
@@ -64,8 +65,9 @@ export default async function EconomicsPage({
   const granularity = parseGranularity(g);
   const { from, to } = defaultRange(granularity);
 
-  const [matrix, artworks, costEntries, recurring, settings, pendingProduction] = await Promise.all([
+  const [matrix, metricSeries, artworks, costEntries, recurring, settings, pendingProduction] = await Promise.all([
     getPnl(granularity, from, to),
+    getMonthlyMetricSeries(to),
     getArtworkEconomics(),
     getCostEntries(),
     getRecurringCosts(),
@@ -89,18 +91,6 @@ export default async function EconomicsPage({
     netRevenue: c.metrics.netRevenue,
   }));
 
-  // All-time waterfall: gross revenue (incl. shipping, same as the matrix's
-  // gross_revenue row) eroding through each cost group down to EBITDA.
-  const at = matrix.allTime;
-  const allTimeGross = matrix.rows.find((r) => r.key === 'gross_revenue')?.allTime ?? 0;
-  const waterfallMetrics = {
-    grossRevenue: allTimeGross,
-    netRevenue: at.metrics.netRevenue,
-    cm1: at.metrics.cm1,
-    cm2: at.metrics.cm2,
-    cm3: at.metrics.cm3,
-    ebitda: at.metrics.ebitda,
-  };
 
   return (
     <div className="space-y-6">
@@ -143,8 +133,8 @@ export default async function EconomicsPage({
           <PnlTrendChart data={trend} currency={cur} />
         </section>
         <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">All-time P&amp;L staircase</h2>
-          <PnlAllTimeChart metrics={waterfallMetrics} currency={cur} />
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">Metrics over time · monthly, all history</h2>
+          <PnlAllTimeChart data={metricSeries} currency={cur} />
         </section>
       </div>
 

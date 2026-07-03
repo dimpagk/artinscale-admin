@@ -148,6 +148,65 @@ async function fetchLineSums(
   return sums;
 }
 
+/** One month's headline metrics, for the all-history metric time series. */
+export interface MonthlyMetricsPoint {
+  period: string;
+  label: string;
+  /** Product subtotal + shipping charged (same as the matrix's top line). */
+  grossRevenue: number;
+  netRevenue: number;
+  cm1: number;
+  cm2: number;
+  cm3: number;
+  ebitda: number;
+}
+
+/**
+ * Headline metrics per month across ALL history (independent of the matrix's
+ * visible range). Starts at the first month with any activity and fills gap
+ * months with zeros so the time axis is continuous.
+ */
+export async function getMonthlyMetricSeries(to: Date = new Date()): Promise<MonthlyMetricsPoint[]> {
+  const toStr = iso(to);
+  const { data, error } = await supabaseAdmin.rpc('pnl_by_period', {
+    p_granularity: 'month',
+    p_from: '2000-01-01',
+    p_to: toStr,
+  });
+  if (error) throw new Error(`pnl_by_period (monthly series) failed: ${error.message}`);
+
+  const rows = (data ?? []) as PeriodRow[];
+  if (rows.length === 0) return [];
+
+  const byPeriod = new Map<string, LineSums>();
+  for (const r of rows) {
+    let sums = byPeriod.get(r.period);
+    if (!sums) {
+      sums = {};
+      byPeriod.set(r.period, sums);
+    }
+    sums[r.line_key] = (sums[r.line_key] ?? 0) + Number(r.amount);
+  }
+
+  const first = [...byPeriod.keys()].sort()[0];
+  const periods = enumeratePeriods('month', new Date(`${first}T00:00:00Z`), to);
+
+  return periods.map((period) => {
+    const sums = byPeriod.get(period) ?? {};
+    const m = computeMetrics(sums);
+    return {
+      period,
+      label: formatPeriod('month', period),
+      grossRevenue: Math.round(((sums.gross_revenue ?? 0) + (sums.shipping_revenue ?? 0)) * 100) / 100,
+      netRevenue: m.netRevenue,
+      cm1: m.cm1,
+      cm2: m.cm2,
+      cm3: m.cm3,
+      ebitda: m.ebitda,
+    };
+  });
+}
+
 /** Interleave display lines with their subtotal metric rows. */
 function buildRows(
   columns: PnlColumn[],
