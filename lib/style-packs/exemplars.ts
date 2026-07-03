@@ -24,12 +24,14 @@ export interface Exemplar {
 }
 
 // Upper bound on reference images fed to Gemini per generation. This is a
-// payload/latency guardrail, not a curation target: the whole of a pack's
-// curated reference set should reach the model, so keep this comfortably
-// above the largest pack. Gemini caps total inline request size around
-// 20 MB; ~30 mixed JPEGs stays well under that. Raise toward 40-50 only if
-// a pack genuinely needs it, and watch request size.
-const MAX_EXEMPLARS = 32
+// HARD model limit, not just a payload guardrail: the Nano Banana image
+// models accept only a bounded number of input reference images (Pro tops
+// out around 14, the flash tiers lower). Exceed it and the model stops
+// returning an image and replies with a text refusal instead, which the
+// generate route then reports as "No image returned from model". 14 stays
+// within Pro's documented ceiling while still feeding a rich curated set.
+// Do NOT raise this past the model's input-image limit.
+const MAX_EXEMPLARS = 14
 
 export async function loadExemplars(args: {
   stylePackId: string

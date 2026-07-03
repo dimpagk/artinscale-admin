@@ -108,13 +108,32 @@ export async function POST(request: Request) {
       },
     })
 
-    const imagePart = response.candidates?.[0]?.content?.parts?.find(
-      (part) => part.inlineData
-    )
+    const candidate = response.candidates?.[0]
+    const imagePart = candidate?.content?.parts?.find((part) => part.inlineData)
 
     if (!imagePart?.inlineData?.data) {
+      // The API call succeeded but returned no image. Surface WHY — the
+      // model usually explains itself in a text part (refusal, "too many
+      // reference images", safety block), and finishReason / blockReason
+      // carry the machine-readable cause. Without this the route reports a
+      // bare "No image returned" and the real reason is lost.
+      const textParts = candidate?.content?.parts
+        ?.map((p) => p.text)
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+      const finishReason = candidate?.finishReason
+      const blockReason = response.promptFeedback?.blockReason
+      const reason =
+        textParts || blockReason || finishReason || 'model returned no image and no explanation'
+      console.error('[generate] no image returned from model:', {
+        finishReason,
+        blockReason,
+        text: textParts,
+        referenceImageCount: referenceParts.length,
+      })
       return NextResponse.json(
-        { error: 'No image returned from model' },
+        { error: `No image returned from model: ${reason}`, detail: reason },
         { status: 500 }
       )
     }
