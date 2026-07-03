@@ -640,41 +640,23 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   ctx.textBaseline = 'alphabetic'
 }
 
+/**
+ * Gallery plate-label footer: a single centered, uppercase, letter-spaced
+ * wordmark. No rule line, no badge — matches the preview component.
+ * Callers skip this entirely when the slide has no footer text.
+ */
 function drawFooter(ctx: CanvasRenderingContext2D, footer: string, isDark: boolean, s: number, fontFamily: string, W: number, H: number) {
   const footerH = 40 * s
   const footerY = H - footerH
 
-  // Thin coral gradient line at top of footer
-  const lineGrd = ctx.createLinearGradient(0, 0, W, 0)
-  lineGrd.addColorStop(0, B.coral)
-  lineGrd.addColorStop(1, B.gold)
-  ctx.fillStyle = lineGrd
-  ctx.fillRect(0, footerY, W, 0.5 * s)
-
-  // Footer text (vertically centered in footer area)
-  const textSize = 10 * s
-  ctx.font = `700 ${textSize}px ${fontFamily}`
-  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(footer, 28 * s, footerY + footerH / 2)
-
-  // A badge (vertically centered)
-  const dSize = 20 * s
-  const dx = W - 28 * s - dSize
-  const dy = footerY + (footerH - dSize) / 2
-  const grd = ctx.createLinearGradient(dx, dy, dx + dSize, dy + dSize)
-  grd.addColorStop(0, B.coral)
-  grd.addColorStop(1, B.gold)
-  ctx.fillStyle = grd
-  ctx.beginPath()
-  ctx.roundRect(dx, dy, dSize, dSize, 5 * s)
-  ctx.fill()
-
-  // A letter centered in badge
-  ctx.font = `900 ${11 * s}px ${fontFamily}`
-  ctx.fillStyle = '#FFFFFF'
+  const text = footer.toUpperCase()
+  ctx.font = `600 ${9 * s}px ${fontFamily}`
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.3)'
+  ctx.letterSpacing = `${3 * s}px`
   ctx.textAlign = 'center'
-  ctx.fillText('A', dx + dSize / 2, dy + dSize / 2)
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, W / 2, footerY + footerH / 2)
+  ctx.letterSpacing = '0px'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
 }
@@ -697,10 +679,11 @@ export async function renderPostToCanvas(config: VisualConfig | SlideConfig, sca
   const isCover = fmt.category === 'cover'
   const padLeft = isCover ? Math.round(W * 0.25) : undefined
 
+  const hasFooter = !isCover && !!slide.footer
   drawBackground(ctx, slide as VisualConfig, W, H)
   drawAccent(ctx, slide.accent, s, W, H)
-  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, !isCover, padLeft)
-  if (!isCover) {
+  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, hasFooter, padLeft)
+  if (hasFooter) {
     drawFooter(ctx, slide.footer, slide.dark, s, fontFamily, W, H)
   }
 

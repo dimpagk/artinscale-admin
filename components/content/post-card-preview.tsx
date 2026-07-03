@@ -352,20 +352,12 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
         {slide.blocks.map((block, i) => renderBlock(block, i, s, isDark))}
       </div>
 
-      {/* Footer */}
-      {!isCover && (
-        <div style={{ borderTop: `${0.5 * s}px solid`, borderImage: `linear-gradient(135deg, ${B.coral}, ${B.gold}) 1`, padding: `${10 * s}px ${28 * s}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
-          <span style={{ fontSize: 10 * s, fontWeight: 700, letterSpacing: 1 * s, color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)', fontFamily: B.bodyFont }}>{slide.footer}</span>
-          <span style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: 0.5 * s, color: B.coral, fontFamily: B.displayFont }}>artinscale.com</span>
-        </div>
-      )}
-
-      {/* Carousel dot indicators */}
-      {slides.length > 1 && (
-        <div style={{ position: 'absolute', bottom: isCover ? 6 * s : 44 * s, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4 * s, zIndex: 2 }}>
-          {slides.map((_, i) => (
-            <div key={i} style={{ width: 5 * s, height: 5 * s, borderRadius: '50%', background: i === slideIndex ? B.coral : (isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'), transition: 'background 0.2s' }} />
-          ))}
+      {/* Footer — gallery plate label: centered wordmark, no rule line.
+          Rendered only when the slide actually has footer text, so
+          image-only slides keep a completely clean edge. */}
+      {!isCover && slide.footer && (
+        <div style={{ padding: `${10 * s}px ${28 * s}px ${14 * s}px`, display: 'flex', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
+          <span style={{ fontSize: 9 * s, fontWeight: 600, letterSpacing: 3 * s, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.3)', fontFamily: B.displayFont }}>{slide.footer}</span>
         </div>
       )}
     </div>
