@@ -96,6 +96,13 @@ export async function composeArtworkMockups(args: ComposeArgs): Promise<ComposeR
     throw new Error('Could not read source image dimensions');
   }
 
+  // Downscaled copy (~1 MB) for the Gemini reference images. The vision and
+  // composite calls only need a display-resolution preview, not the full
+  // print master — a 10 MB source base64-encodes to ~13.6 MB per request,
+  // which is slow and needlessly heavy. The detail zoom-crops below keep
+  // using the full-resolution `sourceBuf` so they stay crisp.
+  const geminiRefBuf = await downscaleForGemini(sourceBuf);
+
   // 2-3: Detail crops (content-aware, geometric fallback)
   const detailUrls: string[] = [];
   const detailPaths = [1, 2].map(
@@ -112,7 +119,7 @@ export async function composeArtworkMockups(args: ComposeArgs): Promise<ComposeR
     // it when at least one crop actually needs rendering.
     let regions: FocalRegion[] | null = null;
     try {
-      regions = await pickFocalRegions(sourceBuf);
+      regions = await pickFocalRegions(geminiRefBuf);
     } catch (e) {
       errors.push(`focal-regions (fell back to geometric crops): ${msg(e)}`);
     }
@@ -144,7 +151,7 @@ export async function composeArtworkMockups(args: ComposeArgs): Promise<ComposeR
       framedUrl = publicUrl(path);
     } else {
       try {
-        const buf = await generateFramedComposite(sourceBuf, config);
+        const buf = await generateFramedComposite(geminiRefBuf, config);
         await uploadBuffer(path, buf, 'image/png');
         framedUrl = publicUrl(path);
         generated.framed = true;
@@ -164,7 +171,7 @@ export async function composeArtworkMockups(args: ComposeArgs): Promise<ComposeR
     } else {
       try {
         const sceneBuf = await fetchSceneBuffer(scene.key);
-        const buf = await generateInRoomComposite(sourceBuf, sceneBuf, scene, config);
+        const buf = await generateInRoomComposite(geminiRefBuf, sceneBuf, scene, config);
         await uploadBuffer(path, buf, 'image/png');
         inRoomUrl = publicUrl(path);
         generated.inRoom = true;
@@ -238,7 +245,7 @@ async function pickFocalRegions(sourceBuf: Buffer): Promise<FocalRegion[]> {
       {
         role: 'user',
         parts: [
-          { inlineData: { mimeType: 'image/png', data: sourceBuf.toString('base64') } },
+          { inlineData: { mimeType: 'image/jpeg', data: sourceBuf.toString('base64') } },
           {
             text:
               'This is an art print. Identify the TWO most visually interesting, ' +
@@ -392,7 +399,7 @@ async function generateFramedComposite(
 
   return geminiImageEdit({
     prompt,
-    referenceImages: [{ buffer: artworkBuf, mimeType: 'image/png' }],
+    referenceImages: [{ buffer: artworkBuf, mimeType: 'image/jpeg' }],
   });
 }
 
@@ -418,7 +425,7 @@ async function generateInRoomComposite(
     prompt,
     referenceImages: [
       { buffer: sceneBuf, mimeType: 'image/png' },
-      { buffer: artworkBuf, mimeType: 'image/png' },
+      { buffer: artworkBuf, mimeType: 'image/jpeg' },
     ],
   });
 }
@@ -453,6 +460,28 @@ async function geminiImageEdit(args: GeminiEditArgs): Promise<Buffer> {
     throw new Error('Gemini returned no image inlineData');
   }
   return Buffer.from(imagePart.inlineData.data, 'base64');
+}
+
+// ============================================
+// Reference-image downscaling
+// ============================================
+
+// Longest edge (px) for the copy of the artwork sent to Gemini as a
+// reference image. Gemini downsamples reference inputs internally anyway,
+// so ~1568 px is ample for the vision + composite calls while keeping the
+// JPEG well under ~1 MB (a full 3584x4800 print master is ~10 MB).
+const GEMINI_REF_MAX_EDGE = 1568;
+
+async function downscaleForGemini(buf: Buffer): Promise<Buffer> {
+  return sharp(buf)
+    .resize({
+      width: GEMINI_REF_MAX_EDGE,
+      height: GEMINI_REF_MAX_EDGE,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 85 })
+    .toBuffer();
 }
 
 // ============================================
