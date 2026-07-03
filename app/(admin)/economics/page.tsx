@@ -89,18 +89,18 @@ export default async function EconomicsPage({
     netRevenue: c.metrics.netRevenue,
   }));
 
-  // All-time totals of the headline metrics for the snapshot bar chart.
-  // Gross revenue includes shipping (same as the matrix's gross_revenue row).
+  // All-time waterfall: gross revenue (incl. shipping, same as the matrix's
+  // gross_revenue row) eroding through each cost group down to EBITDA.
   const at = matrix.allTime;
   const allTimeGross = matrix.rows.find((r) => r.key === 'gross_revenue')?.allTime ?? 0;
-  const allTimeChart = [
-    { name: 'Gross rev.', value: allTimeGross },
-    { name: 'Net rev.', value: at.metrics.netRevenue },
-    { name: 'Gross profit', value: at.metrics.cm1 },
-    { name: 'CM2', value: at.metrics.cm2 },
-    { name: 'CM3', value: at.metrics.cm3 },
-    { name: 'EBITDA', value: at.metrics.ebitda },
-  ];
+  const waterfallMetrics = {
+    grossRevenue: allTimeGross,
+    netRevenue: at.metrics.netRevenue,
+    cm1: at.metrics.cm1,
+    cm2: at.metrics.cm2,
+    cm3: at.metrics.cm3,
+    ebitda: at.metrics.ebitda,
+  };
 
   return (
     <div className="space-y-6">
@@ -143,8 +143,8 @@ export default async function EconomicsPage({
           <PnlTrendChart data={trend} currency={cur} />
         </section>
         <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">All-time totals</h2>
-          <PnlAllTimeChart data={allTimeChart} currency={cur} />
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">All-time waterfall</h2>
+          <PnlAllTimeChart metrics={waterfallMetrics} currency={cur} />
         </section>
       </div>
 
