@@ -351,7 +351,10 @@ export async function reconcilePendingListings(
   checked: number;
   results: Array<{ artworkId: string; title: string; status: string; message?: string }>;
 }> {
-  const limit = opts.limit ?? 5;
+  // Each finalize awaits ~1-2 min of mockup generation, so keep the batch
+  // small enough to finish inside the cron's maxDuration (300s). Any
+  // backlog is drained across successive 15-min runs.
+  const limit = opts.limit ?? 2;
   const { data: pending } = await supabaseAdmin
     .from('artworks')
     .select('id, title')

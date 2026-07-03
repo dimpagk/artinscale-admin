@@ -7,6 +7,11 @@ import { runTopicStatusUpdater } from '@/lib/topic-status-updater'
 import { runOrderSync } from '@/lib/orders'
 import { reconcilePendingListings } from '@/lib/post-create-publisher'
 
+// finalize_listings awaits mockup generation (~1-2 min of Gemini calls per
+// artwork), so the default ~15s serverless budget kills it mid-run. Raise
+// to the Vercel Pro ceiling; the reconcile self-limits how many it touches.
+export const maxDuration = 300
+
 /**
  * GET-callable scheduled triggers.
  *
