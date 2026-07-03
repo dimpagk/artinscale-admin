@@ -20,12 +20,59 @@ import {
   DEFAULT_FINANCE as DEFAULT_FINANCE_MATH,
   GREEK_STANDARD_VAT,
   type PricingFinance,
+  type SizePriceStat,
 } from '@/lib/pricing-math';
 
 // Re-exported so server callers can keep importing the margin math from
 // '@/lib/pricing'. The pure implementation lives in pricing-math (no
 // server imports) so Client Components can share it.
-export { netContributionEur, netMarginPct, type PricingFinance } from '@/lib/pricing-math';
+export {
+  netContributionEur,
+  netMarginPct,
+  type PricingFinance,
+  type SizePriceStat,
+} from '@/lib/pricing-math';
+
+/**
+ * Median EUR sell price of PUBLISHED artworks (listed or sold) per size,
+ * keyed by product_type. Powers the artwork form's "recommended price"
+ * hint so new pieces price in line with what's already live at that size.
+ * EUR-only (matches the EUR-based margin preview). Empty map on any error.
+ */
+export async function getPublishedPriceStatsBySize(): Promise<Record<string, SizePriceStat>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('artworks')
+      .select('product_type, price, currency, status')
+      .in('status', ['listed', 'sold'])
+      .not('product_type', 'is', null)
+      .not('price', 'is', null);
+    if (error || !data) return {};
+
+    const bySize: Record<string, number[]> = {};
+    for (const r of data as Array<{
+      product_type: string | null;
+      price: number | null;
+      currency: string | null;
+    }>) {
+      if (!r.product_type || r.price == null) continue;
+      if ((r.currency ?? 'EUR') !== 'EUR') continue;
+      (bySize[r.product_type] ??= []).push(Number(r.price));
+    }
+
+    const out: Record<string, SizePriceStat> = {};
+    for (const [size, prices] of Object.entries(bySize)) {
+      prices.sort((a, b) => a - b);
+      const n = prices.length;
+      const mid = Math.floor(n / 2);
+      const median = n % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+      out[size] = { count: n, median, min: prices[0], max: prices[n - 1] };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 
 export interface PrintSizePrice {
   size_key: string;

@@ -22,6 +22,7 @@ import {
   netMarginPct,
   netContributionEur,
   type PricingFinance,
+  type SizePriceStat,
 } from '@/lib/pricing-math';
 import {
   createArtworkAction,
@@ -44,6 +45,12 @@ interface ArtworkFormProps {
    * form still renders sensible numbers if it isn't passed.
    */
   finance?: PricingFinance;
+  /**
+   * Median EUR price of published artworks per product_type, for the
+   * "recommended price" hint. Keyed by size key; absent sizes have no
+   * published comparables yet.
+   */
+  sizePriceStats?: Record<string, SizePriceStat>;
 }
 
 export function ArtworkForm({
@@ -51,6 +58,7 @@ export function ArtworkForm({
   artists,
   topics,
   finance = DEFAULT_FINANCE,
+  sizePriceStats,
 }: ArtworkFormProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [gelatoPushing, setGelatoPushing] = useState(false);
@@ -309,6 +317,20 @@ export function ArtworkForm({
     ? Number(artwork!.unit_production_cost)
     : sizeDefaults?.gelatoCostEur ?? null;
 
+  // Price recommendation for this size: the median of published EUR pieces
+  // at the same size, falling back to the catalog default when nothing is
+  // live yet. Shown with its margin so the operator can price consistently.
+  const sizeStat = productType ? sizePriceStats?.[productType] : undefined;
+  const recommendedFromPublished = !!sizeStat && sizeStat.count > 0;
+  const recommendedRaw = recommendedFromPublished ? sizeStat!.median : sizeDefaults?.price ?? null;
+  // Round to a whole euro so the shown price, the applied price, and the
+  // "Applied" check all agree (a median of two prices can land on x.5).
+  const recommendedPrice = recommendedRaw != null ? Math.round(recommendedRaw) : null;
+  const recommendedMarginPct =
+    recommendedPrice != null && gelatoCost != null && currency === 'EUR'
+      ? netMarginPct(recommendedPrice, gelatoCost, finance)
+      : null;
+
   const parsedPrice = parseFloat(priceOverride);
   const priceValid = Number.isFinite(parsedPrice) && parsedPrice > 0;
   // Margin math is EUR-based (Gelato cost, VAT, fees). Only show it when
@@ -519,6 +541,36 @@ export function ArtworkForm({
                   {printSpec.minPxWidth.toLocaleString()} × {printSpec.minPxHeight.toLocaleString()} px.
                   Smaller sources are upscaled before print.
                 </p>
+              )}
+
+              {recommendedPrice != null && currency === 'EUR' && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+                  <div className="text-xs text-gray-600">
+                    <span className="text-gray-900">
+                      Recommended{' '}
+                      <span className="font-semibold">€{recommendedPrice.toFixed(0)}</span>
+                      {recommendedMarginPct != null && (
+                        <> · {recommendedMarginPct.toFixed(0)}% margin</>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-gray-400">
+                      {recommendedFromPublished
+                        ? `median of ${sizeStat!.count} published ${printSpec ? `${printSpec.widthCm}×${printSpec.heightCm}` : ''} piece${sizeStat!.count === 1 ? '' : 's'}${
+                            sizeStat!.min !== sizeStat!.max
+                              ? ` (€${sizeStat!.min.toFixed(0)}–€${sizeStat!.max.toFixed(0)})`
+                              : ''
+                          }`
+                        : 'catalog default — no published pieces at this size yet'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPriceOverride(String(recommendedPrice))}
+                    className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  >
+                    {priceValid && Math.abs(parsedPrice - recommendedPrice) < 0.005 ? 'Applied' : 'Use'}
+                  </button>
+                </div>
               )}
 
               {marginComputable && floorPct != null ? (

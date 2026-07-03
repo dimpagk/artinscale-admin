@@ -4,6 +4,20 @@
  * /pricing editor and the artwork form compute margin the same way.
  */
 
+/**
+ * Aggregate EUR sell prices of published artworks at one size — powers the
+ * "recommended price" hint in the artwork form. Client-safe type; the query
+ * that builds it (getPublishedPriceStatsBySize) lives in lib/pricing.ts.
+ */
+export interface SizePriceStat {
+  /** How many published (listed/sold) EUR pieces at this size. */
+  count: number;
+  /** Median sell price — the recommendation. */
+  median: number;
+  min: number;
+  max: number;
+}
+
 export interface PricingFinance {
   paymentFeePercent: number;
   paymentFeeFixed: number;
