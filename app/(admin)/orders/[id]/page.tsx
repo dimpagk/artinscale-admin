@@ -108,6 +108,9 @@ export default async function OrderDetailPage({
                   label="Net revenue (ex-VAT, less discounts)"
                   value={money(econ.net_revenue_ex_vat, order.currency)}
                 />
+                {econ.vat_owed > 0 && econ.tax_collected === 0 && (
+                  <Row label="(VAT owed, modelled at default rate)" value={`- ${money(econ.vat_owed, order.currency)}`} muted />
+                )}
                 <Row label="+ Shipping charged" value={money(econ.shipping_charged, order.currency)} muted />
                 <Row
                   label="− Production (Gelato)"

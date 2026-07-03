@@ -69,6 +69,12 @@ export interface OrderEconomics {
   shipping_charged: number;
   tax_collected: number;
   taxes_included: boolean;
+  /**
+   * Output VAT owed on the receipt: Shopify's total_tax when present, else
+   * modelled from finance_settings.default_vat_percent (normal Greek VAT
+   * regime — receipts embed 24% even when Shopify recorded no tax).
+   */
+  vat_owed: number;
   net_revenue_ex_vat: number;
   production_cost: number | null;
   shipping_cost: number;

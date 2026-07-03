@@ -348,7 +348,7 @@ export default async function EconomicsPage({
         <form action={saveFinanceSettingsAction} className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
           <Field label="Payment fee %" name="payment_fee_percent" defaultValue={settings.payment_fee_percent} />
           <Field label="Payment fixed fee" name="payment_fee_fixed" defaultValue={settings.payment_fee_fixed} />
-          <Field label="Default VAT %" name="default_vat_percent" defaultValue={settings.default_vat_percent} />
+          <Field label="Output VAT % (fallback)" name="default_vat_percent" defaultValue={settings.default_vat_percent} />
           <Field
             label="FX USD→EUR (fallback)"
             name="creation_fx_usd_to_eur"

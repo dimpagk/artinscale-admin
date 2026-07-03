@@ -57,7 +57,7 @@ export const REVENUE_LINES: DisplayLine[] = [
   // subtotal + shipping), so there is no separate shipping line.
   { key: 'gross_revenue', label: 'Gross revenue', rawKeys: ['gross_revenue', 'shipping_revenue'], emphasis: true },
   { key: 'discounts', label: 'Discounts', rawKeys: ['discounts'] },
-  { key: 'vat', label: 'VAT (pass-through)', rawKeys: ['vat'] },
+  { key: 'vat', label: 'VAT owed (output)', rawKeys: ['vat'] },
 ];
 
 export const COGS_LINES: DisplayLine[] = [
