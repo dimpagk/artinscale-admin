@@ -18,6 +18,20 @@ export interface SizePriceStat {
   max: number;
 }
 
+/**
+ * One size's slice of the published catalog — powers the artwork form's
+ * "size mix" breakdown so the operator can see how pieces (supply) and
+ * units sold (demand) spread across sizes when choosing one. Client-safe
+ * type; the query that builds it (getSizeMix) lives in lib/pricing.ts.
+ */
+export interface SizeMixEntry {
+  sizeKey: string;
+  /** Published (listed/sold) pieces at this size. */
+  pieces: number;
+  /** Total units sold across those pieces (sum of edition_sold). */
+  unitsSold: number;
+}
+
 export interface PricingFinance {
   paymentFeePercent: number;
   paymentFeeFixed: number;

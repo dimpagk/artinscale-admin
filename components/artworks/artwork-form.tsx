@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Sparkle } from '@phosphor-icons/react';
+import { Sparkle, CaretDown } from '@phosphor-icons/react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
@@ -16,13 +16,14 @@ import {
 import { ArtworkPipelineActivity } from '@/components/artworks/artwork-pipeline-activity';
 import { MockupGallery } from '@/components/artworks/mockup-gallery';
 import type { Artwork } from '@/lib/types';
-import { getProductDefaults, getPrintSpec } from '@/lib/pricing-defaults';
+import { getProductDefaults, getPrintSpec, PRODUCT_DEFAULTS } from '@/lib/pricing-defaults';
 import {
   DEFAULT_FINANCE,
   netMarginPct,
   netContributionEur,
   type PricingFinance,
   type SizePriceStat,
+  type SizeMixEntry,
 } from '@/lib/pricing-math';
 import {
   createArtworkAction,
@@ -51,6 +52,12 @@ interface ArtworkFormProps {
    * published comparables yet.
    */
   sizePriceStats?: Record<string, SizePriceStat>;
+  /**
+   * Published catalog split by size (pieces + units sold per product_type),
+   * for the "size mix" breakdown that helps the operator pick a size. Built
+   * server-side by getSizeMix; absent sizes have no published pieces yet.
+   */
+  sizeMix?: SizeMixEntry[];
 }
 
 export function ArtworkForm({
@@ -59,6 +66,7 @@ export function ArtworkForm({
   topics,
   finance = DEFAULT_FINANCE,
   sizePriceStats,
+  sizeMix,
 }: ArtworkFormProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [gelatoPushing, setGelatoPushing] = useState(false);
@@ -331,6 +339,28 @@ export function ArtworkForm({
       ? netMarginPct(recommendedPrice, gelatoCost, finance)
       : null;
 
+  // Size mix across the published catalog: every catalog size in order,
+  // with its published-piece count and units sold, plus each size's share
+  // of pieces. Sizes with nothing live yet still show (at 0%) so gaps in
+  // the range are visible when picking a size.
+  const sizeMixByKey = new Map((sizeMix ?? []).map((r) => [r.sizeKey, r]));
+  const sizeMixRows = Object.entries(PRODUCT_DEFAULTS).map(([key, d]) => {
+    const r = sizeMixByKey.get(key);
+    sizeMixByKey.delete(key);
+    return {
+      sizeKey: key,
+      label: `${d.widthCm}×${d.heightCm} cm`,
+      pieces: r?.pieces ?? 0,
+      unitsSold: r?.unitsSold ?? 0,
+    };
+  });
+  // Any published size not in the catalog defaults table (retired size key).
+  for (const r of sizeMixByKey.values()) {
+    sizeMixRows.push({ sizeKey: r.sizeKey, label: r.sizeKey, pieces: r.pieces, unitsSold: r.unitsSold });
+  }
+  const sizeMixTotalPieces = sizeMixRows.reduce((s, r) => s + r.pieces, 0);
+  const sizeMixTotalSold = sizeMixRows.reduce((s, r) => s + r.unitsSold, 0);
+
   const parsedPrice = parseFloat(priceOverride);
   const priceValid = Number.isFinite(parsedPrice) && parsedPrice > 0;
   // Margin math is EUR-based (Gelato cost, VAT, fees). Only show it when
@@ -529,6 +559,59 @@ export function ArtworkForm({
               )}
             </div>
           </FormGrid>
+
+          {sizeMixTotalPieces > 0 && (
+            <details className="group mt-4 rounded-lg border border-gray-200 bg-white">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="text-sm font-medium text-gray-900">Size mix (published catalog)</span>
+                <span className="flex items-center gap-2 text-xs text-gray-500">
+                  {sizeMixTotalPieces} piece{sizeMixTotalPieces === 1 ? '' : 's'} · {sizeMixTotalSold} sold
+                  <CaretDown
+                    size={14}
+                    className="text-gray-400 transition-transform duration-200 group-open:rotate-180"
+                  />
+                </span>
+              </summary>
+              <div className="space-y-2.5 border-t border-gray-100 px-4 py-3">
+                {sizeMixRows.map((r) => {
+                  const pct = sizeMixTotalPieces > 0 ? (r.pieces / sizeMixTotalPieces) * 100 : 0;
+                  const isCurrent = r.sizeKey === productType;
+                  return (
+                    <div key={r.sizeKey}>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className={isCurrent ? 'font-semibold text-gray-900' : 'text-gray-700'}>
+                          {r.label}
+                          {isCurrent && (
+                            <span className="ml-1.5 rounded bg-violet-100 px-1 py-0.5 text-[10px] font-medium text-violet-700">
+                              current
+                            </span>
+                          )}
+                        </span>
+                        <span className="tabular-nums text-gray-500">
+                          <span className={isCurrent ? 'font-medium text-gray-900' : 'text-gray-700'}>
+                            {pct.toFixed(0)}%
+                          </span>{' '}
+                          <span className="text-gray-400">
+                            · {r.pieces} live · {r.unitsSold} sold
+                          </span>
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className={`h-full rounded-full ${isCurrent ? 'bg-violet-500' : 'bg-gray-300'}`}
+                          style={{ width: `${Math.max(pct, r.pieces > 0 ? 3 : 0)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="pt-1 text-[11px] text-gray-400">
+                  Share of published (listed + sold) pieces per size; sold counts units across those
+                  pieces. Empty sizes show gaps in the range you could fill.
+                </p>
+              </div>
+            </details>
+          )}
 
           {productType ? (
             <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">

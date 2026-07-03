@@ -1,15 +1,16 @@
 import { getArtists } from '@/lib/users';
 import { getAllTopics } from '@/lib/topics';
-import { getPricingFinance, getPublishedPriceStatsBySize } from '@/lib/pricing';
+import { getPricingFinance, getPublishedPriceStatsBySize, getSizeMix } from '@/lib/pricing';
 import { ArtworkForm } from '@/components/artworks/artwork-form';
 import { BackLink, PageHeader } from '@/components/admin-ui';
 
 export default async function NewArtworkPage() {
-  const [artists, topicsWithStats, finance, sizePriceStats] = await Promise.all([
+  const [artists, topicsWithStats, finance, sizePriceStats, sizeMix] = await Promise.all([
     getArtists(),
     getAllTopics(),
     getPricingFinance(),
     getPublishedPriceStatsBySize(),
+    getSizeMix(),
   ]);
 
   const topics = topicsWithStats.map((t) => ({ id: t.id, title: t.title }));
@@ -26,6 +27,7 @@ export default async function NewArtworkPage() {
         topics={topics}
         finance={finance}
         sizePriceStats={sizePriceStats}
+        sizeMix={sizeMix}
       />
     </div>
   );

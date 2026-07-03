@@ -21,6 +21,7 @@ import {
   GREEK_STANDARD_VAT,
   type PricingFinance,
   type SizePriceStat,
+  type SizeMixEntry,
 } from '@/lib/pricing-math';
 
 // Re-exported so server callers can keep importing the margin math from
@@ -31,6 +32,7 @@ export {
   netMarginPct,
   type PricingFinance,
   type SizePriceStat,
+  type SizeMixEntry,
 } from '@/lib/pricing-math';
 
 /**
@@ -71,6 +73,43 @@ export async function getPublishedPriceStatsBySize(): Promise<Record<string, Siz
     return out;
   } catch {
     return {};
+  }
+}
+
+/**
+ * Published catalog split by size: pieces (supply) and units sold (demand)
+ * per product_type. Powers the artwork form's "size mix" breakdown so the
+ * operator can see where the live catalog is concentrated when choosing a
+ * size. Counts listed + sold pieces of any currency (a mix, not a price);
+ * sizes with no published pieces are simply absent. Empty on any error.
+ */
+export async function getSizeMix(): Promise<SizeMixEntry[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('artworks')
+      .select('product_type, edition_sold')
+      .in('status', ['listed', 'sold'])
+      .not('product_type', 'is', null);
+    if (error || !data) return [];
+
+    const by: Record<string, { pieces: number; unitsSold: number }> = {};
+    for (const r of data as Array<{
+      product_type: string | null;
+      edition_sold: number | null;
+    }>) {
+      if (!r.product_type) continue;
+      const b = (by[r.product_type] ??= { pieces: 0, unitsSold: 0 });
+      b.pieces += 1;
+      b.unitsSold += Number(r.edition_sold ?? 0);
+    }
+
+    return Object.entries(by).map(([sizeKey, v]) => ({
+      sizeKey,
+      pieces: v.pieces,
+      unitsSold: v.unitsSold,
+    }));
+  } catch {
+    return [];
   }
 }
 

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { getArtworkById } from '@/lib/artworks';
 import { getArtists } from '@/lib/users';
 import { getAllTopics } from '@/lib/topics';
-import { getPricingFinance, getPublishedPriceStatsBySize } from '@/lib/pricing';
+import { getPricingFinance, getPublishedPriceStatsBySize, getSizeMix } from '@/lib/pricing';
 import { ArtworkForm } from '@/components/artworks/artwork-form';
 import { ListingForm } from '@/components/artworks/listing-form';
 import {
@@ -18,12 +18,13 @@ export default async function EditArtworkPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [artwork, artists, topicsWithStats, finance, sizePriceStats] = await Promise.all([
+  const [artwork, artists, topicsWithStats, finance, sizePriceStats, sizeMix] = await Promise.all([
     getArtworkById(id),
     getArtists(),
     getAllTopics(),
     getPricingFinance(),
     getPublishedPriceStatsBySize(),
+    getSizeMix(),
   ]);
 
   if (!artwork) return notFound();
@@ -50,6 +51,7 @@ export default async function EditArtworkPage({
             topics={topics}
             finance={finance}
             sizePriceStats={sizePriceStats}
+            sizeMix={sizeMix}
           />
         }
         sidebar={
