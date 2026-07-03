@@ -22,10 +22,13 @@ import {
   type LineSums,
   type PnlMetrics,
 } from './pnl-metrics';
+import { GRANULARITIES, type PnlGranularity, type DrilldownRow } from './pnl-shared';
 
-export type PnlGranularity = 'day' | 'week' | 'month' | 'quarter' | 'year';
-
-export const GRANULARITIES: PnlGranularity[] = ['day', 'week', 'month', 'quarter', 'year'];
+// Re-export the client-safe types/constants so existing importers keep
+// working. Client components must import these from './pnl-shared' directly
+// to avoid bundling this module's server-only supabaseAdmin.
+export { GRANULARITIES };
+export type { PnlGranularity, DrilldownRow };
 
 export interface PnlColumn {
   /** ISO date of the period start (date_trunc result). */
@@ -129,18 +132,7 @@ function buildRows(columns: PnlColumn[]): PnlRow[] {
 }
 
 // ── Drill-down ───────────────────────────────────────────────────
-
-export interface DrilldownRow {
-  occurred_on: string;
-  line_key: string;
-  amount: number;
-  ref_type: string;
-  ref_id: string;
-  /** Resolved human label (order name, artwork/expense description, etc). */
-  label: string;
-  /** In-app link when the ref points at something with a page. */
-  href: string | null;
-}
+// DrilldownRow is defined in ./pnl-shared (client-safe) and re-exported above.
 
 const DISPLAY_LINE_RAW_KEYS: Record<string, string[]> = Object.fromEntries(
   ALL_DISPLAY_LINES.map((l) => [l.key, l.rawKeys])
