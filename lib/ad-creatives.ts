@@ -23,6 +23,12 @@ export interface AdCreative {
   updated_at: string;
 }
 
+/** One image in the canonical ad-carousel order. */
+export interface CarouselImage {
+  label: string;
+  url: string;
+}
+
 /** A piece with its creatives, plus the fields the review UI renders. */
 export interface AdCreativeGroup {
   artworkId: string;
@@ -30,8 +36,12 @@ export interface AdCreativeGroup {
   price: number | null;
   currency: string | null;
   shopifyHandle: string | null;
-  /** Best available preview image: the in-room mockup, else the original. */
-  previewImage: string | null;
+  /**
+   * The mockup set in the fixed ad-carousel order:
+   * framed, room, zoom 1, zoom 2, original (plain last). Missing images
+   * are skipped, so a piece without a full set still renders in order.
+   */
+  images: CarouselImage[];
   creatives: AdCreative[];
 }
 
@@ -44,15 +54,25 @@ interface ArtworkJoin {
   mockup_urls: Record<string, unknown> | null;
 }
 
-function previewFrom(mockups: Record<string, unknown> | null): string | null {
-  if (!mockups) return null;
-  const inRoom = mockups.inRoom;
-  if (typeof inRoom === 'string') return inRoom;
-  const original = mockups.original;
-  if (typeof original === 'string') return original;
-  const framed = mockups.framed;
-  if (typeof framed === 'string') return framed;
-  return null;
+/**
+ * The mockup set in the fixed ad-carousel order, framed first and the
+ * plain original last:
+ *   1. Framed   2. Room   3. Zoom 1   4. Zoom 2   5. Original
+ * Any image that isn't present is simply skipped (order preserved).
+ */
+function carouselImages(mockups: Record<string, unknown> | null): CarouselImage[] {
+  if (!mockups) return [];
+  const out: CarouselImage[] = [];
+  const push = (label: string, value: unknown) => {
+    if (typeof value === 'string' && value) out.push({ label, url: value });
+  };
+  const details = Array.isArray(mockups.details) ? mockups.details : [];
+  push('Framed', mockups.framed);
+  push('Room', mockups.inRoom);
+  push('Zoom 1', details[0]);
+  push('Zoom 2', details[1]);
+  push('Original', mockups.original);
+  return out;
 }
 
 /**
@@ -83,7 +103,7 @@ export async function getAdCreativeGroups(
         price: art.price,
         currency: art.currency,
         shopifyHandle: art.shopify_handle,
-        previewImage: previewFrom(art.mockup_urls),
+        images: carouselImages(art.mockup_urls),
         creatives: [],
       };
       byPiece.set(art.id, group);

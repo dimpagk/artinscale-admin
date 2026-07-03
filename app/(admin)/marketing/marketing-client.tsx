@@ -140,36 +140,88 @@ function fmtPrice(price: number | null, currency: string | null): string {
   return `${symbol}${price.toFixed(0)}`;
 }
 
+function CarouselStrip({ images }: { images: AdCreativeGroup['images'] }) {
+  if (images.length === 0) {
+    return (
+      <p className="text-xs text-gray-400">
+        No mockup set yet. Run the compose pipeline for this piece.
+      </p>
+    );
+  }
+
+  function copyOne(url: string) {
+    navigator.clipboard.writeText(url).then(
+      () => toast.success('Image URL copied.'),
+      () => toast.error('Copy failed.')
+    );
+  }
+
+  function copyAll() {
+    navigator.clipboard
+      .writeText(images.map((i) => i.url).join('\n'))
+      .then(
+        () => toast.success(`Copied ${images.length} URLs in carousel order.`),
+        () => toast.error('Copy failed.')
+      );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-500">
+          Carousel order (framed to plain)
+        </span>
+        <button
+          type="button"
+          onClick={copyAll}
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          Copy all URLs
+        </button>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {images.map((img, i) => (
+          <button
+            key={img.url}
+            type="button"
+            onClick={() => copyOne(img.url)}
+            title={`Copy URL: ${img.label}`}
+            className="group relative shrink-0"
+          >
+            <Image
+              src={img.url}
+              alt={img.label}
+              width={72}
+              height={72}
+              className="h-[72px] w-[72px] rounded-md object-cover ring-1 ring-gray-200 group-hover:ring-blue-400"
+              unoptimized
+            />
+            <span className="mt-1 block text-center text-[10px] text-gray-500">
+              {i + 1}. {img.label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PieceCard({ group }: { group: AdCreativeGroup }) {
   return (
     <Card>
       <CardContent className="space-y-4 p-5">
-        <div className="flex items-start gap-4">
-          {group.previewImage ? (
-            <Image
-              src={group.previewImage}
-              alt={group.title}
-              width={96}
-              height={96}
-              className="h-24 w-24 shrink-0 rounded-md object-cover"
-              unoptimized
-            />
-          ) : (
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md bg-gray-100 text-xs text-gray-400">
-              no image
-            </div>
-          )}
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-gray-900">
-              {group.title}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {fmtPrice(group.price, group.currency)} ·{' '}
-              {group.creatives.length} creative
-              {group.creatives.length === 1 ? '' : 's'}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h2 className="truncate text-lg font-semibold text-gray-900">
+            {group.title}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {fmtPrice(group.price, group.currency)} ·{' '}
+            {group.creatives.length} creative
+            {group.creatives.length === 1 ? '' : 's'}
+          </p>
         </div>
+
+        <CarouselStrip images={group.images} />
 
         <div className="space-y-3">
           {group.creatives.map((c) => (
