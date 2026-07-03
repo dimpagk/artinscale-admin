@@ -27,6 +27,12 @@ import { EMPTY_LISTING_META, type ListingMeta, type ArtworkCreationSource } from
 import { startAgentTask, finishAgentTask } from '@/lib/agents/base';
 import { validatePrintSafety, fetchImageDimensions } from '@/lib/image-dimensions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import {
+  createSocialDraft,
+  type SocialDraftArtwork,
+  type SocialDraftKind,
+  type SocialDraftResult,
+} from '@/lib/social-drafts';
 
 /**
  * Decide whether a string field change is "substantial enough" to
@@ -656,4 +662,37 @@ export async function syncListingAction(id: string) {
     warnings: result.warnings,
     stepCount: result.steps.length,
   };
+}
+
+/**
+ * One-click social draft (carousel or story) from the artwork's mockup
+ * set. Inserts a draft `social_posts` row for review in the Content
+ * studio; image order follows the ad standard (framed first, plain
+ * original only as a substitute zoom) and all text renders through the
+ * branded canvas blocks. Never publishes.
+ */
+export async function createSocialDraftAction(
+  id: string,
+  kind: SocialDraftKind
+): Promise<SocialDraftResult> {
+  const artwork = await getArtworkById(id);
+  if (!artwork) return { ok: false, message: 'Artwork not found' };
+
+  const result = await createSocialDraft(
+    {
+      id: artwork.id,
+      title: artwork.title,
+      price: artwork.price ?? null,
+      currency: artwork.currency ?? null,
+      product_type: artwork.product_type ?? null,
+      shopify_handle: artwork.shopify_handle ?? null,
+      creation_source: artwork.creation_source ?? null,
+      mockup_urls: (artwork.mockup_urls ?? null) as SocialDraftArtwork['mockup_urls'],
+      artistName: artwork.users?.name ?? null,
+    },
+    kind
+  );
+
+  if (result.ok) revalidatePath('/content');
+  return result;
 }

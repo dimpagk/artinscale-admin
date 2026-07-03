@@ -5,6 +5,7 @@ import { getAllTopics } from '@/lib/topics';
 import { getPricingFinance, getPublishedPriceStatsBySize, getSizeMix } from '@/lib/pricing';
 import { ArtworkForm } from '@/components/artworks/artwork-form';
 import { ListingForm } from '@/components/artworks/listing-form';
+import { SocialDraftButtons } from '@/components/artworks/social-draft-buttons';
 import {
   BackLink,
   EditPageLayout,
@@ -102,6 +103,11 @@ export default async function EditArtworkPage({
               shopifyHandle={artwork.shopify_handle}
               shopifyProductId={artwork.shopify_product_id}
               hasTopic={!!artwork.topic_id}
+            />
+
+            <SocialDraftButtons
+              artworkId={artwork.id}
+              hasMockups={!!artwork.mockup_urls}
             />
           </>
         }
