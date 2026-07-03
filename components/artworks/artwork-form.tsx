@@ -594,7 +594,7 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
           )}
           {!!artwork.gelato_product_id && !artwork.shopify_handle && (
             <p className="text-xs text-gray-500">
-              Gelato product created. Shopify auto-publish usually lands within a minute; if it does not, paste the handle in Mark as Listed.
+              Gelato product created. The listing finalizes automatically once Gelato publishes to Shopify (the finalize cron runs every ~15 min). To list it now, use Mark as Listed once the Shopify product appears.
             </p>
           )}
 

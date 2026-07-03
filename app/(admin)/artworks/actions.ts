@@ -20,10 +20,7 @@ import {
 import { getProductDefaults } from '@/lib/pricing-defaults';
 import { resolveCreationCost } from '@/lib/costs/creation-cost';
 import { ensureUpscaledForArtworkImage } from '@/lib/upscale-runner';
-import {
-  applyListedState,
-  autoPublishArtworkAfterGelatoCreate,
-} from '@/lib/post-create-publisher';
+import { applyListedState } from '@/lib/post-create-publisher';
 import { runSoldOutFollowUp } from '@/lib/agents/sold-out-follow-up';
 import { EMPTY_LISTING_META, type ListingMeta, type ArtworkCreationSource } from '@/lib/types';
 import { startAgentTask, finishAgentTask } from '@/lib/agents/base';
@@ -443,6 +440,18 @@ export async function pushToGelatoAction(id: string) {
   if (!artwork) throw new Error('Artwork not found');
   if (!artwork.image_url) throw new Error('Artwork must have an image URL to push to Gelato');
 
+  // Idempotency guard: never create a second Gelato product. Server
+  // actions can be retried (e.g. after a transient network error or a
+  // dev-server restart), and without this a retry would create a
+  // DUPLICATE Gelato product. If the artwork already carries a
+  // gelato_product_id we're done here: the finalize_listings cron polls
+  // Gelato and completes the listing once it publishes.
+  if (artwork.gelato_product_id) {
+    revalidatePath(`/artworks/${id}`);
+    revalidatePath('/artworks');
+    return;
+  }
+
   // Ensure the size-aware print master exists: the upscaler enlarges the
   // 4K base to the largest size it can print at 300 DPI (Real-ESRGAN for
   // small jumps, Clarity for 60×90 / 70×100). Idempotent — reuses the
@@ -527,41 +536,18 @@ export async function pushToGelatoAction(id: string) {
     gelato_store_id: result.storeId,
   });
 
-  // Auto-publisher: poll Gelato until the auto-publish to Shopify
-  // lands (~15s typical), grab the handle from the Gelato GET, then
-  // run the same chain that markArtworkAsListedAction does — so the
-  // operator no longer has to copy-paste the Shopify handle back.
+  // The Gelato product is created; the listing is completed by the
+  // `finalize_listings` cron (every 15 min), which polls Gelato until it
+  // has published to Shopify, then runs the full applyListedState chain
+  // (handle, price, metafields, channels, mockups, status → listed).
   //
-  // Wrapped in agent_tasks so the operator can watch progress on the
-  // artwork edit page. Background fire — this action returns
-  // immediately. Falls back to manual Mark-as-Listed if the poll
-  // times out (status='timeout' surfaces in the agent_task output).
-  try {
-    const task = await startAgentTask({
-      agentName: 'auto-publisher',
-      triggerKind: 'event',
-      correlationId: `artwork:${id}`,
-      input: { artwork_id: id, source: 'pushToGelatoAction' },
-    });
-    if (task) {
-      void autoPublishArtworkAfterGelatoCreate({ artworkId: id })
-        .then((res) =>
-          finishAgentTask(task.id, {
-            status: res.status === 'published' ? 'succeeded' : 'failed',
-            output: res as unknown as Record<string, unknown>,
-            error: res.status === 'published' ? undefined : res.message,
-          })
-        )
-        .catch((err) =>
-          finishAgentTask(task.id, {
-            status: 'failed',
-            error: err instanceof Error ? err.message : String(err),
-          })
-        );
-    }
-  } catch (err) {
-    console.error('auto-publisher trigger failed (non-fatal):', err);
-  }
+  // We deliberately do NOT poll/publish inline here. Gelato's
+  // publish-to-Shopify is asynchronous and can take minutes to hours, so
+  // a poll inside this request would either block the operator or, worse,
+  // run as a detached promise after the response, which crashes the dev
+  // server and is silently dropped on serverless (the request freezes
+  // once it returns). The cron is the durable, environment-agnostic path;
+  // the operator can also trigger it immediately with Mark-as-Listed.
 
   revalidatePath(`/artworks/${id}`);
   revalidatePath('/artworks');
