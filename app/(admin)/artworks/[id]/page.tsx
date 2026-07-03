@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getArtworkById } from '@/lib/artworks';
 import { getArtists } from '@/lib/users';
 import { getAllTopics } from '@/lib/topics';
+import { getPricingFinance } from '@/lib/pricing';
 import { ArtworkForm } from '@/components/artworks/artwork-form';
 import { ListingForm } from '@/components/artworks/listing-form';
 import {
@@ -17,10 +18,11 @@ export default async function EditArtworkPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [artwork, artists, topicsWithStats] = await Promise.all([
+  const [artwork, artists, topicsWithStats, finance] = await Promise.all([
     getArtworkById(id),
     getArtists(),
     getAllTopics(),
+    getPricingFinance(),
   ]);
 
   if (!artwork) return notFound();
@@ -45,6 +47,7 @@ export default async function EditArtworkPage({
             artwork={artwork}
             artists={artists.map((a) => ({ id: a.id, name: a.name || a.email }))}
             topics={topics}
+            finance={finance}
           />
         }
         sidebar={

@@ -17,7 +17,12 @@ import { ArtworkPipelineActivity } from '@/components/artworks/artwork-pipeline-
 import { MockupGallery } from '@/components/artworks/mockup-gallery';
 import type { Artwork } from '@/lib/types';
 import { getProductDefaults, getPrintSpec } from '@/lib/pricing-defaults';
-import { DEFAULT_FINANCE, netMarginPct, netContributionEur } from '@/lib/pricing-math';
+import {
+  DEFAULT_FINANCE,
+  netMarginPct,
+  netContributionEur,
+  type PricingFinance,
+} from '@/lib/pricing-math';
 import {
   createArtworkAction,
   updateArtworkAction,
@@ -33,9 +38,20 @@ interface ArtworkFormProps {
   artwork?: Artwork;
   artists: { id: string; name: string }[];
   topics: { id: string; title: string }[];
+  /**
+   * Fee/VAT config for the margin preview, read from finance_settings on
+   * the server (getPricingFinance). Falls back to DEFAULT_FINANCE so the
+   * form still renders sensible numbers if it isn't passed.
+   */
+  finance?: PricingFinance;
 }
 
-export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
+export function ArtworkForm({
+  artwork,
+  artists,
+  topics,
+  finance = DEFAULT_FINANCE,
+}: ArtworkFormProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [gelatoPushing, setGelatoPushing] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -298,10 +314,10 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
   // Margin math is EUR-based (Gelato cost, VAT, fees). Only show it when
   // the sell price is priced in EUR too.
   const marginComputable = priceValid && gelatoCost != null && currency === 'EUR';
-  const floorPct = marginComputable ? netMarginPct(parsedPrice, gelatoCost, DEFAULT_FINANCE) : null;
-  const floorEur = marginComputable ? netContributionEur(parsedPrice, gelatoCost, DEFAULT_FINANCE) : null;
+  const floorPct = marginComputable ? netMarginPct(parsedPrice, gelatoCost, finance) : null;
+  const floorEur = marginComputable ? netContributionEur(parsedPrice, gelatoCost, finance) : null;
   const ceilingEur = marginComputable
-    ? netContributionEur(parsedPrice, gelatoCost, { ...DEFAULT_FINANCE, vatPercent: 0 })
+    ? netContributionEur(parsedPrice, gelatoCost, { ...finance, vatPercent: 0 })
     : null;
 
   // Classics (public domain / purchased) are priced per size; originals
@@ -523,8 +539,12 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
                       <span className="text-gray-400">({usingActualCost ? 'actual' : 'est'})</span>
                     </dt>
                     <dd className="text-right text-gray-900">−€{(gelatoCost ?? 0).toFixed(2)}</dd>
-                    <dt>Contribution (export, 0% VAT)</dt>
-                    <dd className="text-right text-gray-900">€{(ceilingEur ?? 0).toFixed(2)}</dd>
+                    {finance.vatPercent > 0 && (
+                      <>
+                        <dt>Contribution (export, 0% VAT)</dt>
+                        <dd className="text-right text-gray-900">€{(ceilingEur ?? 0).toFixed(2)}</dd>
+                      </>
+                    )}
                     {!isClassic && creationCost != null && creationCost > 0 && (
                       <>
                         <dt>Creation cost (one-time)</dt>
@@ -550,8 +570,10 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
                     )}
                   </dl>
                   <p className="text-[11px] text-gray-400">
-                    Contribution at the 24% VAT floor, {DEFAULT_FINANCE.paymentFeePercent}% + €
-                    {DEFAULT_FINANCE.paymentFeeFixed.toFixed(2)} payment fee. VAT is a pass-through.
+                    Contribution at the {finance.vatPercent}% VAT floor,{' '}
+                    {finance.paymentFeePercent}% + €{finance.paymentFeeFixed.toFixed(2)} payment fee
+                    {finance.source === 'finance_settings' ? ' (from finance settings)' : ' (defaults)'}.
+                    VAT is a pass-through.
                     {isClassic ? ' Classic: priced per size.' : ' Original: creation cost amortises across the edition.'}
                   </p>
                 </div>
