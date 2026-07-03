@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { reapStaleAgentTasks } from '@/lib/agents/reaper';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'correlation_id is required' }, { status: 400 });
   }
   const limit = Math.min(Number(url.searchParams.get('limit') ?? '20') || 20, 100);
+
+  // Self-heal orphaned tasks (worker restarted / crashed mid-run) before
+  // reading, so this card doesn't show a perpetual "In progress". The
+  // sweep is global, idempotent, throttled in-process, and non-throwing —
+  // one open artwork page reaps stale rows for every artwork.
+  await reapStaleAgentTasks();
 
   const { data, error } = await supabaseAdmin
     .from('agent_tasks')
