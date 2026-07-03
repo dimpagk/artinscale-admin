@@ -187,22 +187,38 @@ export async function resolveCreationCost(args: {
     return { source, cost: est.creationCost, currency, breakdown: est.breakdown };
   }
 
+  // Mockup sets are composed for every listed piece regardless of source,
+  // so community and public-domain pieces carry the cost too. The AI path
+  // gets it via estimateArtworkCreationCost.
+  const mockups = round2(MOCKUP_SET_USD * fs.creation_fx_usd_to_eur);
+
   if (source === 'community') {
     const fee = fs.default_community_artist_fee;
     return {
       source,
-      cost: fee,
+      cost: round2(fee + mockups),
       currency,
-      breakdown: { community_fee: fee, source: 'default', note: 'varies per artwork' },
+      breakdown: {
+        community_fee: fee,
+        mockups,
+        source: 'default',
+        note: 'varies per artwork',
+        fx_usd_to_eur: fs.creation_fx_usd_to_eur,
+      },
     };
   }
 
   if (source === 'public_domain') {
     return {
       source,
-      cost: 0,
+      cost: mockups,
       currency,
-      breakdown: { purchase: 0, source: 'public_domain' },
+      breakdown: {
+        purchase: 0,
+        mockups,
+        source: 'public_domain',
+        fx_usd_to_eur: fs.creation_fx_usd_to_eur,
+      },
     };
   }
 

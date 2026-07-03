@@ -19,6 +19,7 @@ import {
 } from '@/lib/agents/artwork-field-drafter';
 import { getProductDefaults } from '@/lib/pricing-defaults';
 import { resolveCreationCost } from '@/lib/costs/creation-cost';
+import { syncArtworkCostEntries } from '@/lib/costs/cost-entries';
 import { ensureUpscaledForArtworkImage } from '@/lib/upscale-runner';
 import { applyListedState } from '@/lib/post-create-publisher';
 import { runSoldOutFollowUp } from '@/lib/agents/sold-out-follow-up';
@@ -138,7 +139,7 @@ export async function createArtworkAction(formData: FormData) {
   const finalEditionSize = editionSize ? parseInt(editionSize) : null;
   const finalCurrency = currency || defaults?.currency || 'EUR';
 
-  await createArtwork({
+  const newArtworkId = await createArtwork({
     title,
     description: description || null,
     image_url: imageUrl || null,
@@ -156,6 +157,20 @@ export async function createArtworkAction(formData: FormData) {
     creation_cost_currency: creation.currency,
     creation_cost_breakdown: creation.breakdown,
   });
+
+  // Book the non-AI creation cost (upscale + mockups, purchase, community
+  // flat fee) into the dated P&L ledger. Non-fatal: a ledger hiccup must
+  // not fail the save. AI generation spend is booked from generated_images.
+  try {
+    await syncArtworkCostEntries({
+      artworkId: newArtworkId,
+      source: creation.source,
+      breakdown: creation.breakdown,
+      currency: creation.currency,
+    });
+  } catch (err) {
+    console.error('cost-entry sync failed (non-fatal):', err);
+  }
 
   // Auto-upscale: enlarge the base to the largest size it can print at
   // 300 DPI (Real-ESRGAN for small jumps, Clarity for 60×90 / 70×100).
@@ -300,6 +315,19 @@ export async function updateArtworkAction(id: string, formData: FormData) {
     creation_cost_breakdown: creation.breakdown,
     ...(nextMeta ? { listing_meta: nextMeta } : {}),
   });
+
+  // Keep the P&L ledger in step with the edited creation cost. Upserts by
+  // source_key so the original booking date is preserved. Non-fatal.
+  try {
+    await syncArtworkCostEntries({
+      artworkId: id,
+      source: creation.source,
+      breakdown: creation.breakdown,
+      currency: creation.currency,
+    });
+  } catch (err) {
+    console.error('cost-entry sync failed (non-fatal):', err);
+  }
 
   // Sold-out notice — fires once on the transition edge, never on
   // subsequent updates. Lands in agent_tasks so the operator sees it
