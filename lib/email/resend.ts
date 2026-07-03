@@ -150,7 +150,7 @@ export function abandonedCartEmail(args: AbandonedCartTemplateArgs) {
     subject,
     `<h1>${greeting}you left this behind.</h1>
 ${image}
-<p><strong>${escapeHtml(args.productTitle)}</strong> — limited edition, still available.</p>
+<p><strong>${escapeHtml(args.productTitle)}</strong> is still here for you.</p>
 <p><a class="cta" href="${escapeHtml(args.productUrl)}">Return to your cart</a></p>`
   )
   const text = `${args.productTitle} is still in your cart.\n\nReturn to your cart: ${args.productUrl}`
