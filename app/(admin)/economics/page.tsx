@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { PageHeader } from '@/components/admin-ui';
 import { getArtworkEconomics, getFinanceSettings } from '@/lib/costs/economics';
 import {
@@ -96,7 +97,9 @@ export default async function EconomicsPage({
 
       {/* ── Controls + headline ─────────────────────── */}
       <section className="flex flex-wrap items-center justify-between gap-3">
-        <GranularityToggle value={granularity} />
+        <Suspense fallback={<div className="h-9 w-72 rounded-lg border border-gray-200 bg-white" />}>
+          <GranularityToggle value={granularity} />
+        </Suspense>
         {pendingProduction > 0 && (
           <p className="text-xs text-amber-600">
             {pendingProduction} order{pendingProduction === 1 ? '' : 's'} awaiting Gelato production sync — their

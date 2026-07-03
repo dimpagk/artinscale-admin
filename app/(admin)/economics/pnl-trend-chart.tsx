@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -22,14 +23,24 @@ export interface TrendPoint {
 /**
  * Net revenue (bars) against CM2 and EBITDA (lines) per period. The one
  * chart on the page — reads the trend at a glance, the matrix has the detail.
+ *
+ * Rendered client-only (after mount): recharts' ResponsiveContainer measures
+ * the DOM, so its server HTML and client HTML differ and hydration would
+ * throw. The pre-mount placeholder keeps server and first client render
+ * identical, then the chart mounts on the client.
  */
 export function PnlTrendChart({ data, currency }: { data: TrendPoint[]; currency: string }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-IE', {
       style: 'currency',
       currency,
       maximumFractionDigits: 0,
     }).format(n);
+
+  if (!mounted) return <div className="h-64 w-full" />;
 
   return (
     <div className="h-64 w-full">
