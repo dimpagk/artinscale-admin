@@ -43,13 +43,15 @@ export interface DisplayLine {
   key: string;
   label: string;
   rawKeys: RawLineKey[];
+  /** Render bold like a subtotal (Gross revenue is the headline top line). */
+  emphasis?: boolean;
 }
 
 // ── The P&L structure, top to bottom ─────────────────────────────
 // Each block of lines is followed by a metric subtotal (see METRICS).
 
 export const REVENUE_LINES: DisplayLine[] = [
-  { key: 'gross_revenue', label: 'Gross revenue', rawKeys: ['gross_revenue'] },
+  { key: 'gross_revenue', label: 'Gross revenue', rawKeys: ['gross_revenue'], emphasis: true },
   { key: 'shipping_revenue', label: 'Shipping charged', rawKeys: ['shipping_revenue'] },
   { key: 'discounts', label: 'Discounts', rawKeys: ['discounts'] },
   { key: 'vat', label: 'VAT (pass-through)', rawKeys: ['vat'] },

@@ -44,8 +44,12 @@ export interface PnlRow {
   label: string;
   kind: 'line' | 'metric';
   note?: string;
+  /** Render bold like a subtotal even though it's a line (Gross revenue). */
+  emphasis?: boolean;
   /** One value per column, aligned to PnlMatrix.columns. */
   values: number[];
+  /** Total across all history (independent of the visible range). */
+  allTime: number;
 }
 
 export interface PnlMatrix {
@@ -54,6 +58,8 @@ export interface PnlMatrix {
   to: string;
   columns: PnlColumn[];
   rows: PnlRow[];
+  /** All-history totals, for the "All time" column and the all-time chart. */
+  allTime: { sums: LineSums; metrics: PnlMetrics };
 }
 
 interface PeriodRow {
@@ -75,11 +81,18 @@ export async function getPnl(
   const fromStr = iso(from);
   const toStr = iso(to);
 
-  const { data, error } = await supabaseAdmin.rpc('pnl_by_period', {
-    p_granularity: granularity,
-    p_from: fromStr,
-    p_to: toStr,
-  });
+  // The visible range and the all-history totals in parallel. All-time is a
+  // separate aggregation (from the epoch of the data, not the visible window)
+  // so the "All time" column and chart reflect the whole business, not the
+  // last N periods.
+  const [{ data, error }, allTimeSums] = await Promise.all([
+    supabaseAdmin.rpc('pnl_by_period', {
+      p_granularity: granularity,
+      p_from: fromStr,
+      p_to: toStr,
+    }),
+    fetchLineSums('year', '2000-01-01', toStr),
+  ]);
   if (error) throw new Error(`pnl_by_period failed: ${error.message}`);
 
   const rows = (data ?? []) as PeriodRow[];
@@ -103,20 +116,53 @@ export async function getPnl(
     return { period, label: formatPeriod(granularity, period), sums, metrics: computeMetrics(sums) };
   });
 
-  const matrixRows = buildRows(columns);
+  const allTimeMetrics = computeMetrics(allTimeSums);
+  const matrixRows = buildRows(columns, allTimeSums, allTimeMetrics);
 
-  return { granularity, from: fromStr, to: toStr, columns, rows: matrixRows };
+  return {
+    granularity,
+    from: fromStr,
+    to: toStr,
+    columns,
+    rows: matrixRows,
+    allTime: { sums: allTimeSums, metrics: allTimeMetrics },
+  };
+}
+
+/** Sum pnl_by_period rows across a whole range into one LineSums (no buckets). */
+async function fetchLineSums(
+  granularity: PnlGranularity,
+  fromStr: string,
+  toStr: string
+): Promise<LineSums> {
+  const { data, error } = await supabaseAdmin.rpc('pnl_by_period', {
+    p_granularity: granularity,
+    p_from: fromStr,
+    p_to: toStr,
+  });
+  if (error) throw new Error(`pnl_by_period (all-time) failed: ${error.message}`);
+  const sums: LineSums = {};
+  for (const r of (data ?? []) as PeriodRow[]) {
+    sums[r.line_key] = (sums[r.line_key] ?? 0) + Number(r.amount);
+  }
+  return sums;
 }
 
 /** Interleave display lines with their subtotal metric rows. */
-function buildRows(columns: PnlColumn[]): PnlRow[] {
+function buildRows(
+  columns: PnlColumn[],
+  allTimeSums: LineSums,
+  allTimeMetrics: PnlMetrics
+): PnlRow[] {
   const out: PnlRow[] = [];
   for (const line of ALL_DISPLAY_LINES) {
     out.push({
       key: line.key,
       label: line.label,
       kind: 'line',
+      emphasis: line.emphasis,
       values: columns.map((c) => displayLineAmount(c.sums, line)),
+      allTime: displayLineAmount(allTimeSums, line),
     });
     for (const metric of METRICS.filter((m) => m.afterLineKey === line.key)) {
       out.push({
@@ -125,6 +171,7 @@ function buildRows(columns: PnlColumn[]): PnlRow[] {
         kind: 'metric',
         note: metric.note,
         values: columns.map((c) => metricValue(c.metrics, metric.key)),
+        allTime: metricValue(allTimeMetrics, metric.key),
       });
     }
   }

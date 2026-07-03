@@ -20,6 +20,7 @@ import {
 } from './actions';
 import { GranularityToggle } from './granularity-toggle';
 import { PnlTrendChart } from './pnl-trend-chart';
+import { PnlAllTimeChart } from './pnl-alltime-chart';
 import { PnlMatrix } from './pnl-matrix';
 
 function money(amount: number | null | undefined, currency = 'EUR'): string {
@@ -88,6 +89,16 @@ export default async function EconomicsPage({
     netRevenue: c.metrics.netRevenue,
   }));
 
+  // All-time totals of the headline metrics for the snapshot bar chart.
+  const at = matrix.allTime;
+  const allTimeChart = [
+    { name: 'Gross rev.', value: at.sums.gross_revenue ?? 0 },
+    { name: 'Net rev.', value: at.metrics.netRevenue },
+    { name: 'Gross profit', value: at.metrics.cm1 },
+    { name: 'CM2', value: at.metrics.cm2 },
+    { name: 'EBITDA', value: at.metrics.ebitda },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -122,11 +133,17 @@ export default async function EconomicsPage({
         </section>
       )}
 
-      {/* ── Trend chart ─────────────────────────────── */}
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">Trend</h2>
-        <PnlTrendChart data={trend} currency={cur} />
-      </section>
+      {/* ── Charts: period trend + all-time totals ──── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">Trend</h2>
+          <PnlTrendChart data={trend} currency={cur} />
+        </section>
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">All-time totals</h2>
+          <PnlAllTimeChart data={allTimeChart} currency={cur} />
+        </section>
+      </div>
 
       {/* ── P&L matrix ──────────────────────────────── */}
       <PnlMatrix granularity={granularity} columns={matrixColumns} rows={matrix.rows} currency={cur} />

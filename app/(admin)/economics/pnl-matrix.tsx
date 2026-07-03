@@ -15,7 +15,9 @@ export interface MatrixRow {
   label: string;
   kind: 'line' | 'metric';
   note?: string;
+  emphasis?: boolean;
   values: number[];
+  allTime: number;
 }
 
 interface Props {
@@ -40,15 +42,20 @@ export function PnlMatrix({ granularity, columns, rows, currency }: Props) {
   const money = (n: number) =>
     new Intl.NumberFormat('en-IE', { style: 'currency', currency }).format(n);
 
-  function cell(value: number, col: number): string {
+  // All-time net revenue is the base for the All-time column's % mode.
+  const allTimeNet = rows.find((r) => r.key === 'net_revenue')?.allTime ?? 0;
+
+  function fmtCell(value: number, base: number): string {
     if (percentMode) {
-      const base = columns[col]?.netRevenue ?? 0;
       if (!base) return '—';
       return `${((value / base) * 100).toFixed(0)}%`;
     }
     if (value === 0) return '·';
     return money(value);
   }
+
+  const cell = (value: number, col: number) => fmtCell(value, columns[col]?.netRevenue ?? 0);
+  const allTimeCell = (value: number) => fmtCell(value, allTimeNet);
 
   function openCell(row: MatrixRow, col: number) {
     if (row.kind !== 'line') return;
@@ -87,6 +94,9 @@ export function PnlMatrix({ granularity, columns, rows, currency }: Props) {
           <thead>
             <tr className="text-right text-xs uppercase tracking-wide text-gray-400">
               <th className="sticky left-0 z-10 bg-white py-2 pr-3 text-left font-medium">Line</th>
+              <th className="whitespace-nowrap border-r border-gray-200 bg-indigo-50/50 py-2 px-3 font-semibold text-gray-500">
+                All time
+              </th>
               {columns.map((c) => (
                 <th key={c.period} className="whitespace-nowrap py-2 pl-3 font-medium">
                   {c.label}
@@ -97,39 +107,44 @@ export function PnlMatrix({ granularity, columns, rows, currency }: Props) {
           <tbody>
             {rows.map((row) => {
               const isMetric = row.kind === 'metric';
+              // Gross revenue is a line (still drillable) but rendered bold
+              // like a subtotal via `emphasis`.
+              const bold = isMetric || !!row.emphasis;
+              const clickable = !isMetric;
               return (
                 <tr
                   key={row.key}
-                  className={
-                    isMetric
-                      ? 'border-t border-gray-200 bg-gray-50/60'
-                      : 'border-b border-gray-50 hover:bg-indigo-50/40'
-                  }
+                  className={`${
+                    bold ? 'border-t border-gray-200 bg-gray-50/60' : 'border-b border-gray-50'
+                  } ${clickable ? 'hover:bg-indigo-50/40' : ''}`}
                 >
                   <td
                     className={`sticky left-0 z-10 py-1.5 pr-3 text-left ${
-                      isMetric ? 'bg-gray-50/60 font-semibold text-gray-900' : 'bg-white text-gray-500'
+                      bold ? 'bg-gray-50/60 font-semibold text-gray-900' : 'bg-white text-gray-500'
                     }`}
                   >
                     {row.label}
                     {row.note && <span className="ml-1 text-xs font-normal text-gray-400">· {row.note}</span>}
+                  </td>
+                  <td
+                    className={`whitespace-nowrap border-r border-gray-200 bg-indigo-50/50 py-1.5 px-3 text-right tabular-nums ${
+                      bold ? 'font-semibold text-gray-900' : 'text-gray-700'
+                    }`}
+                  >
+                    {allTimeCell(row.allTime)}
                   </td>
                   {row.values.map((v, i) => {
                     const isOpen = open?.rowKey === row.key && open.col === i;
                     return (
                       <td
                         key={i}
-                        onClick={() => openCell(row, i)}
+                        onClick={() => clickable && openCell(row, i)}
                         className={`whitespace-nowrap py-1.5 pl-3 text-right tabular-nums ${
-                          isMetric
-                            ? 'font-semibold text-gray-900'
-                            : v < 0
-                              ? 'cursor-pointer text-gray-600'
-                              : 'cursor-pointer text-gray-800'
-                        } ${isOpen ? 'bg-indigo-100 ring-1 ring-inset ring-indigo-300' : ''} ${
-                          !isMetric ? 'cursor-pointer' : ''
+                          bold ? 'font-semibold text-gray-900' : v < 0 ? 'text-gray-600' : 'text-gray-800'
+                        } ${clickable ? 'cursor-pointer' : ''} ${
+                          isOpen ? 'bg-indigo-100 ring-1 ring-inset ring-indigo-300' : ''
                         }`}
-                        title={isMetric ? undefined : 'Click to drill in'}
+                        title={clickable ? 'Click to drill in' : undefined}
                       >
                         {cell(v, i)}
                       </td>
