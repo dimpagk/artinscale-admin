@@ -15,6 +15,11 @@ import { buildStyledPrompt } from '@/lib/style-packs'
 import { getStylePackAsync } from '@/lib/style-packs/server'
 import { loadExemplars } from '@/lib/style-packs/exemplars'
 import { checkStyleSimilarity } from '@/lib/agents/style-similarity-check'
+import {
+  refineToStyle,
+  REFINE_SCORE_THRESHOLD,
+  REFINE_MEDIUM_THRESHOLD,
+} from '@/lib/agents/style-refine'
 import { tagVisualContent } from '@/lib/agents/visual-tagger'
 import { updateGeneratedImage } from '@/lib/generated-images'
 import { estimateGenerationCostUsd } from '@/lib/costs/pricing'
@@ -183,38 +188,87 @@ export async function POST(request: Request) {
       )
     }
 
-    // Run two post-generation Claude vision passes in parallel:
-    //   1. Style similarity (advisory — only when a style pack is in use)
-    //   2. Visual tagger (always, drives gallery filters + future tuning)
-    // Both are best-effort. Failures are logged, never blocks the response.
+    // Post-generation vision passes + optional auto-refine.
+    //   1. Score the original against the pack (overall voice + medium
+    //      fidelity) and tag it. Advisory scoring only runs with a style pack.
+    //   2. If auto-refine is on and the piece falls short on voice OR medium,
+    //      apply ONE image-edit correction pass, re-score it, and return
+    //      whichever scores higher. Both rows are kept and cross-linked; a bad
+    //      correction can never replace a good original.
+    // Everything here is best-effort — failures never block the response.
+    let responseImage = image
     try {
-      const [similarity, tags] = await Promise.allSettled([
+      const [sim0, tags0] = await Promise.allSettled([
         body.stylePackId
-          ? checkStyleSimilarity({
-              candidateImageUrl: publicUrl,
-              stylePackId: body.stylePackId,
-            })
+          ? checkStyleSimilarity({ candidateImageUrl: publicUrl, stylePackId: body.stylePackId })
           : Promise.resolve(null),
         tagVisualContent({ imageUrl: publicUrl }),
       ])
 
-      const newMetadata: Record<string, unknown> = { ...(image.metadata ?? {}) }
-      if (similarity.status === 'fulfilled' && similarity.value) {
-        newMetadata.styleSimilarity = similarity.value
-      } else if (similarity.status === 'rejected') {
-        console.warn('[generate] style similarity failed (non-fatal):', similarity.reason)
+      const originalMeta: Record<string, unknown> = { ...(image.metadata ?? {}) }
+      const similarity0 = sim0.status === 'fulfilled' ? sim0.value : null
+      if (sim0.status === 'rejected') {
+        console.warn('[generate] style similarity failed (non-fatal):', sim0.reason)
       }
-      if (tags.status === 'fulfilled') {
-        newMetadata.tags = tags.value
-      } else {
-        console.warn('[generate] visual tagger failed (non-fatal):', tags.reason)
+      if (similarity0) originalMeta.styleSimilarity = similarity0
+      if (tags0.status === 'fulfilled') originalMeta.tags = tags0.value
+      else console.warn('[generate] visual tagger failed (non-fatal):', tags0.reason)
+      await updateGeneratedImage(image.id, { metadata: originalMeta })
+
+      const autoRefineOn = !!body.stylePackId && body.autoRefine !== false
+      const shortOnVoice =
+        !!similarity0 &&
+        (similarity0.score < REFINE_SCORE_THRESHOLD ||
+          similarity0.mediumScore < REFINE_MEDIUM_THRESHOLD)
+
+      if (autoRefineOn && shortOnVoice && similarity0?.fixInstructions) {
+        const refined = await refineToStyle({
+          source: image,
+          stylePackId: body.stylePackId!,
+          fixInstructions: similarity0.fixInstructions,
+          modelKey: modelOption.key,
+        })
+
+        if (refined) {
+          const [sim1, tags1] = await Promise.allSettled([
+            checkStyleSimilarity({ candidateImageUrl: refined.image_url, stylePackId: body.stylePackId! }),
+            tagVisualContent({ imageUrl: refined.image_url }),
+          ])
+          const similarity1 = sim1.status === 'fulfilled' ? sim1.value : null
+          const originalScore = similarity0.score
+          const refinedScore = similarity1?.score ?? -1
+          const winner: 'refined' | 'original' = refinedScore > originalScore ? 'refined' : 'original'
+
+          const refinedMeta: Record<string, unknown> = { ...(refined.metadata ?? {}) }
+          if (similarity1) refinedMeta.styleSimilarity = similarity1
+          if (tags1.status === 'fulfilled') refinedMeta.tags = tags1.value
+          refinedMeta.autoRefine = {
+            role: 'refined',
+            winner,
+            originalId: image.id,
+            originalScore,
+            refinedScore,
+            fixInstructions: similarity0.fixInstructions,
+          }
+          const savedRefined = await updateGeneratedImage(refined.id, { metadata: refinedMeta })
+
+          await updateGeneratedImage(image.id, {
+            metadata: {
+              ...originalMeta,
+              autoRefine: { role: 'original', winner, refinedId: refined.id, originalScore, refinedScore },
+            },
+          })
+
+          if (winner === 'refined') {
+            responseImage = savedRefined ?? { ...refined, metadata: refinedMeta }
+          }
+        }
       }
-      await updateGeneratedImage(image.id, { metadata: newMetadata })
     } catch (err) {
-      console.warn('[generate] post-generation vision pass failed (non-fatal):', err)
+      console.warn('[generate] post-generation / auto-refine failed (non-fatal):', err)
     }
 
-    return NextResponse.json({ image }, { status: 201 })
+    return NextResponse.json({ image: responseImage }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[art-generator] generate failed:', error)

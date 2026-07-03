@@ -201,6 +201,14 @@ export interface GenerateParams {
   stylePackId?: string
   /** Engine to use for generation — see {@link GeneratorEngine}. */
   engine?: GeneratorEngine
+  /**
+   * Auto-refine: after the first generation, run a vision critic against the
+   * style pack (voice + medium fidelity) and, if it falls short, apply one
+   * image-edit correction pass. The higher-scoring of the two is returned;
+   * both rows are kept. Only runs when a style pack is set. Defaults to on;
+   * pass false to skip the extra critic + correction cost.
+   */
+  autoRefine?: boolean
 }
 
 export interface EditParams {

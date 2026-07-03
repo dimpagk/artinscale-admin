@@ -23,7 +23,13 @@ export interface Exemplar {
   source: 'approved' | 'static_fallback'
 }
 
-const MAX_EXEMPLARS = 4
+// Upper bound on reference images fed to Gemini per generation. This is a
+// payload/latency guardrail, not a curation target: the whole of a pack's
+// curated reference set should reach the model, so keep this comfortably
+// above the largest pack. Gemini caps total inline request size around
+// 20 MB; ~30 mixed JPEGs stays well under that. Raise toward 40-50 only if
+// a pack genuinely needs it, and watch request size.
+const MAX_EXEMPLARS = 32
 
 export async function loadExemplars(args: {
   stylePackId: string
