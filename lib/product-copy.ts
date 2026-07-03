@@ -129,8 +129,8 @@ export function buildProductCopy(input: ProductCopyInput): ProductCopyOutput {
 
   // ── SEO description: shortest single-sentence form, ≤160 chars
   const seoBase = input.topicTitle
-    ? `${input.title} by ${input.artistName} — a museum-quality archival print from Artinscale's ${input.topicTitle} collection.`
-    : `${input.title} by ${input.artistName} — a museum-quality archival print from Artinscale.`;
+    ? `${input.title} by ${input.artistName}: an archival matte print from Artinscale's ${input.topicTitle} collection.`
+    : `${input.title} by ${input.artistName}: an archival matte print from Artinscale.`;
   const seoDescription = seoBase.length > 160 ? `${seoBase.slice(0, 157)}…` : seoBase;
 
   // ── SEO title: short, brand-anchored
@@ -178,6 +178,31 @@ export function formatDimensions(cfg: GelatoTemplateConfig | null): string {
   const metric = `${cfg.widthCm}x${cfg.heightCm} cm`;
   const imperial = cmToInches(cfg.widthCm, cfg.heightCm);
   return `${metric} / ${imperial}″`;
+}
+
+/**
+ * Print medium string for the `custom.medium` metafield, keyed off the
+ * Gelato product family. Describes the physical print (paper, weight),
+ * not the artwork medium: the description's "Medium: Digital
+ * illustration" line covers that. Wording matches the storefront's
+ * Print-details section. Empty string when there's no resolved config.
+ */
+export function formatMedium(cfg: GelatoTemplateConfig | null): string {
+  if (!cfg) return '';
+  const byFamily: Record<GelatoTemplateConfig['productFamily'], string> = {
+    'museum-matte-poster': 'Natural matte print, 250 gsm archival paper',
+  };
+  return byFamily[cfg.productFamily] ?? '';
+}
+
+/**
+ * Orientation for the `custom.orientation` metafield, lowercase so the
+ * storefront can use it directly as a filter value.
+ */
+export function formatOrientation(cfg: GelatoTemplateConfig | null): string {
+  if (!cfg) return '';
+  if (cfg.widthCm === cfg.heightCm) return 'square';
+  return cfg.heightCm > cfg.widthCm ? 'portrait' : 'landscape';
 }
 
 /**

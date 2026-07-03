@@ -32,6 +32,7 @@ export interface ShopifyAdminResult<T> {
 
 interface ShopifyVariant {
   id: number;
+  sku: string | null;
   inventory_item_id: number;
   inventory_management: 'shopify' | null;
   inventory_policy: 'deny' | 'continue';
@@ -478,8 +479,35 @@ export async function setShopifyProductMetafield(args: {
   value: string;
   type?: 'single_line_text_field' | 'multi_line_text_field';
 }): Promise<ShopifyAdminResult<{ id: number }>> {
+  return upsertShopifyMetafield(`/products/${args.productId}`, args);
+}
+
+/**
+ * Upsert a single Shopify **variant** metafield. Used for the Google &
+ * YouTube channel's feed fields (`mm-google-shopping` namespace), which
+ * live on the variant, not the product.
+ */
+export async function setShopifyVariantMetafield(args: {
+  variantId: number | string;
+  namespace: string;
+  key: string;
+  value: string;
+  type?: 'single_line_text_field' | 'multi_line_text_field';
+}): Promise<ShopifyAdminResult<{ id: number }>> {
+  return upsertShopifyMetafield(`/variants/${args.variantId}`, args);
+}
+
+async function upsertShopifyMetafield(
+  ownerPath: string,
+  args: {
+    namespace: string;
+    key: string;
+    value: string;
+    type?: 'single_line_text_field' | 'multi_line_text_field';
+  }
+): Promise<ShopifyAdminResult<{ id: number }>> {
   const res = await shopifyFetch<{ metafield: { id: number } }>(
-    `/products/${args.productId}/metafields.json`,
+    `${ownerPath}/metafields.json`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -503,7 +531,7 @@ export async function setShopifyProductMetafield(args: {
           key: string;
         }>;
       }>(
-        `/products/${args.productId}/metafields.json?namespace=${encodeURIComponent(
+        `${ownerPath}/metafields.json?namespace=${encodeURIComponent(
           args.namespace
         )}&key=${encodeURIComponent(args.key)}`
       );
@@ -532,6 +560,53 @@ export async function setShopifyProductMetafield(args: {
     return { ok: false, error: res.error };
   }
   return { ok: true, data: { id: res.data?.metafield.id ?? 0 } };
+}
+
+interface ProductUpdateCategoryResult {
+  productUpdate: {
+    product: { id: string; category: { id: string; fullName: string } | null } | null;
+    userErrors: Array<{ field: string[] | null; message: string }>;
+  };
+}
+
+/**
+ * Set the standard-taxonomy category on a product. REST has no category
+ * field, so this goes through GraphQL. `categoryGid` is a stable
+ * `gid://shopify/TaxonomyCategory/…` id from Shopify's public product
+ * taxonomy (github.com/Shopify/product-taxonomy), the same for every
+ * store. Idempotent: re-setting the same category is a no-op.
+ *
+ * The category drives tax rates and maps the product into Google's and
+ * Meta's taxonomies for channel feeds, which is why the sync sets it on
+ * every product rather than leaving it to the admin UI suggestion.
+ */
+export async function setShopifyProductCategory(args: {
+  productId: number | string;
+  categoryGid: string;
+}): Promise<ShopifyAdminResult<{ category: string | null }>> {
+  const res = await shopifyGraphql<ProductUpdateCategoryResult>(
+    `mutation setCategory($input: ProductInput!) {
+      productUpdate(input: $input) {
+        product { id category { id fullName } }
+        userErrors { field message }
+      }
+    }`,
+    {
+      input: {
+        id: `gid://shopify/Product/${args.productId}`,
+        category: args.categoryGid,
+      },
+    }
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+  const errors = res.data?.productUpdate.userErrors ?? [];
+  if (errors.length > 0) {
+    return { ok: false, error: errors.map((e) => e.message).join('; ') };
+  }
+  return {
+    ok: true,
+    data: { category: res.data?.productUpdate.product?.category?.fullName ?? null },
+  };
 }
 
 /**
