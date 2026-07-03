@@ -25,11 +25,12 @@ export interface MetricSeriesPoint {
 }
 
 /**
- * Headline metrics over time: money (Y) by month (X) across all history.
- * Revenue and margin lines share the left axis; EBITDA gets its own right
- * axis (dashed line) because creation spend pushes it to a different scale
- * and it would flatten the others. Client-only after mount (see the trend
- * chart) to avoid a recharts hydration mismatch.
+ * CUMULATIVE headline metrics over time: money (Y) by month (X), each point
+ * the running total since inception, so the rightmost values equal the "All
+ * time" column. Revenue and margin lines share the left axis; EBITDA gets
+ * its own right axis (dashed line) because creation spend pushes it to a
+ * different scale and it would flatten the others. Client-only after mount
+ * (see the trend chart) to avoid a recharts hydration mismatch.
  */
 export function PnlAllTimeChart({ data, currency }: { data: MetricSeriesPoint[]; currency: string }) {
   const [mounted, setMounted] = useState(false);

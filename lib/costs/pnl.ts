@@ -148,7 +148,7 @@ async function fetchLineSums(
   return sums;
 }
 
-/** One month's headline metrics, for the all-history metric time series. */
+/** One month's CUMULATIVE headline metrics (running total since inception). */
 export interface MonthlyMetricsPoint {
   period: string;
   label: string;
@@ -162,9 +162,11 @@ export interface MonthlyMetricsPoint {
 }
 
 /**
- * Headline metrics per month across ALL history (independent of the matrix's
- * visible range). Starts at the first month with any activity and fills gap
- * months with zeros so the time axis is continuous.
+ * Cumulative headline metrics per month across ALL history: each point is
+ * the running total from the first active month through that month, so the
+ * final point equals the "All time" column. Metrics are linear in the line
+ * sums, so accumulating the sums and computing metrics on the running total
+ * is exact. Gap months carry the previous level (flat segment).
  */
 export async function getMonthlyMetricSeries(to: Date = new Date()): Promise<MonthlyMetricsPoint[]> {
   const toStr = iso(to);
@@ -191,13 +193,17 @@ export async function getMonthlyMetricSeries(to: Date = new Date()): Promise<Mon
   const first = [...byPeriod.keys()].sort()[0];
   const periods = enumeratePeriods('month', new Date(`${first}T00:00:00Z`), to);
 
+  const running: LineSums = {};
   return periods.map((period) => {
-    const sums = byPeriod.get(period) ?? {};
-    const m = computeMetrics(sums);
+    const monthSums = byPeriod.get(period) ?? {};
+    for (const [key, amount] of Object.entries(monthSums)) {
+      running[key] = (running[key] ?? 0) + (amount ?? 0);
+    }
+    const m = computeMetrics(running);
     return {
       period,
       label: formatPeriod('month', period),
-      grossRevenue: Math.round(((sums.gross_revenue ?? 0) + (sums.shipping_revenue ?? 0)) * 100) / 100,
+      grossRevenue: Math.round(((running.gross_revenue ?? 0) + (running.shipping_revenue ?? 0)) * 100) / 100,
       netRevenue: m.netRevenue,
       cm1: m.cm1,
       cm2: m.cm2,
