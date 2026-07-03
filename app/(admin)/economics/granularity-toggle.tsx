@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { GRANULARITIES, type PnlGranularity } from '@/lib/costs/pnl';
+import { GRANULARITIES, type PnlGranularity } from '@/lib/costs/pnl-shared';
 
 const LABELS: Record<PnlGranularity, string> = {
   day: 'Day',

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { drilldownAction } from './actions';
-import type { PnlGranularity, DrilldownRow } from '@/lib/costs/pnl';
+import type { PnlGranularity, DrilldownRow } from '@/lib/costs/pnl-shared';
 
 export interface MatrixColumn {
   period: string;
