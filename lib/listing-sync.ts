@@ -28,6 +28,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   buildProductCopy,
   formatDimensions,
+  formatMedium,
+  formatOrientation,
 } from '@/lib/product-copy';
 import { getTemplateConfig } from '@/lib/gelato-templates';
 import {
@@ -38,6 +40,8 @@ import {
   updateShopifyProductCore,
   updateShopifyProductPrice,
   setShopifyProductMetafield,
+  setShopifyVariantMetafield,
+  setShopifyProductCategory,
   reconcileProductCollections,
   syncEditionToShopifyInventory,
   publishProductToAllChannels,
@@ -53,10 +57,20 @@ import { EMPTY_LISTING_META, type ListingMeta } from '@/lib/types';
  * explicit `product_type` (older community pieces never had a size
  * assigned), we still surface a dimension on the storefront by falling
  * back to this size for the `custom.dimensions` metafield. Scoped to
- * the dimensions metafield only — it does NOT change the Gelato order,
- * the size tags, or the description body.
+ * the storefront metafields (dimensions, medium, orientation) only; it
+ * does NOT change the Gelato order, the size tags, or the description
+ * body.
  */
 const DEFAULT_COMMUNITY_PRODUCT_TYPE = 'museum-poster-50x70';
+
+/**
+ * Shopify standard-taxonomy category for every Artinscale product:
+ * Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork >
+ * Prints. Stable public id from github.com/Shopify/product-taxonomy,
+ * identical across stores, so it's safe to hardcode. Drives tax rates
+ * and the Google/Meta feed category mapping.
+ */
+const PRINTS_TAXONOMY_CATEGORY_GID = 'gid://shopify/TaxonomyCategory/hg-3-4-2-2';
 
 export interface ListingSyncStep {
   name: string;
@@ -85,16 +99,22 @@ export interface SyncArtworkOptions {
  * Sync an artwork's admin DB state to Shopify + Gelato.
  *
  * Order matters:
- *   1. Generate listing_meta if missing (model call) — blocks subsequent
+ *   1. Gelato: push price (per variant). Runs before the shopify_handle
+ *      guard so pushed-but-not-yet-listed pieces still get their Gelato
+ *      price kept fresh. Keeps the Gelato dashboard accurate; Gelato does
+ *      NOT propagate this to Shopify.
+ *   2. Generate listing_meta if missing (model call) — blocks subsequent
  *      metafield writes.
- *   2. Compute canonical fields from joined artwork+artist+topic.
- *   3. Gelato: push price (per variant). Keeps the Gelato dashboard
- *      accurate; Gelato does NOT propagate this to Shopify.
+ *   3. Compute canonical fields from joined artwork+artist+topic.
  *   4. Shopify: product core (vendor / product_type / tags / status).
  *   5. Shopify: variant prices.
- *   6. Shopify: SEO + OG metafields.
+ *   6. Shopify: SEO + OG metafields (+ taxonomy category, Google feed).
  *   7. Shopify: edition→inventory.
  *   8. Shopify: collection memberships.
+ *   9. Shopify: publish to every sales channel.
+ *
+ * Everything from step 2 on requires a shopify_handle; when the artwork
+ * isn't listed yet the function returns right after step 1.
  *
  * Each step is independent; the function continues past a step's
  * failure and records it in the result.
@@ -126,95 +146,12 @@ export async function syncArtworkToShopify(
   }
   steps.push({ name: 'load_artwork', ok: true, detail: { id: artwork.id } });
 
-  if (!artwork.shopify_handle) {
-    return {
-      artworkId,
-      shopifyHandle: null,
-      gelatoProductId: artwork.gelato_product_id ?? null,
-      listingMeta: artwork.listing_meta ?? EMPTY_LISTING_META,
-      steps,
-      warnings: [
-        'Artwork has no shopify_handle — sync skipped. Push to Gelato first or list manually.',
-      ],
-    };
-  }
-
-  const [{ data: artist }, { data: topic }] = await Promise.all([
-    artwork.artist_id
-      ? supabaseAdmin
-          .from('users')
-          .select('id, name, bio')
-          .eq('id', artwork.artist_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    artwork.topic_id
-      ? supabaseAdmin
-          .from('topics')
-          .select('id, title, description')
-          .eq('id', artwork.topic_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
-
-  // ── 2. Generate listing_meta if missing
-  let listingMeta: ListingMeta = artwork.listing_meta ?? EMPTY_LISTING_META;
-  if (!options.skipAgent) {
-    try {
-      const result = await generateListingMeta({
-        artworkId: artwork.id,
-        force: options.regenerate === true,
-      });
-      listingMeta = result.listingMeta;
-      steps.push({
-        name: 'listing_meta',
-        ok: true,
-        detail: { skipped: result.skipped, generatedBy: listingMeta.generatedBy },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      steps.push({ name: 'listing_meta', ok: false, error: msg });
-      warnings.push(`listing_meta generation failed: ${msg}`);
-    }
-  }
-
-  // ── 3. Compute canonical fields
-  const productConfig = artwork.product_type
-    ? getTemplateConfig(artwork.product_type)
-    : null;
-  const editionLabel =
-    artwork.edition_size != null
-      ? `${artwork.edition_sold ?? 0} of ${artwork.edition_size}`
-      : 'Open edition';
-
-  // Style: pulled from the artist's primary style pack so the
-  // canonical Artwork-details block has a "Style:" line. Best-effort —
-  // omitted gracefully when no style pack is configured.
-  const style = artist?.id ? await getArtistPrimaryStyle(artist.id) : null;
-
-  const copy = buildProductCopy({
-    title: artwork.title,
-    artworkSynopsis: artwork.description ?? null,
-    inspirationSummary: artwork.inspiration_summary ?? null,
-    artistName: artist?.name ?? 'an Artinscale artist',
-    artistBio: artist?.bio ?? null,
-    topicTitle: topic?.title ?? null,
-    topicId: topic?.id ?? null,
-    productConfig,
-    editionLabel,
-    style,
-  });
-
-  const vendor = artist?.name?.trim() || 'Artinscale';
-  const productType = 'Art Print';
-  // Retiring a piece pulls it from the storefront: Shopify `draft`
-  // removes it from every sales channel while keeping the product (and
-  // its handle / history) intact, so a retire is fully reversible by
-  // flipping the status back to `listed`. Matches the external-prints
-  // retire convention (status=draft).
-  const isRetired = artwork.status === 'retired';
-  const status: 'active' | 'draft' = isRetired ? 'draft' : 'active';
-
-  // ── 4. Gelato: push price (so Gelato dashboard isn't stale)
+  // ── 2. Gelato: push price (so Gelato dashboard isn't stale)
+  // Runs BEFORE the shopify_handle guard below: a piece can be live on
+  // Gelato but not yet listed on Shopify (pushed, awaiting the finalize
+  // step), and in that window a price edit should still reach Gelato.
+  // Gated only on gelato_product_id + price, so it no-ops safely for
+  // pieces that aren't on Gelato yet.
   if (artwork.gelato_product_id && artwork.price != null) {
     try {
       const variants = await listGelatoProductVariants(artwork.gelato_product_id);
@@ -256,6 +193,95 @@ export async function syncArtworkToShopify(
       warnings.push(`gelato_price: ${msg}`);
     }
   }
+
+  if (!artwork.shopify_handle) {
+    return {
+      artworkId,
+      shopifyHandle: null,
+      gelatoProductId: artwork.gelato_product_id ?? null,
+      listingMeta: artwork.listing_meta ?? EMPTY_LISTING_META,
+      steps,
+      warnings: [
+        ...warnings,
+        'Artwork has no shopify_handle — Shopify sync skipped. Push to Gelato first or list manually.',
+      ],
+    };
+  }
+
+  const [{ data: artist }, { data: topic }] = await Promise.all([
+    artwork.artist_id
+      ? supabaseAdmin
+          .from('users')
+          .select('id, name, bio')
+          .eq('id', artwork.artist_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    artwork.topic_id
+      ? supabaseAdmin
+          .from('topics')
+          .select('id, title, description')
+          .eq('id', artwork.topic_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  // ── 3. Generate listing_meta if missing
+  let listingMeta: ListingMeta = artwork.listing_meta ?? EMPTY_LISTING_META;
+  if (!options.skipAgent) {
+    try {
+      const result = await generateListingMeta({
+        artworkId: artwork.id,
+        force: options.regenerate === true,
+      });
+      listingMeta = result.listingMeta;
+      steps.push({
+        name: 'listing_meta',
+        ok: true,
+        detail: { skipped: result.skipped, generatedBy: listingMeta.generatedBy },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      steps.push({ name: 'listing_meta', ok: false, error: msg });
+      warnings.push(`listing_meta generation failed: ${msg}`);
+    }
+  }
+
+  // ── 4. Compute canonical fields
+  const productConfig = artwork.product_type
+    ? getTemplateConfig(artwork.product_type)
+    : null;
+  const editionLabel =
+    artwork.edition_size != null
+      ? `${artwork.edition_sold ?? 0} of ${artwork.edition_size}`
+      : 'Open edition';
+
+  // Style: pulled from the artist's primary style pack so the
+  // canonical Artwork-details block has a "Style:" line. Best-effort —
+  // omitted gracefully when no style pack is configured.
+  const style = artist?.id ? await getArtistPrimaryStyle(artist.id) : null;
+
+  const copy = buildProductCopy({
+    title: artwork.title,
+    artworkSynopsis: artwork.description ?? null,
+    inspirationSummary: artwork.inspiration_summary ?? null,
+    artistName: artist?.name ?? 'an Artinscale artist',
+    artistBio: artist?.bio ?? null,
+    topicTitle: topic?.title ?? null,
+    topicId: topic?.id ?? null,
+    productConfig,
+    editionLabel,
+    style,
+  });
+
+  const vendor = artist?.name?.trim() || 'Artinscale';
+  const productType = 'Art Print';
+  // Retiring a piece pulls it from the storefront: Shopify `draft`
+  // removes it from every sales channel while keeping the product (and
+  // its handle / history) intact, so a retire is fully reversible by
+  // flipping the status back to `listed`. Matches the external-prints
+  // retire convention (status=draft).
+  const isRetired = artwork.status === 'retired';
+  const status: 'active' | 'draft' = isRetired ? 'draft' : 'active';
 
   // ── 5. Shopify: product core (vendor, type, status, tags, description)
   const coreRes = await updateShopifyProductCore({
@@ -394,6 +420,30 @@ export async function syncArtworkToShopify(
           null,
         type: 'single_line_text_field',
       },
+      {
+        slot: 'medium',
+        namespace: 'custom',
+        key: 'medium',
+        // Physical print description (paper, weight) keyed off the
+        // Gelato product family. Distinct from the description's
+        // "Medium: Digital illustration" line, which is the artwork
+        // medium.
+        value:
+          formatMedium(productConfig ?? getTemplateConfig(DEFAULT_COMMUNITY_PRODUCT_TYPE)) ||
+          null,
+        type: 'single_line_text_field',
+      },
+      {
+        slot: 'orientation',
+        namespace: 'custom',
+        key: 'orientation',
+        // portrait / landscape / square, groundwork for storefront
+        // filtering.
+        value:
+          formatOrientation(productConfig ?? getTemplateConfig(DEFAULT_COMMUNITY_PRODUCT_TYPE)) ||
+          null,
+        type: 'single_line_text_field',
+      },
     ];
 
     const metafieldResults: Record<string, { ok: boolean; error?: string }> = {};
@@ -417,6 +467,58 @@ export async function syncArtworkToShopify(
       ok: Object.values(metafieldResults).every((m) => m.ok),
       detail: metafieldResults,
     });
+
+    // ── 7b. Shopify: standard-taxonomy category
+    // Every product is a print, so the category is a constant. Shopify
+    // only suggests it in the admin UI; it's never applied unless
+    // someone clicks, so the sync sets it explicitly.
+    const catRes = await setShopifyProductCategory({
+      productId,
+      categoryGid: PRINTS_TAXONOMY_CATEGORY_GID,
+    });
+    steps.push({
+      name: 'shopify_category',
+      ok: catRes.ok,
+      detail: catRes.data,
+      error: catRes.error,
+    });
+    if (!catRes.ok) warnings.push(`shopify_category: ${catRes.error}`);
+
+    // ── 7c. Google & YouTube channel feed fields
+    // Art prints carry no GTIN/barcode; Google requires a GTIN, a
+    // brand+MPN pair, or an explicit no-identifier flag before it
+    // approves a listing. Vendor (brand) is already set on the product,
+    // so writing the SKU as MPN completes the pair. Condition is
+    // mandatory in the feed. Both live on the *variant* in the channel's
+    // `mm-google-shopping` namespace. Age group / gender are apparel
+    // fields, intentionally left unset.
+    const primaryVariant = productLookup.data.variants[0];
+    if (primaryVariant) {
+      const googleFields: Array<{ key: string; value: string | null }> = [
+        { key: 'condition', value: 'new' },
+        { key: 'mpn', value: primaryVariant.sku || artwork.id },
+      ];
+      const googleResults: Record<string, { ok: boolean; error?: string }> = {};
+      for (const f of googleFields) {
+        if (!f.value) {
+          googleResults[f.key] = { ok: true };
+          continue;
+        }
+        const r = await setShopifyVariantMetafield({
+          variantId: primaryVariant.id,
+          namespace: 'mm-google-shopping',
+          key: f.key,
+          value: f.value,
+        });
+        googleResults[f.key] = { ok: r.ok, error: r.error };
+        if (!r.ok) warnings.push(`google_feed ${f.key}: ${r.error}`);
+      }
+      steps.push({
+        name: 'google_feed_fields',
+        ok: Object.values(googleResults).every((m) => m.ok),
+        detail: googleResults,
+      });
+    }
   }
 
   // ── 8. Shopify: edition→inventory
@@ -551,7 +653,7 @@ export async function syncArtworkToShopify(
  * edit in the Shopify dashboard afterward.
  */
 const LIMITED_EDITION_COLLECTION_BODY =
-  '<p>Numbered editions, archival paper, museum-quality matte. Each piece in this collection is produced in a fixed run — once the run sells out, it stays sold out.</p>';
+  '<p>Numbered editions on 250 gsm archival paper, natural matte finish. Each piece in this collection is produced in a fixed run: once the run sells out, it stays sold out.</p>';
 
 /**
  * Build the `body_html` for an auto-created topic collection.
