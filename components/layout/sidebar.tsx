@@ -17,6 +17,7 @@ import {
   PencilSimpleLine,
   MagicWand,
   Palette,
+  Armchair,
   SignOut,
 } from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
@@ -46,6 +47,7 @@ const navItems: NavItem[] = [
 ];
 
 const utilityItems: NavItem[] = [
+  { href: '/scenes', label: 'Room Scenes', icon: <Armchair size={16} weight="duotone" /> },
   { href: '/components-demo', label: 'Components', icon: <Palette size={16} weight="duotone" /> },
 ];
 

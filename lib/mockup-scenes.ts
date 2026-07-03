@@ -22,7 +22,30 @@ export interface MockupScene {
    * (e.g. 'minimal', 'warm', 'mid-century'). Lets the operator (or
    * future agent) pick a scene whose mood matches the style pack.
    */
-  aesthetic: 'minimal' | 'warm' | 'industrial' | 'mid-century' | 'scandinavian';
+  aesthetic:
+    | 'minimal'
+    | 'warm'
+    | 'industrial'
+    | 'mid-century'
+    | 'scandinavian'
+    | 'mediterranean'
+    | 'japandi'
+    | 'coastal'
+    | 'alpine'
+    | 'art-deco'
+    | 'classic'
+    | 'contemporary'
+    | 'tropical';
+  /**
+   * City the scene is anchored in (the city-flavored library). Location
+   * is expressed through furniture, materials, and light, never through
+   * landmarks or a view. Absent on the original generic scenes.
+   */
+  location?: { city: string; code: string };
+  /** Key materials in the scene, surfaced in the Scenes browser. */
+  materials?: string[];
+  /** One-line description of the light, surfaced in the Scenes browser. */
+  light?: string;
   /**
    * Generation prompt — used by the one-time scene generator.
    * Designed to produce a photo with:

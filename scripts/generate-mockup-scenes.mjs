@@ -10,6 +10,7 @@
  *   node scripts/generate-mockup-scenes.mjs                  # generate all missing
  *   node scripts/generate-mockup-scenes.mjs --force          # regenerate everything
  *   node scripts/generate-mockup-scenes.mjs --only <key>     # one scene by key
+ *   node scripts/generate-mockup-scenes.mjs --match <substr> # keys containing substr (e.g. "ath-")
  *
  * Env required: GOOGLE_GEMINI_API_KEY, NEXT_PUBLIC_SUPABASE_URL,
  * SUPABASE_SERVICE_ROLE_KEY (read from .env, same as
@@ -38,6 +39,8 @@ const args = process.argv.slice(2)
 const force = args.includes('--force')
 const onlyIdx = args.indexOf('--only')
 const onlyKey = onlyIdx >= 0 ? args[onlyIdx + 1] : null
+const matchIdx = args.indexOf('--match')
+const matchStr = matchIdx >= 0 ? args[matchIdx + 1] : null
 
 if (MOCKUP_SCENES.length === 0) {
   console.error('No scenes in catalog')
@@ -108,11 +111,14 @@ async function generateScene(scene) {
   return { generated: true, ms, bytes: buf.length }
 }
 
-const targets = onlyKey ? MOCKUP_SCENES.filter((s) => s.key === onlyKey) : MOCKUP_SCENES
+const targets = MOCKUP_SCENES.filter(
+  (s) => (!onlyKey || s.key === onlyKey) && (!matchStr || s.key.includes(matchStr))
+)
 if (targets.length === 0) {
-  console.error(`No scene matches --only "${onlyKey}"`)
+  console.error(`No scene matches --only "${onlyKey}" / --match "${matchStr}"`)
   process.exit(1)
 }
+console.log(`Targeting ${targets.length} scene(s).`)
 
 let counts = { generated: 0, skipped: 0, failed: 0 }
 for (const scene of targets) {
