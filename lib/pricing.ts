@@ -16,6 +16,16 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import {
+  DEFAULT_FINANCE as DEFAULT_FINANCE_MATH,
+  GREEK_STANDARD_VAT,
+  type PricingFinance,
+} from '@/lib/pricing-math';
+
+// Re-exported so server callers can keep importing the margin math from
+// '@/lib/pricing'. The pure implementation lives in pricing-math (no
+// server imports) so Client Components can share it.
+export { netContributionEur, netMarginPct, type PricingFinance } from '@/lib/pricing-math';
 
 export interface PrintSizePrice {
   size_key: string;
@@ -63,30 +73,6 @@ function row(
   };
 }
 
-export interface PricingFinance {
-  paymentFeePercent: number;
-  paymentFeeFixed: number;
-  /** VAT assumption used to strip VAT from the sell price for the margin
-   *  preview. Not a real per-order figure — a modelling assumption. */
-  vatPercent: number;
-  source: 'defaults' | 'finance_settings';
-}
-
-// vatPercent here is the pricing FLOOR assumption: the worst-case VAT we
-// might remit on a sale (Greek domestic standard rate, 24%). Pricing to
-// this floor guarantees the margin on every sale — export / EU-B2B
-// reverse-charge / small-business-exempt sales carry no VAT and earn more
-// (the "ceiling", computed at 0% VAT). VAT is a pass-through, never our
-// money; this only affects how much of the inclusive list price is ours.
-const GREEK_STANDARD_VAT = 24;
-
-const DEFAULT_FINANCE: PricingFinance = {
-  paymentFeePercent: 2.9,
-  paymentFeeFixed: 0.3,
-  vatPercent: GREEK_STANDARD_VAT,
-  source: 'defaults',
-};
-
 /** Fee/VAT config, from finance_settings (030) when present, else defaults. */
 export async function getPricingFinance(): Promise<PricingFinance> {
   try {
@@ -95,7 +81,7 @@ export async function getPricingFinance(): Promise<PricingFinance> {
       .select('payment_fee_percent, payment_fee_fixed, default_vat_percent')
       .eq('id', true)
       .maybeSingle();
-    if (error || !data) return DEFAULT_FINANCE;
+    if (error || !data) return DEFAULT_FINANCE_MATH;
     return {
       paymentFeePercent: Number(data.payment_fee_percent ?? 2.9),
       paymentFeeFixed: Number(data.payment_fee_fixed ?? 0.3),
@@ -106,7 +92,7 @@ export async function getPricingFinance(): Promise<PricingFinance> {
       source: 'finance_settings',
     };
   } catch {
-    return DEFAULT_FINANCE;
+    return DEFAULT_FINANCE_MATH;
   }
 }
 
@@ -128,26 +114,6 @@ export async function getPrintSizePricing(): Promise<{
   } catch {
     return { rows: FALLBACK_ROWS, source: 'fallback' };
   }
-}
-
-/**
- * Net margin % after Gelato cost, payment fee, and VAT (VAT excluded from
- * margin as pass-through). Returns null when we have no cost estimate.
- *   net_rev = price / (1 + vat)
- *   fee     = price × fee% + fee_fixed
- *   margin  = (net_rev − gelato − fee) / net_rev
- */
-export function netMarginPct(
-  priceEur: number,
-  gelatoCost: number | null,
-  fin: PricingFinance
-): number | null {
-  if (gelatoCost == null) return null;
-  const netRev = priceEur / (1 + fin.vatPercent / 100);
-  if (netRev <= 0) return null;
-  const fee = priceEur * (fin.paymentFeePercent / 100) + fin.paymentFeeFixed;
-  const profit = netRev - gelatoCost - fee;
-  return (profit / netRev) * 100;
 }
 
 // ─── Discount campaigns (migration 033) ─────────────────────────────

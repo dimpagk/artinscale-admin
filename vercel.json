@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/finalize_listings",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/mockup_worker",
+      "schedule": "* * * * *"
     }
   ]
 }

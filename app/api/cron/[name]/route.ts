@@ -6,6 +6,7 @@ import { runPostingWorker } from '@/lib/publishers/posting-worker'
 import { runTopicStatusUpdater } from '@/lib/topic-status-updater'
 import { runOrderSync } from '@/lib/orders'
 import { reconcilePendingListings } from '@/lib/post-create-publisher'
+import { runMockupComposeWorker } from '@/lib/mockup-compose-worker'
 
 // finalize_listings awaits mockup generation (~1-2 min of Gemini calls per
 // artwork), so the default ~15s serverless budget kills it mid-run. Raise
@@ -100,6 +101,12 @@ async function runScheduled(name: string): Promise<unknown> {
       // publishing. The reliable replacement for the fire-and-forget
       // auto-publisher.
       return reconcilePendingListings()
+    case 'mockup_worker':
+      // Drain the mockup-composer queue: claim queued compose tasks (from
+      // the "Generate mockups" button) and run each to completion here,
+      // where the maxDuration budget actually covers the work. The
+      // reliable replacement for the fire-and-forget compose route.
+      return runMockupComposeWorker()
     default:
       throw new Error(`Unknown scheduled job: ${name}`)
   }

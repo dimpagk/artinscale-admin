@@ -270,3 +270,126 @@ export async function finishAgentTask(
     console.error(`finishAgentTask failed (non-fatal): ${error.message}`)
   }
 }
+
+/**
+ * Enqueue an agent_tasks row at `status='queued'` (started_at left NULL)
+ * for a cron worker to claim later. Unlike `startAgentTask`, this does NOT
+ * begin execution: it just records the intent durably so the work
+ * survives the request that created it. This is the reliable alternative
+ * to fire-and-forget: a detached promise inside a Next.js route is killed
+ * when the serverless instance is frozen after the response, but a queued
+ * row is picked up by `claimNextAgentTask` on the next cron sweep.
+ *
+ * The reaper never touches queued rows (its guard is `status='running'`
+ * AND `started_at < cutoff`, and `.lt` excludes NULL), so a task can wait
+ * in the queue as long as it needs without being marked failed.
+ */
+export async function enqueueAgentTask(args: {
+  agentName: string
+  triggerKind: 'event' | 'cron' | 'manual'
+  triggerKey?: string | null
+  correlationId?: string | null
+  input?: Record<string, unknown>
+}): Promise<{ id: string } | null> {
+  const { data, error } = await supabaseAdmin
+    .from('agent_tasks')
+    .insert({
+      agent_name: args.agentName,
+      trigger_kind: args.triggerKind,
+      trigger_key: args.triggerKey ?? null,
+      correlation_id: args.correlationId ?? null,
+      input: args.input ?? {},
+      status: 'queued',
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    // Unique violation = already queued/running/succeeded for this key; skip
+    if (error.code === '23505') return null
+    throw new Error(`enqueueAgentTask failed: ${error.message}`)
+  }
+
+  return data as { id: string }
+}
+
+/**
+ * Return the oldest non-terminal (queued or running) task for an agent +
+ * correlation id, or null. Used to de-duplicate before enqueuing so a
+ * double-click (or a retry while one is already in flight) reuses the
+ * existing task instead of stacking a second one. Terminal rows
+ * (succeeded/failed/cancelled) are ignored, so a re-generate after a
+ * finished run enqueues cleanly.
+ */
+export async function findActiveAgentTask(args: {
+  agentName: string
+  correlationId: string
+}): Promise<{ id: string; status: 'queued' | 'running' } | null> {
+  const { data, error } = await supabaseAdmin
+    .from('agent_tasks')
+    .select('id, status')
+    .eq('agent_name', args.agentName)
+    .eq('correlation_id', args.correlationId)
+    .in('status', ['queued', 'running'])
+    .order('created_at', { ascending: true })
+    .limit(1)
+
+  if (error) {
+    throw new Error(`findActiveAgentTask failed: ${error.message}`)
+  }
+  const row = data?.[0]
+  return row ? (row as { id: string; status: 'queued' | 'running' }) : null
+}
+
+/**
+ * Atomically claim the next queued task for an agent, flipping it to
+ * `status='running'` and stamping `started_at`. Returns the claimed row
+ * (id + input) or null when the queue is empty.
+ *
+ * Concurrency-safe without a stored procedure: it reads a small batch of
+ * queued candidates, then does a guarded conditional UPDATE
+ * (`.eq('status','queued')`) on each. Postgres applies that update
+ * atomically per row, so if two overlapping cron invocations race for the
+ * same candidate, only one's UPDATE matches a still-`queued` row and the
+ * other gets zero rows back and moves on. This mirrors the guarded-update
+ * idiom the reaper already uses.
+ */
+export async function claimNextAgentTask(
+  agentName: string
+): Promise<{ id: string; input: Record<string, unknown> } | null> {
+  const { data: candidates, error } = await supabaseAdmin
+    .from('agent_tasks')
+    .select('id')
+    .eq('agent_name', agentName)
+    .eq('status', 'queued')
+    .order('created_at', { ascending: true })
+    .limit(5)
+
+  if (error) {
+    throw new Error(`claimNextAgentTask failed: ${error.message}`)
+  }
+
+  for (const cand of candidates ?? []) {
+    const { data: claimed, error: claimErr } = await supabaseAdmin
+      .from('agent_tasks')
+      .update({ status: 'running', started_at: new Date().toISOString() })
+      .eq('id', (cand as { id: string }).id)
+      .eq('status', 'queued') // guard: only if nobody else claimed it first
+      .select('id, input')
+
+    if (claimErr) {
+      console.error(`claimNextAgentTask update failed (non-fatal): ${claimErr.message}`)
+      continue
+    }
+    const row = claimed?.[0]
+    if (row) {
+      return {
+        id: (row as { id: string }).id,
+        input: ((row as { input?: Record<string, unknown> }).input ?? {}) as Record<string, unknown>,
+      }
+    }
+    // Zero rows: lost the race for this candidate; try the next one.
+  }
+
+  return null
+}

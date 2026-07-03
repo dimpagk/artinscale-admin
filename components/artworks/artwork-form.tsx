@@ -16,7 +16,8 @@ import {
 import { ArtworkPipelineActivity } from '@/components/artworks/artwork-pipeline-activity';
 import { MockupGallery } from '@/components/artworks/mockup-gallery';
 import type { Artwork } from '@/lib/types';
-import { getProductDefaults } from '@/lib/pricing-defaults';
+import { getProductDefaults, getPrintSpec } from '@/lib/pricing-defaults';
+import { DEFAULT_FINANCE, netMarginPct, netContributionEur } from '@/lib/pricing-math';
 import {
   createArtworkAction,
   updateArtworkAction,
@@ -56,6 +57,12 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
   const [title, setTitle] = useState<string>(artwork?.title || '');
   const [description, setDescription] = useState<string>(artwork?.description || '');
   const [currency, setCurrency] = useState<string>(artwork?.currency || 'EUR');
+  // Controlled so the margin preview can tell classics (size-priced,
+  // per-unit contribution only) from originals (also amortise a one-time
+  // creation cost) as the operator changes the Source.
+  const [creationSource, setCreationSource] = useState<string>(
+    artwork?.creation_source || 'ai'
+  );
 
   // Listing meta state — controlled inputs so the Regenerate button
   // can update them without a page reload.
@@ -259,6 +266,57 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
     }
   };
 
+  // ─── Product-type lock + margin preview ──────────────────────────
+  // Once mockups are composed or the piece is a live Gelato product, its
+  // printed size is fixed: changing product_type would desync the mockups
+  // / Gelato variant. Lock the control (and carry its value in a hidden
+  // input so a disabled <select> doesn't drop product_type on save).
+  const hasMockups = !!artwork?.mockup_urls;
+  const syncedToGelato = !!artwork?.gelato_product_id;
+  const productTypeLocked = hasMockups || syncedToGelato;
+  const lockReason =
+    hasMockups && syncedToGelato
+      ? 'mockups exist and it is synced to Gelato'
+      : hasMockups
+        ? 'mockups have been composed'
+        : 'it is synced to Gelato';
+
+  const printSpec = getPrintSpec(productType);
+  const sizeDefaults = getProductDefaults(productType);
+  // Prefer the actual Gelato cost stamped on the artwork when we're still
+  // on the saved size; a changed size falls back to the size estimate.
+  const usingActualCost =
+    isEditing &&
+    productType === artwork?.product_type &&
+    artwork?.unit_production_cost != null;
+  const gelatoCost = usingActualCost
+    ? Number(artwork!.unit_production_cost)
+    : sizeDefaults?.gelatoCostEur ?? null;
+
+  const parsedPrice = parseFloat(priceOverride);
+  const priceValid = Number.isFinite(parsedPrice) && parsedPrice > 0;
+  // Margin math is EUR-based (Gelato cost, VAT, fees). Only show it when
+  // the sell price is priced in EUR too.
+  const marginComputable = priceValid && gelatoCost != null && currency === 'EUR';
+  const floorPct = marginComputable ? netMarginPct(parsedPrice, gelatoCost, DEFAULT_FINANCE) : null;
+  const floorEur = marginComputable ? netContributionEur(parsedPrice, gelatoCost, DEFAULT_FINANCE) : null;
+  const ceilingEur = marginComputable
+    ? netContributionEur(parsedPrice, gelatoCost, { ...DEFAULT_FINANCE, vatPercent: 0 })
+    : null;
+
+  // Classics (public domain / purchased) are priced per size; originals
+  // (AI / community / manual) also carry a one-time creation cost that
+  // amortises across units sold.
+  const isClassic = creationSource === 'public_domain' || creationSource === 'purchased';
+  const creationCost = artwork?.creation_cost != null ? Number(artwork.creation_cost) : null;
+  const unitsSold = artwork?.edition_sold ?? 0;
+  const amortizedCreation =
+    creationCost != null && creationCost > 0 && unitsSold > 0 ? creationCost / unitsSold : null;
+  // Net-of-creation contribution: what each sale nets once its share of the
+  // one-time creation cost is subtracted (only meaningful once units sell).
+  const netOfCreationEur =
+    floorEur != null && amortizedCreation != null ? floorEur - amortizedCreation : null;
+
   return (
     <>
       <form action={handleSubmit} className="space-y-6">
@@ -418,10 +476,96 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
                   { value: 'museum-poster-70x100', label: 'Museum Poster · 70×100 cm (statement above sofa)' },
                 ]}
                 value={productType}
+                disabled={productTypeLocked}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleProductTypeChange(e.target.value)}
+                helperText={
+                  productTypeLocked
+                    ? `Size locked because ${lockReason}. Changing it would desync the printed product.`
+                    : undefined
+                }
               />
+              {/* A disabled <select> is dropped from FormData; keep the
+                  value in the payload so save doesn't clear product_type. */}
+              {productTypeLocked && (
+                <input type="hidden" name="product_type" value={productType} />
+              )}
             </div>
           </FormGrid>
+
+          {productType ? (
+            <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              {printSpec && (
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium text-gray-900">
+                    {printSpec.widthCm} × {printSpec.heightCm} cm
+                  </span>{' '}
+                  · prints at 300 DPI · needs a master of at least{' '}
+                  {printSpec.minPxWidth.toLocaleString()} × {printSpec.minPxHeight.toLocaleString()} px.
+                  Smaller sources are upscaled before print.
+                </p>
+              )}
+
+              {marginComputable && floorPct != null ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm font-medium text-gray-900">
+                      Margin {floorPct.toFixed(0)}%
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      €{(floorEur ?? 0).toFixed(2)} / unit
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
+                    <dt>Sell price (incl. VAT)</dt>
+                    <dd className="text-right text-gray-900">€{parsedPrice.toFixed(2)}</dd>
+                    <dt>
+                      Production cost{' '}
+                      <span className="text-gray-400">({usingActualCost ? 'actual' : 'est'})</span>
+                    </dt>
+                    <dd className="text-right text-gray-900">−€{(gelatoCost ?? 0).toFixed(2)}</dd>
+                    <dt>Contribution (export, 0% VAT)</dt>
+                    <dd className="text-right text-gray-900">€{(ceilingEur ?? 0).toFixed(2)}</dd>
+                    {!isClassic && creationCost != null && creationCost > 0 && (
+                      <>
+                        <dt>Creation cost (one-time)</dt>
+                        <dd className="text-right text-gray-900">€{creationCost.toFixed(2)}</dd>
+                        {amortizedCreation != null ? (
+                          <>
+                            <dt>Amortised / unit ({unitsSold} sold)</dt>
+                            <dd className="text-right text-gray-900">−€{amortizedCreation.toFixed(2)}</dd>
+                            <dt className="font-medium text-gray-700">Net after creation</dt>
+                            <dd className="text-right font-medium text-gray-900">
+                              €{(netOfCreationEur ?? 0).toFixed(2)}
+                            </dd>
+                          </>
+                        ) : (
+                          <>
+                            <dt className="col-span-2 text-gray-400">
+                              Amortises once units sell; recouped after ~
+                              {floorEur && floorEur > 0 ? Math.ceil(creationCost / floorEur) : '—'} sales.
+                            </dt>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </dl>
+                  <p className="text-[11px] text-gray-400">
+                    Contribution at the 24% VAT floor, {DEFAULT_FINANCE.paymentFeePercent}% + €
+                    {DEFAULT_FINANCE.paymentFeeFixed.toFixed(2)} payment fee. VAT is a pass-through.
+                    {isClassic ? ' Classic: priced per size.' : ' Original: creation cost amortises across the edition.'}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  {gelatoCost == null
+                    ? 'No production-cost estimate for this size yet.'
+                    : currency !== 'EUR'
+                      ? 'Margin preview is available for EUR pricing.'
+                      : 'Enter a price to preview the margin.'}
+                </p>
+              )}
+            </div>
+          ) : null}
         </FormCard>
 
         <FormCard
@@ -439,7 +583,8 @@ export function ArtworkForm({ artwork, artists, topics }: ArtworkFormProps) {
                 { value: 'public_domain', label: 'Public domain' },
                 { value: 'manual', label: 'Other / manual' },
               ]}
-              defaultValue={artwork?.creation_source || 'ai'}
+              value={creationSource}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCreationSource(e.target.value)}
               helperText="Auto-set from the assigned artist's kind on save."
             />
             <Input

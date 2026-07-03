@@ -15,9 +15,10 @@ interface MockupGalleryProps {
  * Product-photo set for an artwork: original, framed close-up, in-room
  * shot, and two focal detail crops.
  *
- * "Generate mockups" fires the existing compose-mockups route (a
- * background agent task, ~1-2 min, ~$0.09); this card then polls the
- * route's GET until the composed set lands on artworks.mockup_urls.
+ * "Generate mockups" enqueues a background compose task; a per-minute
+ * cron worker runs it (~1-2 min of Gemini calls, ~$0.09) and writes the
+ * set to artworks.mockup_urls. This card polls the route's GET until the
+ * set lands (a few minutes, since it waits for the next worker sweep).
  * Compose progress also shows in the pipeline-activity card below.
  * "Push images to Shopify" replaces the product gallery with the set
  * in display order (only available once the artwork is listed).
@@ -38,12 +39,16 @@ export function MockupGallery({ artworkId, initialMockups, shopifyHandle }: Mock
 
   const startPolling = () => {
     if (pollRef.current) clearInterval(pollRef.current);
-    const deadline = Date.now() + 3 * 60 * 1000;
+    // Generous window: the task waits for the next per-minute worker sweep
+    // and then ~1-2 min of Gemini calls, so give it room before giving up.
+    const deadline = Date.now() + 6 * 60 * 1000;
     pollRef.current = setInterval(async () => {
       if (Date.now() > deadline) {
         stopPolling();
         setComposing(false);
-        setMessage('Compose is taking longer than expected. Check pipeline activity below.');
+        setMessage(
+          'Still generating in the background. It will appear here on completion, or after a refresh. See pipeline activity below.'
+        );
         return;
       }
       try {
@@ -157,7 +162,7 @@ export function MockupGallery({ artworkId, initialMockups, shopifyHandle }: Mock
       ) : (
         <p className="text-sm text-gray-500">
           {composing
-            ? 'Composing the photo set (about 1-2 minutes)...'
+            ? 'Queued. Generating the photo set in the background; it appears here automatically (usually a few minutes).'
             : 'No product photos yet. Generate the set to preview it here before publishing.'}
         </p>
       )}
