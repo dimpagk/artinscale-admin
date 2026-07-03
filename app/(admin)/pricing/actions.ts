@@ -330,7 +330,15 @@ export async function revertCampaignAction(formData: FormData): Promise<void> {
     : listExternalVariants()
   ).catch(() => [] as ExtVariant[]);
   for (const v of variants) {
-    if (v.compareAtPrice == null) continue; // not on sale
+    // Only restore variants whose compare_at is a genuine pre-sale price:
+    // strictly greater than the current price. This skips null, non-numeric,
+    // and stray <= price values (e.g. a leftover compare_at of 0.00) so a
+    // revert can never LOWER a live price to a bogus compare_at.
+    const wasPrice = Number(v.compareAtPrice);
+    const nowPrice = Number(v.price);
+    if (v.compareAtPrice == null || !Number.isFinite(wasPrice) || !(wasPrice > nowPrice)) {
+      continue;
+    }
     await putVariantPricing(v.id, v.compareAtPrice, null).catch((e) =>
       console.error(`[pricing] revert variant ${v.id} failed:`, e)
     );
