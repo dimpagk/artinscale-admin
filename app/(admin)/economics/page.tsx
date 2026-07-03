@@ -98,6 +98,7 @@ export default async function EconomicsPage({
     { name: 'Net rev.', value: at.metrics.netRevenue },
     { name: 'Gross profit', value: at.metrics.cm1 },
     { name: 'CM2', value: at.metrics.cm2 },
+    { name: 'CM3', value: at.metrics.cm3 },
     { name: 'EBITDA', value: at.metrics.ebitda },
   ];
 
