@@ -51,8 +51,9 @@ export interface DisplayLine {
 // Each block of lines is followed by a metric subtotal (see METRICS).
 
 export const REVENUE_LINES: DisplayLine[] = [
-  { key: 'gross_revenue', label: 'Gross revenue', rawKeys: ['gross_revenue'], emphasis: true },
-  { key: 'shipping_revenue', label: 'Shipping charged', rawKeys: ['shipping_revenue'] },
+  // Gross revenue includes shipping charged to the customer (product
+  // subtotal + shipping), so there is no separate shipping line.
+  { key: 'gross_revenue', label: 'Gross revenue', rawKeys: ['gross_revenue', 'shipping_revenue'], emphasis: true },
   { key: 'discounts', label: 'Discounts', rawKeys: ['discounts'] },
   { key: 'vat', label: 'VAT (pass-through)', rawKeys: ['vat'] },
 ];

@@ -90,9 +90,11 @@ export default async function EconomicsPage({
   }));
 
   // All-time totals of the headline metrics for the snapshot bar chart.
+  // Gross revenue includes shipping (same as the matrix's gross_revenue row).
   const at = matrix.allTime;
+  const allTimeGross = matrix.rows.find((r) => r.key === 'gross_revenue')?.allTime ?? 0;
   const allTimeChart = [
-    { name: 'Gross rev.', value: at.sums.gross_revenue ?? 0 },
+    { name: 'Gross rev.', value: allTimeGross },
     { name: 'Net rev.', value: at.metrics.netRevenue },
     { name: 'Gross profit', value: at.metrics.cm1 },
     { name: 'CM2', value: at.metrics.cm2 },
