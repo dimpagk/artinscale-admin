@@ -84,6 +84,9 @@ async function generateScene(scene) {
   const result = await genAI.models.generateContent({
     model: MODEL_ID,
     contents: [{ role: 'user', parts: [{ text: scene.prompt }] }],
+    // Pin the output aspect ratio to the catalog's value. Without this
+    // the model picks its own (the early generic scenes came out 1:1).
+    config: { imageConfig: { aspectRatio: scene.aspectRatio } },
   })
 
   const parts = result?.candidates?.[0]?.content?.parts ?? []
