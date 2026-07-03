@@ -7,6 +7,7 @@ import { runTopicStatusUpdater } from '@/lib/topic-status-updater'
 import { runOrderSync } from '@/lib/orders'
 import { reconcilePendingListings } from '@/lib/post-create-publisher'
 import { runMockupComposeWorker } from '@/lib/mockup-compose-worker'
+import { syncFxRates } from '@/lib/fx'
 
 // finalize_listings awaits mockup generation (~1-2 min of Gemini calls per
 // artwork), so the default ~15s serverless budget kills it mid-run. Raise
@@ -73,7 +74,7 @@ export async function GET(
 
   const { name } = await params
   try {
-    const result = await runScheduled(name)
+    const result = await runScheduled(name, new URL(request.url).searchParams)
     return NextResponse.json({ ok: true, agent: name, result })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -81,7 +82,7 @@ export async function GET(
   }
 }
 
-async function runScheduled(name: string): Promise<unknown> {
+async function runScheduled(name: string, searchParams: URLSearchParams): Promise<unknown> {
   switch (name) {
     case 'topic_ideator':
       return runTopicIdeator({ triggerKind: 'cron' })
@@ -107,6 +108,11 @@ async function runScheduled(name: string): Promise<unknown> {
       // where the maxDuration budget actually covers the work. The
       // reliable replacement for the fire-and-forget compose route.
       return runMockupComposeWorker()
+    case 'fx_sync':
+      // Pull the latest ECB USD/EUR reference rates into fx_rates so the
+      // P&L converts USD spend at the right daily rate. `?full=1` backfills
+      // the whole series (used once by scripts/backfill-fx-rates.mjs).
+      return syncFxRates({ full: searchParams.get('full') === '1' })
     default:
       throw new Error(`Unknown scheduled job: ${name}`)
   }

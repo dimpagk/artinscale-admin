@@ -1,74 +1,145 @@
 import { PageHeader } from '@/components/admin-ui';
+import { getArtworkEconomics, getFinanceSettings } from '@/lib/costs/economics';
 import {
-  getPnlSummary,
-  getArtworkEconomics,
-  getMarketingSpend,
-  getFinanceSettings,
-} from '@/lib/costs/economics';
+  getPnl,
+  getCostEntries,
+  getRecurringCosts,
+  getPendingProductionCount,
+  defaultRange,
+  GRANULARITIES,
+  type PnlGranularity,
+} from '@/lib/costs/pnl';
 import {
   saveFinanceSettingsAction,
-  addMarketingSpendAction,
-  deleteMarketingSpendAction,
+  addCostEntryAction,
+  deleteCostEntryAction,
+  addRecurringCostAction,
+  updateRecurringCostAction,
+  deleteRecurringCostAction,
 } from './actions';
+import { GranularityToggle } from './granularity-toggle';
+import { PnlTrendChart } from './pnl-trend-chart';
+import { PnlMatrix } from './pnl-matrix';
 
 function money(amount: number | null | undefined, currency = 'EUR'): string {
   if (amount === null || amount === undefined) return '—';
   return new Intl.NumberFormat('en-IE', { style: 'currency', currency }).format(amount);
 }
 
-export default async function EconomicsPage() {
-  const [pnl, artworks, marketing, settings] = await Promise.all([
-    getPnlSummary(),
+const EXPENSE_CATEGORIES: Array<{ value: string; label: string }> = [
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'creation_purchase', label: 'Buying art / licenses' },
+  { value: 'creation_processing', label: 'Upscales + mockups' },
+  { value: 'royalty_flat', label: 'Artist flat fee' },
+  { value: 'tools_shopify', label: 'Tools · Shopify' },
+  { value: 'tools_gelato', label: 'Tools · Gelato' },
+  { value: 'tools_vercel', label: 'Tools · Vercel' },
+  { value: 'tools_ai', label: 'Tools · AI platforms' },
+  { value: 'tools_other', label: 'Tools · other' },
+  { value: 'shipping_other', label: 'Shipping (other)' },
+  { value: 'other', label: 'Other opex' },
+];
+
+const SUBSCRIPTION_CATEGORIES: Array<{ value: string; label: string }> = [
+  { value: 'tools_shopify', label: 'Shopify' },
+  { value: 'tools_gelato', label: 'Gelato' },
+  { value: 'tools_vercel', label: 'Vercel' },
+  { value: 'tools_ai', label: 'AI platforms' },
+  { value: 'tools_other', label: 'Other tools' },
+  { value: 'other', label: 'Other' },
+];
+
+function parseGranularity(raw: string | undefined): PnlGranularity {
+  return (GRANULARITIES as string[]).includes(raw ?? '') ? (raw as PnlGranularity) : 'month';
+}
+
+export default async function EconomicsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ g?: string }>;
+}) {
+  const { g } = await searchParams;
+  const granularity = parseGranularity(g);
+  const { from, to } = defaultRange(granularity);
+
+  const [matrix, artworks, costEntries, recurring, settings, pendingProduction] = await Promise.all([
+    getPnl(granularity, from, to),
     getArtworkEconomics(),
-    getMarketingSpend(),
+    getCostEntries(),
+    getRecurringCosts(),
     getFinanceSettings(),
+    getPendingProductionCount(),
   ]);
-  const cur = pnl.reportingCurrency;
+  const cur = settings.reporting_currency;
+
+  // Headline = the most recent period in the range.
+  const latest = matrix.columns[matrix.columns.length - 1];
+
+  const trend = matrix.columns.map((c) => ({
+    label: c.label,
+    netRevenue: c.metrics.netRevenue,
+    cm2: c.metrics.cm2,
+    ebitda: c.metrics.ebitda,
+  }));
+  const matrixColumns = matrix.columns.map((c) => ({
+    period: c.period,
+    label: c.label,
+    netRevenue: c.metrics.netRevenue,
+  }));
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Unit economics"
-        description="Costs and contribution margin across the catalog. Creation cost is one-time per piece and amortised over every unit it sells; production, fees, VAT and discounts are per-order; marketing is blended."
+        title="Economics"
+        description="Profit & loss by day, week, month, quarter or year. Order revenue and per-order costs come from live orders; creation, marketing and tools are booked at the date they occur. VAT is shown but excluded from every margin (it is pass-through)."
       />
 
-      {/* ── P&L summary ─────────────────────────────── */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Gross revenue" value={money(pnl.grossRevenue, cur)} sub={`${pnl.orderCount} orders · ${pnl.unitsSold} units`} />
-        <Stat label="Contribution margin" value={money(pnl.contributionMargin, cur)} sub="after production, shipping, fees" />
-        <Stat label="Creation cost (sold pieces)" value={money(pnl.creationCostRealized, cur)} sub="one-time, realised" />
-        <Stat
-          label="Net after creation + marketing"
-          value={money(pnl.netAfterCreationAndMarketing, cur)}
-          sub={pnl.marketingCac != null ? `blended CAC ${money(pnl.marketingCac, cur)}` : 'excl. fixed costs'}
-          emphatic
-        />
+      {/* ── Controls + headline ─────────────────────── */}
+      <section className="flex flex-wrap items-center justify-between gap-3">
+        <GranularityToggle value={granularity} />
+        {pendingProduction > 0 && (
+          <p className="text-xs text-amber-600">
+            {pendingProduction} order{pendingProduction === 1 ? '' : 's'} awaiting Gelato production sync — their
+            margin reads optimistically until the next order sync.
+          </p>
+        )}
       </section>
 
+      {latest && (
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat label={`Net revenue · ${latest.label}`} value={money(latest.metrics.netRevenue, cur)} />
+          <Stat label="CM2" value={money(latest.metrics.cm2, cur)} sub="after fulfillment + fees" />
+          <Stat label="EBITDA" value={money(latest.metrics.ebitda, cur)} sub="after creation, marketing, tools" />
+          <Stat
+            label="Net profit"
+            value={money(latest.metrics.netProfit, cur)}
+            sub="tax / D&A not modelled yet"
+            emphatic
+          />
+        </section>
+      )}
+
+      {/* ── Trend chart ─────────────────────────────── */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">Cost stack</h2>
-        <dl className="space-y-1 text-sm">
-          <Row label="Gross revenue" value={money(pnl.grossRevenue, cur)} />
-          <Row label="− Discounts" value={`- ${money(pnl.discounts, cur)}`} muted />
-          <Row label="+ Shipping charged" value={money(pnl.shippingCharged, cur)} muted />
-          <Row label="− Production (Gelato)" value={`- ${money(pnl.productionCost, cur)}`} muted />
-          <Row label="− Gelato shipping" value={`- ${money(pnl.shippingCost, cur)}`} muted />
-          <Row label="− Payment fees" value={`- ${money(pnl.paymentFees, cur)}`} muted />
-          <Row label="− Artist royalties" value={`- ${money(pnl.artistRoyalties, cur)}`} muted />
-          <div className="border-t border-gray-100 pt-1">
-            <Row label="Contribution margin" value={money(pnl.contributionMargin, cur)} bold />
-          </div>
-          <Row label="− Creation cost (sold pieces)" value={`- ${money(pnl.creationCostRealized, cur)}`} muted />
-          <Row label="− Marketing" value={`- ${money(pnl.marketingSpend, cur)}`} muted />
-          <div className="border-t border-gray-100 pt-1">
-            <Row label="Net (excl. fixed costs)" value={money(pnl.netAfterCreationAndMarketing, cur)} bold />
-          </div>
-        </dl>
+        <h2 className="mb-3 text-sm font-semibold text-gray-900">Trend</h2>
+        <PnlTrendChart data={trend} currency={cur} />
       </section>
+
+      {/* ── P&L matrix ──────────────────────────────── */}
+      <PnlMatrix granularity={granularity} columns={matrixColumns} rows={matrix.rows} currency={cur} />
+
+      <p className="text-xs text-gray-400">
+        Refunds are not yet captured: orders marked refunded are excluded from revenue rather than shown as a
+        negative line at the refund date. AI generation converts USD to {cur} at the daily ECB reference rate.
+      </p>
 
       {/* ── Per-artwork ─────────────────────────────── */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">Per-artwork economics</h2>
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">Per-artwork economics</h2>
+        <p className="mb-3 text-xs text-gray-500">
+          Unit economics: creation cost amortised over units sold to date. Separate from the P&L above, which
+          expenses creation at the date incurred.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -95,7 +166,9 @@ export default async function EconomicsPage() {
                   <td className="py-2 pr-3 text-right">{a.units_sold}</td>
                   <td className="py-2 pr-3 text-right">{money(a.gross_revenue, a.currency)}</td>
                   <td className="py-2 pr-3 text-right text-gray-500">
-                    {a.amortized_creation_per_unit != null ? money(a.amortized_creation_per_unit, a.creation_cost_currency) : '—'}
+                    {a.amortized_creation_per_unit != null
+                      ? money(a.amortized_creation_per_unit, a.creation_cost_currency)
+                      : '—'}
                   </td>
                   <td className="py-2 pr-3 text-right">
                     {a.creation_cost == null ? (
@@ -121,68 +194,179 @@ export default async function EconomicsPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* ── Marketing spend ────────────────────────── */}
+        {/* ── Expense ledger ─────────────────────────── */}
         <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Marketing spend</h2>
-          <form action={addMarketingSpendAction} className="mb-4 grid grid-cols-2 gap-2">
-            <input type="date" name="spend_date" required className={inputCls} aria-label="Date" />
-            <input name="amount" type="number" step="0.01" placeholder="Amount" required className={inputCls} aria-label="Amount" />
-            <select name="channel" className={inputCls} aria-label="Channel" defaultValue="meta">
-              <option value="meta">Meta</option>
-              <option value="google">Google</option>
-              <option value="pinterest">Pinterest</option>
-              <option value="other">Other</option>
+          <h2 className="mb-1 text-sm font-semibold text-gray-900">Expenses</h2>
+          <p className="mb-3 text-xs text-gray-500">
+            Any non-order cost, booked at the date it occurred. Marketing, art purchases, one-off tool charges.
+          </p>
+          <form action={addCostEntryAction} className="mb-4 grid grid-cols-2 gap-2">
+            <input type="date" name="occurred_on" required className={inputCls} aria-label="Date" />
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              placeholder="Amount"
+              required
+              className={inputCls}
+              aria-label="Amount"
+            />
+            <select name="category" className={inputCls} aria-label="Category" defaultValue="marketing">
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
             </select>
-            <input name="campaign" placeholder="Campaign (optional)" className={inputCls} aria-label="Campaign" />
-            <button type="submit" className="col-span-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800">
-              Add spend
+            <input name="campaign" placeholder="Channel / campaign (optional)" className={inputCls} aria-label="Campaign" />
+            <input
+              name="description"
+              placeholder="Description (optional)"
+              className={`${inputCls} col-span-2`}
+              aria-label="Description"
+            />
+            <button
+              type="submit"
+              className="col-span-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              Add expense
             </button>
           </form>
-          <ul className="divide-y divide-gray-100 text-sm">
-            {marketing.map((m) => (
-              <li key={m.id} className="flex items-center justify-between py-2">
+          <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto text-sm">
+            {costEntries.map((e) => (
+              <li key={e.id} className="flex items-center justify-between py-2">
                 <span className="text-gray-700">
-                  {m.spend_date} · {m.channel}
-                  {m.campaign ? ` · ${m.campaign}` : ''}
+                  {e.occurred_on} · {e.description || e.campaign || e.category}
+                  {e.source === 'auto' && <span className="ml-1 text-xs text-gray-400">(auto)</span>}
                 </span>
                 <span className="flex items-center gap-3">
-                  <span className="font-medium text-gray-900">{money(m.amount, m.currency)}</span>
-                  <form action={deleteMarketingSpendAction.bind(null, m.id)}>
-                    <button type="submit" className="text-xs text-gray-400 hover:text-red-600">
-                      remove
-                    </button>
-                  </form>
+                  <span className="font-medium text-gray-900">{money(e.amount, e.currency)}</span>
+                  {e.source !== 'auto' && (
+                    <form action={deleteCostEntryAction.bind(null, e.id)}>
+                      <button type="submit" className="text-xs text-gray-400 hover:text-red-600">
+                        remove
+                      </button>
+                    </form>
+                  )}
                 </span>
               </li>
             ))}
-            {marketing.length === 0 && <li className="py-2 text-gray-400">No spend logged yet.</li>}
+            {costEntries.length === 0 && <li className="py-2 text-gray-400">No expenses logged yet.</li>}
           </ul>
         </section>
 
-        {/* ── Finance settings ───────────────────────── */}
+        {/* ── Subscriptions ──────────────────────────── */}
         <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-1 text-sm font-semibold text-gray-900">Cost & fee settings</h2>
-          <p className="mb-4 text-xs text-gray-500">
-            Drives the margin math. Changing a rate re-derives all history — nothing is stored on the orders.
+          <h2 className="mb-1 text-sm font-semibold text-gray-900">Subscriptions</h2>
+          <p className="mb-3 text-xs text-gray-500">
+            Recurring tools. Each is booked monthly from its start date; editing an amount fixes history.
           </p>
-          <form action={saveFinanceSettingsAction} className="grid grid-cols-2 gap-3 text-sm">
-            <Field label="Payment fee %" name="payment_fee_percent" defaultValue={settings.payment_fee_percent} />
-            <Field label="Payment fixed fee" name="payment_fee_fixed" defaultValue={settings.payment_fee_fixed} />
-            <Field label="Default VAT %" name="default_vat_percent" defaultValue={settings.default_vat_percent} />
-            <Field label="Monthly fixed cost" name="monthly_fixed_cost" defaultValue={settings.monthly_fixed_cost} />
-            <Field label="FX USD→EUR" name="creation_fx_usd_to_eur" defaultValue={settings.creation_fx_usd_to_eur} step="0.0001" />
-            <Field label="Community flat fee default" name="default_community_artist_fee" defaultValue={settings.default_community_artist_fee} />
-            <Field label="Community royalty % (fallback)" name="default_community_royalty_percent" defaultValue={settings.default_community_royalty_percent} step="0.1" />
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">Reporting currency</label>
-              <input name="reporting_currency" defaultValue={settings.reporting_currency} className={inputCls} />
-            </div>
-            <button type="submit" className="col-span-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800">
-              Save settings
+          <form action={addRecurringCostAction} className="mb-4 grid grid-cols-2 gap-2">
+            <input name="name" placeholder="Name" required className={inputCls} aria-label="Name" />
+            <input
+              name="monthly_amount"
+              type="number"
+              step="0.01"
+              placeholder="Monthly amount"
+              required
+              className={inputCls}
+              aria-label="Monthly amount"
+            />
+            <select name="category" className={inputCls} aria-label="Category" defaultValue="tools_other">
+              {SUBSCRIPTION_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <input type="date" name="active_from" required className={inputCls} aria-label="Active from" />
+            <button
+              type="submit"
+              className="col-span-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              Add subscription
             </button>
           </form>
+          <ul className="divide-y divide-gray-100 text-sm">
+            {recurring.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-2 py-2">
+                <span className="text-gray-700">
+                  {r.name}
+                  <span className="ml-1 text-xs text-gray-400">
+                    from {r.active_from}
+                    {r.active_to ? ` to ${r.active_to}` : ''}
+                  </span>
+                </span>
+                <form action={updateRecurringCostAction.bind(null, r.id)} className="flex items-center gap-2">
+                  <input
+                    name="monthly_amount"
+                    type="number"
+                    step="0.01"
+                    defaultValue={r.monthly_amount}
+                    className="w-20 rounded border border-gray-200 px-2 py-1 text-right text-sm"
+                    aria-label={`${r.name} monthly amount`}
+                  />
+                  <span className="text-xs text-gray-400">/mo</span>
+                  <button type="submit" className="text-xs text-gray-400 hover:text-gray-900">
+                    save
+                  </button>
+                  <button
+                    formAction={deleteRecurringCostAction.bind(null, r.id)}
+                    type="submit"
+                    className="text-xs text-gray-400 hover:text-red-600"
+                  >
+                    remove
+                  </button>
+                </form>
+              </li>
+            ))}
+            {recurring.length === 0 && <li className="py-2 text-gray-400">No subscriptions yet.</li>}
+          </ul>
         </section>
       </div>
+
+      {/* ── Finance settings ──────────────────────────── */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">Cost & fee settings</h2>
+        <p className="mb-4 text-xs text-gray-500">
+          Drives the margin math. Changing a rate re-derives all history — nothing is stored on the orders. FX is a
+          last-resort fallback only; the P&L uses daily ECB rates.
+        </p>
+        <form action={saveFinanceSettingsAction} className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
+          <Field label="Payment fee %" name="payment_fee_percent" defaultValue={settings.payment_fee_percent} />
+          <Field label="Payment fixed fee" name="payment_fee_fixed" defaultValue={settings.payment_fee_fixed} />
+          <Field label="Default VAT %" name="default_vat_percent" defaultValue={settings.default_vat_percent} />
+          <Field
+            label="FX USD→EUR (fallback)"
+            name="creation_fx_usd_to_eur"
+            defaultValue={settings.creation_fx_usd_to_eur}
+            step="0.0001"
+          />
+          <Field
+            label="Community flat fee default"
+            name="default_community_artist_fee"
+            defaultValue={settings.default_community_artist_fee}
+          />
+          <Field
+            label="Community royalty % (fallback)"
+            name="default_community_royalty_percent"
+            defaultValue={settings.default_community_royalty_percent}
+            step="0.1"
+          />
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">Reporting currency</label>
+            <input name="reporting_currency" defaultValue={settings.reporting_currency} className={inputCls} />
+          </div>
+          <div className="col-span-2 flex items-end lg:col-span-4">
+            <button
+              type="submit"
+              className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              Save settings
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }
@@ -221,29 +405,14 @@ function Stat({
   emphatic?: boolean;
 }) {
   return (
-    <div className={`rounded-xl border p-4 ${emphatic ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white'}`}>
+    <div
+      className={`rounded-xl border p-4 ${
+        emphatic ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white'
+      }`}
+    >
       <p className={`text-xs ${emphatic ? 'text-gray-300' : 'text-gray-500'}`}>{label}</p>
       <p className="mt-1 text-xl font-semibold">{value}</p>
-      {sub && <p className={`mt-1 text-xs ${emphatic ? 'text-gray-400' : 'text-gray-400'}`}>{sub}</p>}
-    </div>
-  );
-}
-
-function Row({
-  label,
-  value,
-  bold,
-  muted,
-}: {
-  label: string;
-  value: React.ReactNode;
-  bold?: boolean;
-  muted?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className={muted ? 'text-gray-400' : 'text-gray-500'}>{label}</dt>
-      <dd className={bold ? 'font-semibold text-gray-900' : muted ? 'text-gray-500' : 'text-gray-700'}>{value}</dd>
+      {sub && <p className="mt-1 text-xs text-gray-400">{sub}</p>}
     </div>
   );
 }
