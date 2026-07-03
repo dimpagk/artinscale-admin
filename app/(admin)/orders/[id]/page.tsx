@@ -117,6 +117,13 @@ export default async function OrderDetailPage({
                 {econ.shipping_cost > 0 && (
                   <Row label="− Gelato shipping" value={`- ${money(econ.shipping_cost, order.currency)}`} muted />
                 )}
+                {econ.production_vat_cost + econ.shipping_vat_cost > 0 && (
+                  <Row
+                    label="− Gelato VAT (not reclaimable)"
+                    value={`- ${money(econ.production_vat_cost + econ.shipping_vat_cost, order.currency)}`}
+                    muted
+                  />
+                )}
                 <Row label="− Payment fee (est.)" value={`- ${money(econ.payment_fee, order.currency)}`} muted />
                 {econ.artist_royalty > 0 && (
                   <Row label="− Artist royalty" value={`- ${money(econ.artist_royalty, order.currency)}`} muted />

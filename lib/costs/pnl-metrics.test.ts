@@ -111,6 +111,18 @@ test('display lines cover every raw key exactly once', () => {
       seen.add(k);
     }
   }
-  // 20 raw keys defined; all should be displayed.
-  assert.equal(seen.size, 20);
+  // 22 raw keys defined; all should be displayed.
+  assert.equal(seen.size, 22);
+});
+
+test('non-reclaimable Gelato VAT reduces CM1 (production) and CM2 (shipping)', () => {
+  // Order #1001 shape: 19% VAT billed on top of Gelato's net prices while
+  // the operator is not VAT-registered. Reclaimable VAT emits 0 rows from
+  // SQL, so its absence here doubles as the reclaimable case.
+  const withVat: LineSums = { ...SAMPLE, production_vat: -4.63, gelato_shipping_vat: -1.11 };
+  const base = computeMetrics(SAMPLE);
+  const m = computeMetrics(withVat);
+  assert.equal(m.cm1, base.cm1 - 4.63);
+  assert.equal(m.cm2, base.cm2 - 4.63 - 1.11);
+  assert.equal(m.netRevenue, base.netRevenue); // revenue side untouched
 });

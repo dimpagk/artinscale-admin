@@ -370,6 +370,17 @@ export default async function EconomicsPage({
             <label className="mb-1 block text-xs text-gray-500">Reporting currency</label>
             <input name="reporting_currency" defaultValue={settings.reporting_currency} className={inputCls} />
           </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">Gelato input VAT</label>
+            <select
+              name="input_vat_reclaimable"
+              defaultValue={settings.input_vat_reclaimable ? 'true' : 'false'}
+              className={inputCls}
+            >
+              <option value="false">Not reclaimable — counts as cost</option>
+              <option value="true">Reclaimable (VAT-registered)</option>
+            </select>
+          </div>
           <div className="col-span-2 flex items-end lg:col-span-4">
             <button
               type="submit"

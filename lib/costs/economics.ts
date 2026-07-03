@@ -21,6 +21,11 @@ export interface FinanceSettings {
   default_community_artist_fee: number;
   /** Fallback royalty % when an artist has no rate set. */
   default_community_royalty_percent: number;
+  /**
+   * TRUE once VAT-registered: Gelato's input VAT is reclaimed and excluded
+   * from margins. FALSE (default): it is a real per-order cost.
+   */
+  input_vat_reclaimable: boolean;
   reporting_currency: string;
   updated_at: string;
 }
@@ -33,6 +38,7 @@ const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
   creation_fx_usd_to_eur: 0.92,
   default_community_artist_fee: 50,
   default_community_royalty_percent: 0,
+  input_vat_reclaimable: false,
   reporting_currency: 'EUR',
   updated_at: new Date(0).toISOString(),
 };
@@ -42,7 +48,7 @@ export async function getFinanceSettings(): Promise<FinanceSettings> {
   const { data, error } = await supabaseAdmin
     .from('finance_settings')
     .select(
-      'payment_fee_percent, payment_fee_fixed, default_vat_percent, monthly_fixed_cost, creation_fx_usd_to_eur, default_community_artist_fee, default_community_royalty_percent, reporting_currency, updated_at'
+      'payment_fee_percent, payment_fee_fixed, default_vat_percent, monthly_fixed_cost, creation_fx_usd_to_eur, default_community_artist_fee, default_community_royalty_percent, input_vat_reclaimable, reporting_currency, updated_at'
     )
     .eq('id', true)
     .maybeSingle();
@@ -66,6 +72,9 @@ export interface OrderEconomics {
   net_revenue_ex_vat: number;
   production_cost: number | null;
   shipping_cost: number;
+  /** Gelato's VAT counted as a cost — already 0 when input_vat_reclaimable. */
+  production_vat_cost: number;
+  shipping_vat_cost: number;
   payment_fee: number;
   artist_royalty: number;
   contribution_margin: number | null;
@@ -148,6 +157,8 @@ export interface PnlSummary {
   shippingCharged: number;
   productionCost: number;
   shippingCost: number;
+  /** Non-reclaimable Gelato input VAT (0 when input_vat_reclaimable). */
+  gelatoInputVat: number;
   paymentFees: number;
   artistRoyalties: number;
   contributionMargin: number;
@@ -181,6 +192,9 @@ export async function getPnlSummary(): Promise<PnlSummary> {
   const shippingCharged = sum(orders.map((o) => o.shipping_charged));
   const productionCost = sum(orders.map((o) => o.production_cost));
   const shippingCost = sum(orders.map((o) => o.shipping_cost));
+  const gelatoInputVat = sum(
+    orders.map((o) => (o.production_vat_cost ?? 0) + (o.shipping_vat_cost ?? 0))
+  );
   const paymentFees = sum(orders.map((o) => o.payment_fee));
   const artistRoyalties = sum(orders.map((o) => o.artist_royalty));
   const contributionMargin = sum(orders.map((o) => o.contribution_margin));
@@ -203,6 +217,7 @@ export async function getPnlSummary(): Promise<PnlSummary> {
     shippingCharged: round2(shippingCharged),
     productionCost: round2(productionCost),
     shippingCost: round2(shippingCost),
+    gelatoInputVat: round2(gelatoInputVat),
     paymentFees: round2(paymentFees),
     artistRoyalties: round2(artistRoyalties),
     contributionMargin: round2(contributionMargin),

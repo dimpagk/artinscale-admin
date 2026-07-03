@@ -160,6 +160,14 @@ export interface GelatoOrderSummary {
    * COST, distinct from the retail shipping the customer paid.
    */
   shippingCost: number | null;
+  /**
+   * VAT Gelato bills on top of the net item prices (receipt
+   * productsPriceVat). Stored raw; whether it counts against margin is a
+   * finance_settings decision (input_vat_reclaimable).
+   */
+  productVat: number | null;
+  /** VAT Gelato bills on top of the net shipping price (receipt shippingPriceVat). */
+  shippingVat: number | null;
   /** Rendered default preview of the first item, if Gelato has produced one. */
   previewUrl: string | null;
   /** First tracking URL, once shipped. */
@@ -195,6 +203,8 @@ interface RawGelatoOrder {
   // per-receipt aggregate prices (excl VAT) plus typed line items.
   receipts?: Array<{
     shippingPrice?: number | string | null;
+    productsPriceVat?: number | string | null;
+    shippingPriceVat?: number | string | null;
     items?: Array<{ type?: string; price?: number | string | null }>;
   }>;
   shipment?: { trackingUrl?: string; price?: number | string | null } | null;
@@ -237,8 +247,16 @@ export function normalizeGelatoOrder(raw: RawGelatoOrder): GelatoOrderSummary {
   // to the shipment object's own price. Left null when Gelato hasn't priced
   // shipping yet, so applyGelatoToOrder won't clobber a known value with null.
   let shippingCost: number | null = null;
+  // VAT Gelato bills on top of the net prices. Null until the receipt is
+  // priced, so applyGelatoToOrder won't clobber a known value with null.
+  let productVat: number | null = null;
+  let shippingVat: number | null = null;
   const receipts = raw.receipts ?? [];
   for (const r of receipts) {
+    const pv = toNum(r.productsPriceVat);
+    if (pv !== null) productVat = (productVat ?? 0) + pv;
+    const sv = toNum(r.shippingPriceVat);
+    if (sv !== null) shippingVat = (shippingVat ?? 0) + sv;
     const agg = toNum(r.shippingPrice);
     if (agg !== null) {
       shippingCost = (shippingCost ?? 0) + agg;
@@ -284,6 +302,8 @@ export function normalizeGelatoOrder(raw: RawGelatoOrder): GelatoOrderSummary {
     currency: raw.currency ?? null,
     itemCost,
     shippingCost,
+    productVat,
+    shippingVat,
     previewUrl,
     trackingUrl,
     customerName,

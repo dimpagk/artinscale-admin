@@ -16,8 +16,10 @@ export const RAW_LINE_KEYS = [
   'discounts',
   'vat',
   'production',
+  'production_vat',
   'royalty_pct',
   'gelato_shipping',
+  'gelato_shipping_vat',
   'payment_fees',
   'marketing',
   'ai_generation',
@@ -60,11 +62,15 @@ export const REVENUE_LINES: DisplayLine[] = [
 
 export const COGS_LINES: DisplayLine[] = [
   { key: 'production', label: 'Production (Gelato)', rawKeys: ['production'] },
+  // Gelato's VAT when it is NOT reclaimable (operator not VAT-registered).
+  // The SQL emits 0 rows once finance_settings.input_vat_reclaimable is on.
+  { key: 'production_vat', label: 'Gelato VAT (production)', rawKeys: ['production_vat'] },
   { key: 'royalty_pct', label: 'Artist royalties (%)', rawKeys: ['royalty_pct'] },
 ];
 
 export const FULFILLMENT_LINES: DisplayLine[] = [
   { key: 'gelato_shipping', label: 'Gelato shipping', rawKeys: ['gelato_shipping'] },
+  { key: 'gelato_shipping_vat', label: 'Gelato VAT (shipping)', rawKeys: ['gelato_shipping_vat'] },
   { key: 'payment_fees', label: 'Payment fees', rawKeys: ['payment_fees'] },
 ];
 
@@ -141,8 +147,8 @@ export interface PnlMetrics {
  */
 export function computeMetrics(sums: LineSums): PnlMetrics {
   const revenue = sumRaw(sums, ['gross_revenue', 'shipping_revenue', 'discounts', 'vat']);
-  const cogs = sumRaw(sums, ['production', 'royalty_pct']);
-  const fulfillment = sumRaw(sums, ['gelato_shipping', 'payment_fees']);
+  const cogs = sumRaw(sums, ['production', 'production_vat', 'royalty_pct']);
+  const fulfillment = sumRaw(sums, ['gelato_shipping', 'gelato_shipping_vat', 'payment_fees']);
   const marketing = sumRaw(sums, ['marketing']);
   const opex = sumRaw(sums, [
     'ai_generation',

@@ -50,6 +50,13 @@ export async function saveFinanceSettingsAction(formData: FormData) {
   const currency = (formData.get('reporting_currency') as string | null)?.trim();
   if (currency) update.reporting_currency = currency;
 
+  // Whether Gelato's input VAT is reclaimed (VAT-registered) or a real
+  // cost. A select, not a checkbox, so an explicit value always arrives.
+  const inputVat = (formData.get('input_vat_reclaimable') as string | null)?.trim();
+  if (inputVat === 'true' || inputVat === 'false') {
+    update.input_vat_reclaimable = inputVat === 'true';
+  }
+
   const { error } = await supabaseAdmin
     .from('finance_settings')
     .upsert({ id: true, ...update }, { onConflict: 'id' });

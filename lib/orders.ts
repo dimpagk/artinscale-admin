@@ -54,6 +54,8 @@ export interface OrderRow {
   gelato_financial_status: string | null;
   gelato_item_cost: number | null;
   gelato_shipping_cost: number | null;
+  gelato_product_vat: number | null;
+  gelato_shipping_vat: number | null;
   gelato_preview_url: string | null;
   gelato_tracking_url: string | null;
   gelato_synced_at: string | null;
@@ -67,7 +69,7 @@ export interface OrderRow {
 }
 
 const ORDER_COLUMNS =
-  'id, shopify_order_id, shopify_order_number, name, customer_name, customer_email, currency, subtotal_price, shipping_price, total_price, total_discounts, total_tax, taxes_included, financial_status, shopify_fulfillment_status, shipping_address, line_items, gelato_order_id, gelato_reference_id, gelato_order_type, gelato_fulfillment_status, gelato_financial_status, gelato_item_cost, gelato_shipping_cost, payment_fee, gelato_preview_url, gelato_tracking_url, gelato_synced_at, placed_at, created_at, updated_at';
+  'id, shopify_order_id, shopify_order_number, name, customer_name, customer_email, currency, subtotal_price, shipping_price, total_price, total_discounts, total_tax, taxes_included, financial_status, shopify_fulfillment_status, shipping_address, line_items, gelato_order_id, gelato_reference_id, gelato_order_type, gelato_fulfillment_status, gelato_financial_status, gelato_item_cost, gelato_shipping_cost, gelato_product_vat, gelato_shipping_vat, payment_fee, gelato_preview_url, gelato_tracking_url, gelato_synced_at, placed_at, created_at, updated_at';
 
 // A Gelato order needs the operator's approval before it prints. This is
 // the state the Orders view exists to make visible and actionable.
@@ -262,9 +264,11 @@ async function applyGelatoToOrder(order: OrderRow, g: GelatoOrderSummary): Promi
     gelato_financial_status: g.financialStatus,
     gelato_item_cost: g.itemCost,
     gelato_preview_url: g.previewUrl,
-    // Only write shipping cost once Gelato has priced it, so a not-yet-
-    // calculated null doesn't overwrite a value a prior sync captured.
+    // Only write shipping cost / VAT once Gelato has priced them, so a
+    // not-yet-calculated null doesn't overwrite a value a prior sync captured.
     ...(g.shippingCost != null ? { gelato_shipping_cost: g.shippingCost } : {}),
+    ...(g.productVat != null ? { gelato_product_vat: g.productVat } : {}),
+    ...(g.shippingVat != null ? { gelato_shipping_vat: g.shippingVat } : {}),
     gelato_tracking_url: g.trackingUrl,
     gelato_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -284,6 +288,48 @@ async function applyGelatoToOrder(order: OrderRow, g: GelatoOrderSummary): Promi
     .update(update)
     .eq('shopify_order_id', order.shopify_order_id);
   if (error) console.error(`applyGelatoToOrder(${order.shopify_order_id}) failed:`, error);
+
+  await stampUnitProductionCost(order, g);
+}
+
+/**
+ * Backfill artworks.unit_production_cost from a synced order's actual
+ * Gelato net item price. listing-sync stamps this when a product is pushed
+ * to Gelato, but pieces listed by other paths (community artworks) miss it
+ * and their artwork_economics.est_unit_gross_margin reads NULL until they
+ * sell. Only single-line-item orders are unambiguous (Gelato reports one
+ * aggregated item cost), and an existing value always wins.
+ */
+async function stampUnitProductionCost(order: OrderRow, g: GelatoOrderSummary): Promise<void> {
+  if (g.itemCost == null) return;
+  const lines = order.line_items ?? [];
+  if (lines.length !== 1) return;
+  const line = lines[0];
+  const productNum = (line.product_id ?? '').replace(/\D/g, '');
+  const quantity = line.quantity > 0 ? line.quantity : 1;
+  if (!productNum) return;
+
+  const perUnit = Math.round((g.itemCost / quantity) * 100) / 100;
+  // Match on the numeric tail exactly like the order_line_sales view does
+  // (shopify_product_id may be a bare id or a gid://shopify/Product/ GID).
+  const { data, error } = await supabaseAdmin
+    .from('artworks')
+    .select('id, shopify_product_id')
+    .is('unit_production_cost', null)
+    .like('shopify_product_id', `%${productNum}`);
+  if (error || !data) return;
+  const match = data.find(
+    (a) => ((a.shopify_product_id as string) ?? '').replace(/\D/g, '') === productNum
+  );
+  if (!match) return;
+
+  const { error: updateError } = await supabaseAdmin
+    .from('artworks')
+    .update({ unit_production_cost: perUnit })
+    .eq('id', match.id);
+  if (updateError) {
+    console.error(`stampUnitProductionCost(${order.shopify_order_id}) failed:`, updateError);
+  }
 }
 
 /** Refresh a single order's Gelato status (used after an approve). */
