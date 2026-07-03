@@ -425,6 +425,47 @@ export function planUpscaleForBase(baseWidthPx: number, baseHeightPx: number): U
   return buildPlan(SMALLEST_TEMPLATE, needW, needH, factor);
 }
 
+/**
+ * Plan the upscale to a SPECIFIC target size the operator chose, aiming
+ * for QUALITY_DPI (300). Unlike planUpscaleForBase (which auto-picks the
+ * largest size the base can reach, capped at 50×70), this targets exactly
+ * `productType`.
+ *
+ * When the base can't reach 300 DPI within MAX_UPSCALE_FACTOR, buildPlan
+ * clamps the factor, so the master lands as close to 300 as the faithful
+ * ceiling allows (best effort, below 300 DPI). Never uses Real-ESRGAN:
+ * resize (<=2x) or Clarity (>2x), both handle large 4K inputs.
+ */
+export function planUpscaleForTarget(
+  baseWidthPx: number,
+  baseHeightPx: number,
+  productType: string
+): UpscalePlan | null {
+  const cfg = GELATO_TEMPLATES[productType];
+  if (!cfg) return null;
+  const needW = pxAtDpi(cfg.widthCm, QUALITY_DPI);
+  const needH = pxAtDpi(cfg.heightCm, QUALITY_DPI);
+  const factor = Math.max(needW / baseWidthPx, needH / baseHeightPx);
+  return buildPlan(productType as GelatoTemplateKey, needW, needH, factor);
+}
+
+/**
+ * The effective print DPI a given pixel master yields at a product size.
+ * min(width DPI, height DPI): the limiting dimension is what gates print
+ * quality. Used to report "300 DPI" vs "best effort 240 DPI" to the operator.
+ */
+export function dpiForPrint(
+  pxWidth: number,
+  pxHeight: number,
+  productType: string
+): number | null {
+  const cfg = GELATO_TEMPLATES[productType];
+  if (!cfg) return null;
+  const wDpi = pxWidth / (cfg.widthCm / CM_PER_INCH);
+  const hDpi = pxHeight / (cfg.heightCm / CM_PER_INCH);
+  return Math.round(Math.min(wDpi, hDpi));
+}
+
 export function isLaunchEnabled(productType: string): boolean {
   return GELATO_TEMPLATES[productType]?.enabledForLaunch ?? false;
 }

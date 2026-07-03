@@ -19,13 +19,17 @@ import { upscaleImage } from './upscaler';
 import { uploadFile, getPublicUrl } from './storage';
 import { supabaseAdmin } from './supabase/admin';
 import { fetchImageDimensions, extensionForMime } from './image-dimensions';
-import { planUpscaleForBase } from './gelato-templates';
+import { planUpscaleForBase, planUpscaleForTarget, dpiForPrint } from './gelato-templates';
 
 export interface UpscaleRunResult {
   generatedImageId: string;
   upscaledImageUrl: string;
   scale: number;
   dimensions: { width: number; height: number } | null;
+  /** The product size the master was sized for (null when auto-planned). */
+  productType: string | null;
+  /** Effective print DPI at that size (null when unknown). 300 is the goal. */
+  dpi: number | null;
   alreadyUpscaled: boolean;
   isDryRun: boolean;
 }
@@ -60,8 +64,14 @@ export async function findGeneratedImageForArtworkUrl(
  */
 export async function runUpscaleForGeneratedImage(args: {
   generatedImageId: string;
+  /**
+   * Size the master for this exact product (operator-chosen). Aims for
+   * 300 DPI at that size. Omit to auto-plan the largest size the base can
+   * reach (<= 50×70): the behavior the push-to-Gelato auto path uses.
+   */
+  targetProductType?: string;
 }): Promise<UpscaleRunResult> {
-  const { generatedImageId } = args;
+  const { generatedImageId, targetProductType } = args;
 
   const { data: image } = await supabaseAdmin
     .from('generated_images')
@@ -74,13 +84,22 @@ export async function runUpscaleForGeneratedImage(args: {
 
   const meta = (image.metadata ?? {}) as Record<string, unknown>;
   const existingUrl = meta.upscaledImageUrl;
-  if (typeof existingUrl === 'string' && existingUrl.length > 0) {
+  // Reuse the cached master only when it already targets the requested
+  // size. If the operator picks a different size, re-run so the master
+  // matches it (and hits 300 DPI for it).
+  const cachedForRequest =
+    typeof existingUrl === 'string' &&
+    existingUrl.length > 0 &&
+    (!targetProductType || meta.upscaledProductType === targetProductType);
+  if (cachedForRequest) {
     const dims = (meta.upscaledDimensions as { width: number; height: number } | undefined) ?? null;
     return {
       generatedImageId,
-      upscaledImageUrl: existingUrl,
+      upscaledImageUrl: existingUrl as string,
       scale: (meta.upscaledScale as number) ?? 1,
       dimensions: dims,
+      productType: (meta.upscaledProductType as string) ?? null,
+      dpi: (meta.upscaledDpi as number) ?? null,
       alreadyUpscaled: true,
       isDryRun: meta.upscaledIsDryRun === true,
     };
@@ -92,10 +111,16 @@ export async function runUpscaleForGeneratedImage(args: {
   // small base use Clarity. When we can't measure the base, don't guess —
   // keep the original as the master (print-safety still gates the push).
   const base = await fetchImageDimensions(image.image_url);
-  const plan = base ? planUpscaleForBase(base.width, base.height) : null;
+  const plan = base
+    ? targetProductType
+      ? planUpscaleForTarget(base.width, base.height, targetProductType)
+      : planUpscaleForBase(base.width, base.height)
+    : null;
 
   if (!base || !plan || plan.method === 'none') {
     const dims = base ? { width: base.width, height: base.height } : null;
+    const dpi =
+      dims && plan ? dpiForPrint(dims.width, dims.height, plan.productType) : null;
     await supabaseAdmin
       .from('generated_images')
       .update({
@@ -105,6 +130,7 @@ export async function runUpscaleForGeneratedImage(args: {
           upscaledScale: 1,
           upscaledMethod: 'none',
           upscaledProductType: plan?.productType ?? null,
+          upscaledDpi: dpi,
           upscaledDimensions: dims,
           upscaledAt: new Date().toISOString(),
           upscaledIsDryRun: false,
@@ -116,6 +142,8 @@ export async function runUpscaleForGeneratedImage(args: {
       upscaledImageUrl: image.image_url,
       scale: 1,
       dimensions: dims,
+      productType: plan?.productType ?? null,
+      dpi,
       alreadyUpscaled: false,
       isDryRun: false,
     };
@@ -157,6 +185,7 @@ export async function runUpscaleForGeneratedImage(args: {
   });
   const upscaledImageUrl = getPublicUrl('ai-generated', upscaledPath);
   const dims = await fetchImageDimensions(upscaledImageUrl);
+  const dpi = dims ? dpiForPrint(dims.width, dims.height, plan.productType) : null;
 
   await supabaseAdmin
     .from('generated_images')
@@ -168,6 +197,7 @@ export async function runUpscaleForGeneratedImage(args: {
         upscaledScale: plan.method === 'clarity' ? plan.scale : plan.factor,
         upscaledMethod: plan.method,
         upscaledProductType: plan.productType,
+        upscaledDpi: dpi,
         upscaledDimensions: dims ? { width: dims.width, height: dims.height } : null,
         upscaledAt: new Date().toISOString(),
         upscaledIsDryRun: isDryRun,
@@ -180,6 +210,8 @@ export async function runUpscaleForGeneratedImage(args: {
     upscaledImageUrl,
     scale: plan.method === 'clarity' ? plan.scale : plan.factor,
     dimensions: dims,
+    productType: plan.productType,
+    dpi,
     alreadyUpscaled: false,
     isDryRun,
   };

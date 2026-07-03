@@ -1,23 +1,35 @@
 import { NextResponse } from 'next/server'
-import crypto from 'node:crypto'
-import { upscaleImage } from '@/lib/upscaler'
-import { uploadFile, getPublicUrl } from '@/lib/storage'
-import { getGeneratedImageById, updateGeneratedImage } from '@/lib/generated-images'
-import { fetchImageDimensions } from '@/lib/image-dimensions'
+import { getGeneratedImageById } from '@/lib/generated-images'
+import { runUpscaleForGeneratedImage } from '@/lib/upscale-runner'
 
 /**
- * Upscale a generated image (typically 1024×1024 from Gemini) to a
- * print-safe resolution (~4096px) via Replicate's Real-ESRGAN.
+ * Prepare a generated image's print master.
  *
  * POST /api/art-generator/{id}/upscale
- *   body: { scale?: 2 | 4 }   defaults to 4
+ *   body: { productType?: string }  the target size to prepare for. Omit
+ *   to auto-plan the largest size the base can reach (<= 50×70).
  *
- * Side effects:
- *   - Uploads the upscaled PNG to ai-generated://upscaled/<originalName>.png
- *   - Sets `metadata.upscaledImageUrl` and `metadata.upscaledDimensions`
+ * Delegates to the shared plan-based upscaler (`runUpscaleForGeneratedImage`),
+ * the exact logic the auto path uses on push-to-Gelato. It sizes the master
+ * to hit 300 DPI at the chosen size (best effort when the base is too small)
+ * and picks the method by how far it has to jump:
+ *   - factor <= 1.02  → none (already at size)
+ *   - factor <= 2     → sharp Lanczos resize (free, no API, no GPU cap)
+ *   - factor  > 2     → Clarity (tiles to reach the pixels)
  *
- * The original image_url is preserved — `pushToGelatoAction` will prefer
- * `upscaledImageUrl` when present.
+ * This deliberately no longer uses Real-ESRGAN. Gemini now emits ~4K
+ * (~17 MP) masters, which exceed Real-ESRGAN's ~2 MP GPU input cap (the
+ * "total number of pixels greater than the max size that fits in GPU
+ * memory" error) and don't need a blind 4× anyway (4× of 17 MP is ~275 MP
+ * for a 50×70 print that only needs ~49 MP).
+ *
+ * Side effects (handled by the runner):
+ *   - Uploads the master to ai-generated://upscaled/<name>-<method>-<hash>.<ext>
+ *   - Sets metadata.upscaledImageUrl / upscaledDimensions on the row.
+ *
+ * The original image_url is preserved — pushToGelatoAction prefers
+ * `upscaledImageUrl` when present. Idempotent: re-running returns the
+ * existing master.
  */
 export async function POST(
   request: Request,
@@ -25,11 +37,12 @@ export async function POST(
 ) {
   const { id } = await params
 
-  let body: { scale?: 2 | 4 }
+  let productType: string | undefined
   try {
-    body = (await request.json().catch(() => ({}))) as { scale?: 2 | 4 }
+    const body = (await request.json().catch(() => ({}))) as { productType?: string }
+    if (typeof body.productType === 'string' && body.productType) productType = body.productType
   } catch {
-    body = {}
+    /* no body is fine (auto-plan) */
   }
 
   const image = await getGeneratedImageById(id)
@@ -38,45 +51,20 @@ export async function POST(
   }
 
   try {
-    const { buffer, scale, isDryRun } = await upscaleImage({
-      imageUrl: image.image_url,
-      scale: body.scale ?? 4,
+    const result = await runUpscaleForGeneratedImage({
+      generatedImageId: id,
+      targetProductType: productType,
     })
-
-    // Where the original lives → derive a sibling path under upscaled/
-    const originalName = image.storage_path.split('/').pop() ?? `${id}.png`
-    const baseName = originalName.replace(/\.png$/, '')
-    const upscaledPath = `upscaled/${baseName}-x${scale}-${crypto
-      .randomBytes(3)
-      .toString('hex')}.png`
-
-    await uploadFile('ai-generated', upscaledPath, buffer, {
-      contentType: 'image/png',
-    })
-    const upscaledImageUrl = getPublicUrl('ai-generated', upscaledPath)
-
-    // Read back the dimensions so we have a record (and so the
-    // print-safety guardrail will pass on subsequent push).
-    const dims = await fetchImageDimensions(upscaledImageUrl)
-
-    const updated = await updateGeneratedImage(id, {
-      metadata: {
-        ...(image.metadata ?? {}),
-        upscaledImageUrl,
-        upscaledStoragePath: upscaledPath,
-        upscaledScale: scale,
-        upscaledDimensions: dims ? { width: dims.width, height: dims.height } : null,
-        upscaledAt: new Date().toISOString(),
-        upscaledIsDryRun: isDryRun ?? false,
-      },
-    })
-
+    // Return the refreshed row so the client can update its state.
+    const updated = await getGeneratedImageById(id)
     return NextResponse.json({
       ok: true,
-      upscaledImageUrl,
-      dimensions: dims,
-      scale,
-      isDryRun: isDryRun ?? false,
+      upscaledImageUrl: result.upscaledImageUrl,
+      dimensions: result.dimensions,
+      scale: result.scale,
+      productType: result.productType,
+      dpi: result.dpi,
+      isDryRun: result.isDryRun,
       image: updated,
     })
   } catch (err) {

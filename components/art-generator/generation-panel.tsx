@@ -18,7 +18,21 @@ import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { VectorStudio } from './vector-studio'
 import { listLaunchStylePacks } from '@/lib/style-packs'
+import { GELATO_TEMPLATES } from '@/lib/gelato-templates'
 import type { GeneratedImage } from '@/lib/constants/art-generator'
+
+/**
+ * Target-size options for the upscaler. Empty value = auto-plan the
+ * largest size the base can reach (the push-to-Gelato default). Picking
+ * a size sizes the print master to hit 300 DPI at that exact size.
+ */
+const UPSCALE_SIZE_OPTIONS = [
+  { value: '', label: 'Auto (max size)' },
+  ...Object.entries(GELATO_TEMPLATES).map(([key, cfg]) => ({
+    value: key,
+    label: `${cfg.widthCm}×${cfg.heightCm} cm`,
+  })),
+]
 
 interface GenerationPanelProps {
   image: GeneratedImage | null
@@ -53,6 +67,7 @@ export function GenerationPanel({
   onUpdate,
 }: GenerationPanelProps) {
   const [upscaling, setUpscaling] = useState(false)
+  const [upscaleSize, setUpscaleSize] = useState<string>('')
   const [transferring, setTransferring] = useState(false)
   const [transferTarget, setTransferTarget] = useState<string>('')
   const [showTransferPicker, setShowTransferPicker] = useState(false)
@@ -95,23 +110,42 @@ export function GenerationPanel({
       const res = await fetch(`/api/art-generator/${image.id}/upscale`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scale: 4 }),
+        body: JSON.stringify(upscaleSize ? { productType: upscaleSize } : {}),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || `Upscale failed (${res.status})`)
       }
-      const { image: updated, dimensions, isDryRun } = (await res.json()) as {
+      const {
+        image: updated,
+        dimensions,
+        dpi,
+        productType,
+        isDryRun,
+      } = (await res.json()) as {
         image: GeneratedImage
         dimensions: { width: number; height: number } | null
+        dpi: number | null
+        productType: string | null
         isDryRun: boolean
       }
       onUpdate?.(updated)
       const dim = dimensions ? `${dimensions.width}×${dimensions.height}px` : 'unknown size'
+      const sizeLabel = productType
+        ? UPSCALE_SIZE_OPTIONS.find((o) => o.value === productType)?.label ?? productType
+        : null
+      const forPrint = sizeLabel ? ` for ${sizeLabel}` : ''
+      // DPI tells the operator whether this master truly prints at 300.
+      const dpiNote =
+        dpi != null
+          ? dpi >= 300
+            ? ` at ${dpi} DPI (print-ready).`
+            : ` at ${dpi} DPI (below 300; base too small to hit 300 at this size).`
+          : '.'
       window.alert(
         isDryRun
-          ? `Upscale dry-run: passed through original at ${dim}. Set REPLICATE_API_TOKEN + remove UPSCALER_DRY_RUN for real 4× upscaling.`
-          : `Upscaled to ${dim}. Future Gelato pushes will use this version.`
+          ? `Upscale dry-run: passed through original at ${dim}. Set REPLICATE_API_TOKEN + remove UPSCALER_DRY_RUN for real upscaling.`
+          : `Upscaled to ${dim}${forPrint}${dpiNote} Future Gelato pushes will use this version.`
       )
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Upscale failed')
@@ -233,17 +267,27 @@ export function GenerationPanel({
         <Button variant="outline" size="sm" onClick={onRegenerate} icon={<ArrowClockwise size={14} />}>
           Regenerate
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleUpscale}
-          loading={upscaling}
-          icon={<ArrowsOutSimple size={14} />}
-        >
-          {(image.metadata as Record<string, unknown> | null)?.upscaledImageUrl
-            ? 'Re-upscale'
-            : 'Upscale 4×'}
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <div className="w-[150px]">
+            <Select
+              aria-label="Target print size for upscale"
+              options={UPSCALE_SIZE_OPTIONS}
+              value={upscaleSize}
+              onChange={(e) => setUpscaleSize(e.target.value)}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleUpscale}
+            loading={upscaling}
+            icon={<ArrowsOutSimple size={14} />}
+          >
+            {(image.metadata as Record<string, unknown> | null)?.upscaledImageUrl
+              ? 'Re-upscale'
+              : 'Upscale'}
+          </Button>
+        </div>
         {transferOptions.length > 0 && (
           <Button
             variant="outline"
