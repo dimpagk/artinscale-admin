@@ -15,6 +15,7 @@ import {
   Tag,
   Globe,
   PencilSimpleLine,
+  Megaphone,
   MagicWand,
   Palette,
   Armchair,
@@ -43,6 +44,7 @@ const navItems: NavItem[] = [
   { href: '/pricing', label: 'Pricing', icon: <Tag size={16} weight="duotone" /> },
   { href: '/external-prints', label: 'External Prints', icon: <Globe size={16} weight="duotone" /> },
   { href: '/content', label: 'Content', icon: <PencilSimpleLine size={16} weight="duotone" /> },
+  { href: '/marketing', label: 'Ad Copy', icon: <Megaphone size={16} weight="duotone" /> },
   { href: '/art-generator', label: 'AI Art', icon: <MagicWand size={16} weight="duotone" /> },
 ];
 
