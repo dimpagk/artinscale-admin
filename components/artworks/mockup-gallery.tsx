@@ -98,10 +98,9 @@ export function MockupGallery({ artworkId, initialMockups, shopifyHandle }: Mock
     setPushing(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/agents/run/mockup_publisher', {
+      const res = await fetch(`/api/artworks/${artworkId}/push-mockups`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artworkId }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
