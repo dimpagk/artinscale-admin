@@ -32,18 +32,29 @@ export const maxDuration = 300
  *     ]
  *   }
  *
- * Auth: same `AGENT_TRIGGER_TOKEN` as /api/agents/run, OR Vercel's
- * built-in `x-vercel-cron-signature` header (no token needed when
- * called by Vercel's own scheduler).
+ * Auth: a `Authorization: Bearer <token>` header matching either
+ * `CRON_SECRET` or `AGENT_TRIGGER_TOKEN`.
+ *   - Vercel Cron: when `CRON_SECRET` is set in the project env, Vercel's
+ *     scheduler automatically sends `Authorization: Bearer <CRON_SECRET>`
+ *     on every cron invocation. This is the mechanism that actually works
+ *     (the old `x-vercel-cron-signature` check gated on a header Vercel
+ *     does not send, so with no CRON_SECRET configured every scheduled
+ *     call 401'd and the worker never ran).
+ *   - Manual / other schedulers (GitHub Actions, curl): use
+ *     `AGENT_TRIGGER_TOKEN`, same as /api/agents/run.
  */
 
 const AGENT_TRIGGER_TOKEN = process.env.AGENT_TRIGGER_TOKEN
+const CRON_SECRET = process.env.CRON_SECRET
 
 function checkAuth(request: Request): NextResponse | null {
-  // Vercel Cron sends a special header when calling cron functions
-  if (request.headers.get('x-vercel-cron-signature')) return null
+  const accepted = [CRON_SECRET, AGENT_TRIGGER_TOKEN].filter(
+    (t): t is string => !!t
+  )
 
-  if (!AGENT_TRIGGER_TOKEN) {
+  // No secret configured anywhere: allow local dev only, otherwise refuse
+  // rather than run wide open.
+  if (accepted.length === 0) {
     const url = new URL(request.url)
     if (
       url.hostname === 'localhost' ||
@@ -53,15 +64,16 @@ function checkAuth(request: Request): NextResponse | null {
       return null
     }
     return NextResponse.json(
-      { error: 'AGENT_TRIGGER_TOKEN must be configured.' },
+      { error: 'CRON_SECRET or AGENT_TRIGGER_TOKEN must be configured.' },
       { status: 503 }
     )
   }
+
   const auth = request.headers.get('authorization') ?? ''
-  if (auth !== `Bearer ${AGENT_TRIGGER_TOKEN}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  return null
+  const bearer = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : ''
+  if (bearer && accepted.includes(bearer)) return null
+
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 
 export async function GET(
