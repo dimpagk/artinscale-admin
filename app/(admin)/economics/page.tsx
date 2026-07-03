@@ -143,7 +143,7 @@ export default async function EconomicsPage({
           <PnlTrendChart data={trend} currency={cur} />
         </section>
         <section className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">All-time waterfall</h2>
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">All-time P&amp;L staircase</h2>
           <PnlAllTimeChart metrics={waterfallMetrics} currency={cur} />
         </section>
       </div>
