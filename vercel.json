@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/mockup_worker",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/meta_spend_sync",
+      "schedule": "0 6 * * *"
     }
   ]
 }

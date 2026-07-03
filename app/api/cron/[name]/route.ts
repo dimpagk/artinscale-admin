@@ -8,6 +8,7 @@ import { runOrderSync } from '@/lib/orders'
 import { reconcilePendingListings } from '@/lib/post-create-publisher'
 import { runMockupComposeWorker } from '@/lib/mockup-compose-worker'
 import { syncFxRates } from '@/lib/fx'
+import { syncMetaAdSpend } from '@/lib/costs/meta-spend'
 
 // finalize_listings awaits mockup generation (~1-2 min of Gemini calls per
 // artwork), so the default ~15s serverless budget kills it mid-run. Raise
@@ -125,6 +126,10 @@ async function runScheduled(name: string, searchParams: URLSearchParams): Promis
       // P&L converts USD spend at the right daily rate. `?full=1` backfills
       // the whole series (used once by scripts/backfill-fx-rates.mjs).
       return syncFxRates({ full: searchParams.get('full') === '1' })
+    case 'meta_spend_sync':
+      // Book yesterday's Meta ad spend (per campaign) into marketing_spend
+      // and cost_entries. Feeds blended CAC on /economics and the P&L.
+      return syncMetaAdSpend()
     default:
       throw new Error(`Unknown scheduled job: ${name}`)
   }
