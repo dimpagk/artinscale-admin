@@ -85,7 +85,9 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
    *   - artist_id     ← from the generated_images.metadata.stylePackPersonaUserId
    *   - topic_id      ← from generated_images.topic_id
    *   - title         ← derived from the prompt
-   *   - product_type  ← 'poster' (the only launch-enabled SKU)
+   *   - product_type  ← derived server-side from the upscale's target size
+   *                     (metadata.upscaledProductType); left unset here so a
+   *                     stale client value can't pin the wrong dimension.
    */
   const handleLinkArtwork = async () => {
     if (!currentImage) return
@@ -112,7 +114,6 @@ export function ArtGeneratorClient({ initialImages, topics }: ArtGeneratorClient
           image_url: currentImage.image_url,
           artist_id: inferredArtistId,
           topic_id: currentImage.topic_id,
-          product_type: 'museum-poster-21x30',
           inspiration_summary: currentImage.prompt,
         }),
       })

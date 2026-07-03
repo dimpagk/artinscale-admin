@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { createArtwork, getArtworkById } from '@/lib/artworks'
+import { getProductDefaults } from '@/lib/pricing-defaults'
 
 /**
  * Promote a `generated_images` row to a draft `artworks` row.
@@ -50,17 +51,34 @@ export async function POST(request: Request) {
   // explicit override (delete the artwork first or use a different image).
   const { data: existingGen } = await supabaseAdmin
     .from('generated_images')
-    .select('id, artwork_id')
+    .select('id, artwork_id, metadata')
     .eq('id', body.generated_image_id)
     .maybeSingle()
 
-  const existingArtworkId = (existingGen as { artwork_id?: string | null } | null)?.artwork_id
+  const genRow = existingGen as
+    | { artwork_id?: string | null; metadata?: Record<string, unknown> | null }
+    | null
+  const existingArtworkId = genRow?.artwork_id
   if (existingArtworkId) {
     const artwork = await getArtworkById(existingArtworkId)
     if (artwork) {
       return NextResponse.json({ artwork, alreadyExists: true })
     }
   }
+
+  // Size the piece from the upscale's target — the largest size the print
+  // master reaches at museum-quality DPI, stamped on the generated image by
+  // the upscaler (metadata.upscaledProductType). This carries the resolution-
+  // appropriate dimension onto the artwork at link time. Precedence:
+  //   explicit body.product_type → upscale target → null (defer to push).
+  // Null means the image wasn't upscaled yet, so pushToGelatoAction derives
+  // the size from the master at push time instead of pinning 21×30 here.
+  const upscaledProductType =
+    typeof genRow?.metadata?.upscaledProductType === 'string'
+      ? (genRow.metadata.upscaledProductType as string)
+      : null
+  const productType = body.product_type || upscaledProductType || null
+  const sizeDefaults = productType ? getProductDefaults(productType) : null
 
   try {
     await createArtwork({
@@ -70,10 +88,13 @@ export async function POST(request: Request) {
       artist_id: body.artist_id || null,
       topic_id: body.topic_id || null,
       status: 'created',
-      // No hardcoded size — when the operator doesn't pass one,
-      // pushToGelatoAction derives the largest size the final image
-      // supports at museum-quality DPI instead of defaulting to 21×30.
-      product_type: body.product_type || null,
+      product_type: productType,
+      // Prefill price + edition from the derived size so the linked draft
+      // matches what push-time derivation would have set (which is skipped
+      // once product_type is pinned). Operator can override on the form.
+      ...(sizeDefaults
+        ? { price: sizeDefaults.price, edition_size: sizeDefaults.editionSize }
+        : {}),
       inspiration_summary: body.inspiration_summary || null,
     })
   } catch (err) {
