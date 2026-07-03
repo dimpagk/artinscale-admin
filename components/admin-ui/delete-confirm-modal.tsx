@@ -60,7 +60,13 @@ export function DeleteConfirmModal({
       title={resolvedTitle}
       actions={
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            disabled={pending}
+            className="border-gray-300 bg-white hover:bg-gray-100"
+          >
             Cancel
           </Button>
           <Button
