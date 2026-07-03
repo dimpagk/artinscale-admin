@@ -174,6 +174,20 @@ export const GELATO_TEMPLATES: Record<string, GelatoTemplateConfig> = {
     enabledForLaunch: true,
   }),
 
+  // Square. Gelato archival paper carries a 30×30 cm (12×12") flat SKU.
+  // templateUid is a placeholder until the 30×30 template is created in
+  // the Gelato dashboard; createGelatoProduct refuses to push until then.
+  'museum-poster-30x30': makeMatteTemplate({
+    paperFormat: '300x300-mm-12x12-inch',
+    templateUid: '<TODO_REPLACE_WITH_REAL_UID>-30x30',
+    widthCm: 30,
+    heightCm: 30,
+    aspectRatio: '1:1',
+    recommendedRooms: ['office', 'hallway'],
+    positioningBlurb:
+      'Square accent for a desk-shelf lean, a gallery cluster, or a trio down a narrow wall.',
+  }),
+
   'museum-poster-30x40': makeMatteTemplate({
     paperFormat: '300x400-mm-12x16-inch',
     templateUid: 'b1d870ea-1d24-43bd-b57e-d7b98924be96',
@@ -205,6 +219,20 @@ export const GELATO_TEMPLATES: Record<string, GelatoTemplateConfig> = {
     recommendedRooms: ['office', 'dining-room', 'bedroom'],
     positioningBlurb:
       'Single-statement focal — works alone above a desk, dining sideboard, or low dresser.',
+  }),
+
+  // Square. Gelato archival paper carries a 50×50 cm (20×20") flat SKU.
+  // templateUid is a placeholder until the 50×50 template is created in
+  // the Gelato dashboard; createGelatoProduct refuses to push until then.
+  'museum-poster-50x50': makeMatteTemplate({
+    paperFormat: '500x500-mm-20x20-inch',
+    templateUid: '<TODO_REPLACE_WITH_REAL_UID>-50x50',
+    widthCm: 50,
+    heightCm: 50,
+    aspectRatio: '1:1',
+    recommendedRooms: ['living-room', 'dining-room', 'bedroom'],
+    positioningBlurb:
+      'Bold square statement, centered above a console, a sideboard, or on a feature wall.',
   }),
 
   'museum-poster-50x70': makeMatteTemplate({

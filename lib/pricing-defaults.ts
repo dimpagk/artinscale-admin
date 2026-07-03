@@ -37,9 +37,11 @@ export interface ProductDefaults {
 
 export const PRODUCT_DEFAULTS: Record<string, ProductDefaults> = {
   'museum-poster-21x30': { price: 49, currency: 'EUR', editionSize: 50, widthCm: 21, heightCm: 30, gelatoCostEur: 14 },
+  'museum-poster-30x30': { price: 49, currency: 'EUR', editionSize: 50, widthCm: 30, heightCm: 30, gelatoCostEur: 15 },
   'museum-poster-30x40': { price: 69, currency: 'EUR', editionSize: 50, widthCm: 30, heightCm: 40, gelatoCostEur: 19 },
   'museum-poster-30x45': { price: 79, currency: 'EUR', editionSize: 50, widthCm: 30, heightCm: 45, gelatoCostEur: 20 },
   'museum-poster-40x50': { price: 89, currency: 'EUR', editionSize: 40, widthCm: 40, heightCm: 50, gelatoCostEur: 26 },
+  'museum-poster-50x50': { price: 79, currency: 'EUR', editionSize: 40, widthCm: 50, heightCm: 50, gelatoCostEur: 30 },
   'museum-poster-50x70': { price: 119, currency: 'EUR', editionSize: 30, widthCm: 50, heightCm: 70, gelatoCostEur: 38 },
   'museum-poster-60x90': { price: 159, currency: 'EUR', editionSize: 25, widthCm: 60, heightCm: 90, gelatoCostEur: 54 },
   'museum-poster-70x100': { price: 199, currency: 'EUR', editionSize: 20, widthCm: 70, heightCm: 100, gelatoCostEur: 70 },

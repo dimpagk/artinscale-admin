@@ -536,9 +536,11 @@ export function ArtworkForm({
                 options={[
                   { value: '', label: 'None' },
                   { value: 'museum-poster-21x30', label: 'Museum Poster · 21×30 cm (gallery / desk)' },
+                  { value: 'museum-poster-30x30', label: 'Museum Poster · 30×30 cm (square accent)' },
                   { value: 'museum-poster-30x40', label: 'Museum Poster · 30×40 cm (bedroom flank / desk)' },
                   { value: 'museum-poster-30x45', label: 'Museum Poster · 30×45 cm (corridor end-cap)' },
                   { value: 'museum-poster-40x50', label: 'Museum Poster · 40×50 cm (office / dining single)' },
+                  { value: 'museum-poster-50x50', label: 'Museum Poster · 50×50 cm (square statement)' },
                   { value: 'museum-poster-50x70', label: 'Museum Poster · 50×70 cm (above-bed centerpiece)' },
                   { value: 'museum-poster-60x90', label: 'Museum Poster · 60×90 cm (sofa pair / dining)' },
                   { value: 'museum-poster-70x100', label: 'Museum Poster · 70×100 cm (statement above sofa)' },
