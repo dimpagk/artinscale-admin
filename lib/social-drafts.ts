@@ -51,12 +51,6 @@ function sizeText(productType: string | null): string {
   return m ? `${m[1]}x${m[2]} cm` : '';
 }
 
-function priceText(price: number | null, currency: string | null): string {
-  if (price == null) return '';
-  const symbol = currency === 'EUR' ? '€' : currency ? `${currency} ` : '';
-  return `${symbol}${Number.isInteger(price) ? price : price.toFixed(2)}`;
-}
-
 /**
  * The ordered image list for slides: framed, room, zoom 1, zoom 2. The
  * original substitutes a missing zoom (the "extra zoom" rule) but is
@@ -86,7 +80,10 @@ function imageSlide(url: string, alt: string): SlideConfig {
   };
 }
 
-/** The closing slide: branded text only, price + CTA. */
+/**
+ * The closing slide: branded text and the CTA. Brand rule (operator,
+ * 2026-07): artwork posts never show the price; price lives on the PDP.
+ */
 function ctaSlide(a: SocialDraftArtwork): SlideConfig {
   const size = sizeText(a.product_type);
   return {
@@ -101,7 +98,7 @@ function ctaSlide(a: SocialDraftArtwork): SlideConfig {
       ...(a.artistName ? [{ type: 'text' as const, text: `By ${a.artistName}. Made to order.` }] : []),
       {
         type: 'priceDisplay',
-        price: priceText(a.price, a.currency),
+        price: '',
         cta: 'Shop at artinscale.com',
         shopifyHandle: a.shopify_handle ?? '',
       },
@@ -171,7 +168,7 @@ export async function createSocialDraft(
         { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false },
         {
           type: 'priceDisplay',
-          price: priceText(artwork.price, artwork.currency),
+          price: '',
           cta: 'Shop at artinscale.com',
           shopifyHandle: artwork.shopify_handle ?? '',
         },

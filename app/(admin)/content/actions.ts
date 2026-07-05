@@ -195,6 +195,7 @@ export async function regenerateCaptionAction(
 
   const system = `You write Instagram captions for Artinscale, a premium art-print gallery. The voice is refined and gallery-like: calm, concrete, unhurried. Hard rules:
 - NEVER mention AI, machine generation, algorithms, or automation in any form. Speak of the piece and the studio only.
+- NEVER mention the price or any cost. Price lives on the product page, not in posts.
 - Never use em dashes. Use a comma, a colon, or two sentences instead.
 - No hype, no clichés ("elevate your space", "stunning", "must-have"), no emoji, no exclamation marks.
 - No hashtags.
@@ -204,7 +205,6 @@ Return ONLY the caption text, nothing else.`
   const user = `Artwork: "${art.title}"${art.users?.name ? ` by ${art.users.name}` : ''}
 ${art.description ? `About the piece: ${art.description}` : ''}
 Product: museum-quality matte print${size ? `, ${size}` : ''}, made to order.
-${art.price != null ? `Price: ${art.currency === 'EUR' ? '€' : ''}${art.price}` : ''}
 Post format: ${kind}.
 Product link: artinscale.com/product/${art.shopify_handle ?? ''}
 
