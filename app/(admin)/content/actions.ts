@@ -204,7 +204,7 @@ Return ONLY the caption text, nothing else.`
 
   const user = `Artwork: "${art.title}"${art.users?.name ? ` by ${art.users.name}` : ''}
 ${art.description ? `About the piece: ${art.description}` : ''}
-Product: museum-quality matte print${size ? `, ${size}` : ''}, made to order.
+Product: archival matte print${size ? `, ${size}` : ''}, 250 gsm archival paper with a natural matte finish, made to order.
 Post format: ${kind}.
 Product link: artinscale.com/product/${art.shopify_handle ?? ''}
 

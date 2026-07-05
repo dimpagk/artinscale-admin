@@ -209,7 +209,7 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         break
       case 'headline': {
         const sz = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
-        ctx.font = font(600, sz)
+        ctx.font = font(500, sz)
         const lines = wrapLines(ctx, block.text, maxW)
         h += lines.length * sz * 1.15 + 14 * s
         break
@@ -268,11 +268,15 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         h += 20 * s + 10 * s
         break
       case 'priceDisplay':
-        // price line (16 + 10 gap) + button (11 text + 2*9 padding) + margin
-        h += 16 * s + 10 * s + (11 * s + 18 * s) + 10 * s
+        if (block.variant === 'link') {
+          h += 12.5 * s + 5 * s + 2 * s + 10 * s
+        } else {
+          // price line (16 + 10 gap) + button (11 text + 2*9 padding) + margin
+          h += 16 * s + 10 * s + (11 * s + 18 * s) + 10 * s
+        }
         break
       case 'spacer':
-        h += (block.height || 20) * s
+        h += block.fill ? 0 : (block.height || 20) * s
         break
       case 'divider':
         h += 16 * s
@@ -302,10 +306,18 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   const footerH = showFooter ? 40 * s : 0
   const contentArea = H - footerH
   const totalHeight = measureBlocksHeight(ctx, blocks, s, fontFamily, W, padLeft, images)
+  // Fill spacers (flex: 1 in the preview): top-align and give each fill an
+  // equal share of the leftover space, mirroring the CSS flex layout.
+  const fills = blocks.filter((b) => b.type === 'spacer' && b.fill).length
+  const fillH = fills > 0
+    ? Math.max(0, contentArea - 32 * s - 24 * s - totalHeight) / fills
+    : 0
   // If blocks overflow the canvas (e.g. cover formats), top-align with padding
-  let y = totalHeight > contentArea - 32 * s
-    ? 20 * s
-    : Math.max(32 * s, (contentArea - totalHeight) / 2)
+  let y = fills > 0
+    ? 32 * s
+    : totalHeight > contentArea - 32 * s
+      ? 20 * s
+      : Math.max(32 * s, (contentArea - totalHeight) / 2)
 
   for (const block of blocks) {
     switch (block.type) {
@@ -321,7 +333,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
 
       case 'headline': {
         const sz = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
-        ctx.font = font(600, sz)
+        ctx.font = font(500, sz)
         ctx.fillStyle = fg
         const lines = wrapLines(ctx, block.text, maxW)
         for (const line of lines) {
@@ -427,7 +439,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
       }
 
       case 'spacer': {
-        y += (block.height || 20) * s
+        y += block.fill ? fillH : (block.height || 20) * s
         break
       }
 
@@ -569,7 +581,8 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         const logoH = (block.height ?? 30) * s
         if (img) {
           const logoW = logoH * (img.naturalWidth / img.naturalHeight)
-          ctx.drawImage(img, x + (maxW - logoW) / 2, y, logoW, logoH)
+          const logoX = block.align === 'left' ? x : x + (maxW - logoW) / 2
+          ctx.drawImage(img, logoX, y, logoW, logoH)
         }
         y += logoH + 14 * s
         break
@@ -693,6 +706,17 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
       }
 
       case 'priceDisplay': {
+        // variant 'link': left-aligned underlined text link (wall label).
+        if (block.variant === 'link') {
+          const cta = block.cta || 'Shop at artinscale.com'
+          ctx.font = font(500, 12.5 * s)
+          ctx.fillStyle = fg
+          ctx.fillText(cta, x, y)
+          const linkW = ctx.measureText(cta).width
+          ctx.fillRect(x, y + 12.5 * s + 5 * s, linkW, Math.max(1, 1 * s))
+          y += 12.5 * s + 5 * s + 2 * s + 10 * s
+          break
+        }
         // Design-system treatment: quiet centered price, solid black CTA
         // button (white on dark slides), square corners, no gradients.
         const centerX = x + maxW / 2

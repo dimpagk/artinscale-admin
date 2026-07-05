@@ -81,16 +81,18 @@ function imageSlide(url: string, alt: string): SlideConfig {
 }
 
 /**
- * The closing slide: logo, exclusivity line, title, craft line, CTA.
- * Brand rules (operator, 2026-07): no price on artwork posts (price
- * lives on the PDP), no accent banner, the brand mark leads, and
- * spacers set the vertical rhythm.
+ * The closing slide: the "wall label" (operator-picked direction,
+ * 2026-07). A museum placard: logo top-left, whitespace above like a
+ * gallery wall, text block anchored to the bottom by a fill spacer, and
+ * a quiet underlined link instead of a button. Brand rules: no price on
+ * artwork posts (price lives on the PDP), no accent banner, no footer
+ * (the link carries the domain).
  */
 function ctaSlide(a: SocialDraftArtwork): SlideConfig {
   const size = sizeText(a.product_type);
   const craftLine = [
     a.artistName ? `By ${a.artistName}.` : null,
-    `Museum-quality matte print${size ? `, ${size}` : ''}. Made to order.`,
+    `Archival matte print${size ? `, ${size}` : ''}. Made to order.`,
   ]
     .filter(Boolean)
     .join(' ');
@@ -98,20 +100,21 @@ function ctaSlide(a: SocialDraftArtwork): SlideConfig {
     bg: 'galleryWhite',
     dark: false,
     accent: 'none',
-    footer: 'artinscale.com',
+    footer: '',
     format: 'portrait',
     blocks: [
-      { type: 'logo', url: BRAND_LOGO_URL, height: 30 },
-      { type: 'spacer', height: 14 },
+      { type: 'logo', url: BRAND_LOGO_URL, height: 24, align: 'left' },
+      { type: 'spacer', fill: true },
       { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
       { type: 'headline', text: a.title, fontSize: 'lg' },
       { type: 'text', text: craftLine },
-      { type: 'spacer', height: 18 },
+      { type: 'spacer', height: 12 },
       {
         type: 'priceDisplay',
         price: '',
         cta: 'Shop at artinscale.com',
         shopifyHandle: a.shopify_handle ?? '',
+        variant: 'link',
       },
     ],
   };
@@ -126,7 +129,7 @@ function caption(a: SocialDraftArtwork): string {
   const size = sizeText(a.product_type);
   const lines = [
     `"${a.title}"${a.artistName ? ` by ${a.artistName}` : ''}.`,
-    `Museum-quality matte print${size ? `, ${size}` : ''}. Made to order.`,
+    `Archival matte print${size ? `, ${size}` : ''}. Made to order.`,
   ];
   if (a.shopify_handle) {
     lines.push('', `artinscale.com/product/${a.shopify_handle}`);
@@ -174,7 +177,7 @@ export async function createSocialDraft(
       footer: 'artinscale.com',
       format: 'story',
       blocks: [
-        { type: 'tag', text: size ? `MUSEUM-QUALITY MATTE PRINT · ${size}` : 'MUSEUM-QUALITY MATTE PRINT' },
+        { type: 'tag', text: size ? `ARCHIVAL MATTE PRINT · ${size}` : 'ARCHIVAL MATTE PRINT' },
         { type: 'headline', text: artwork.title, fontSize: 'md' },
         { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false },
         {

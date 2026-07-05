@@ -32,7 +32,7 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
     case 'headline': {
       const size = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
       return (
-        <div key={index} style={{ fontSize: size, fontWeight: 600, lineHeight: 1.15, color: fg, whiteSpace: 'pre-line', marginBottom: 14 * s, fontFamily: B.displayFont, letterSpacing: -0.3 * s }}>
+        <div key={index} style={{ fontSize: size, fontWeight: 500, lineHeight: 1.15, color: fg, whiteSpace: 'pre-line', marginBottom: 14 * s, fontFamily: B.displayFont, letterSpacing: -0.4 * s }}>
           {block.text}
         </div>
       )
@@ -143,7 +143,7 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
     case 'logo': {
       const h = (block.height ?? 30) * s
       return (
-        <div key={index} style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 * s }}>
+        <div key={index} style={{ display: 'flex', justifyContent: block.align === 'left' ? 'flex-start' : 'center', marginBottom: 14 * s }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={block.url} alt="Artinscale" style={{ height: h, width: 'auto' }} />
         </div>
@@ -264,7 +264,17 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
 
     case 'priceDisplay':
       // Design-system treatment: quiet price, solid black CTA (DS Button
-      // "primary"), no gradients, square corners.
+      // "primary"), no gradients, square corners. variant 'link' renders a
+      // left-aligned underlined text link instead (wall-label style).
+      if (block.variant === 'link') {
+        return (
+          <div key={index} style={{ marginBottom: 10 * s }}>
+            <span style={{ fontSize: 12.5 * s, fontWeight: 500, color: fg, fontFamily: B.displayFont, textDecoration: 'underline', textUnderlineOffset: 5 * s, textDecorationThickness: 1 }}>
+              {block.cta || 'Shop at artinscale.com'}
+            </span>
+          </div>
+        )
+      }
       return (
         <div key={index} style={{ marginBottom: 10 * s, textAlign: 'center' }}>
           {block.price && (
@@ -288,7 +298,9 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
       )
 
     case 'spacer':
-      return <div key={index} style={{ height: (block.height || 20) * s }} />
+      return block.fill
+        ? <div key={index} style={{ flex: 1 }} />
+        : <div key={index} style={{ height: (block.height || 20) * s }} />
 
     case 'divider':
       return <div key={index} style={{ height: 1, background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', margin: `${8 * s}px 0` }} />
@@ -365,7 +377,7 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
         />
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: `${32 * s}px ${28 * s}px ${20 * s}px ${padL}px`, position: 'relative', zIndex: 1 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: slide.blocks.some((b) => b.type === 'spacer' && b.fill) ? 'flex-start' : 'center', padding: `${32 * s}px ${28 * s}px ${24 * s}px ${padL}px`, position: 'relative', zIndex: 1 }}>
           {slide.blocks.map((block, i) => renderBlock(block, i, s, isDark))}
         </div>
       )}

@@ -179,7 +179,7 @@ export type BlockType =
   | { type: 'text'; text: string }
   | { type: 'steps'; items: string[] }
   | { type: 'bullets'; items: string[] }
-  | { type: 'spacer'; height?: number }
+  | { type: 'spacer'; height?: number; fill?: boolean }
   | { type: 'divider' }
   | { type: 'metric'; value: string; label: string }
   | { type: 'quote'; text: string; author?: string }
@@ -187,12 +187,12 @@ export type BlockType =
   | { type: 'progress'; label: string; value: number; target: number; unit?: string }
   | { type: 'dashboardCard'; title: string; metrics: { value: string; label: string }[] }
   | { type: 'screenshot'; url: string; alt?: string; border?: boolean; fullBleed?: boolean }
-  | { type: 'logo'; url: string; height?: number }
+  | { type: 'logo'; url: string; height?: number; align?: 'left' | 'center' }
   // Artwork-specific blocks
   | { type: 'artworkShowcase'; artworkTitle: string; artistName: string; imageUrl: string; topicTitle?: string }
   | { type: 'artistCredit'; artistName: string; bio: string; imageUrl: string }
   | { type: 'editionInfo'; editionSize: number; editionSold: number; status: string }
-  | { type: 'priceDisplay'; price: string; cta: string; shopifyHandle: string }
+  | { type: 'priceDisplay'; price: string; cta: string; shopifyHandle: string; variant?: 'button' | 'link' }
 
 /** Visual config for a single slide / single post */
 export interface SlideConfig {

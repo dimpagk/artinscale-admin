@@ -51,7 +51,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'Presence, framed',
     primary_text:
-      'Portrait of the Priestess, printed on museum-quality matte paper at 50x70 cm and made to order for your wall. Composed in our studio, curated by hand.',
+      'Portrait of the Priestess, printed on 250 gsm archival matte paper at 50x70 cm and made to order for your wall. Composed in our studio, curated by hand.',
   },
   {
     handle: 'portrait-of-the-priestess',
@@ -59,7 +59,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'A portrait with weight',
     primary_text:
-      'Deep pigment on heavyweight matte paper. Portrait of the Priestess, 50x70 cm, printed to order and shipped ready to frame.',
+      'Deep pigment on 250 gsm archival matte paper. Portrait of the Priestess, 50x70 cm, printed to order and shipped ready to frame.',
   },
   {
     handle: 'coral-hour-hardanger',
@@ -67,7 +67,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'The light before dusk',
     primary_text:
-      'Coral Hour, Hardanger holds a warm, low sun in the room. Museum-quality matte print at 50x70 cm, made to order. Composed in our studio.',
+      'Coral Hour, Hardanger holds a warm, low sun in the room. Archival matte print at 50x70 cm, made to order. Composed in our studio.',
   },
   {
     handle: 'coral-hour-hardanger',
@@ -75,7 +75,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'Warmth you can hang',
     primary_text:
-      'A coral horizon over still water, printed on heavyweight matte paper at 50x70 cm and shipped ready to frame.',
+      'A coral horizon over still water, printed on 250 gsm archival matte paper at 50x70 cm and shipped ready to frame.',
   },
   {
     handle: 'still-water-olive-leaf',
@@ -83,7 +83,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'Calm, in one frame',
     primary_text:
-      'Still Water, Olive Leaf is a quiet Mediterranean note for a considered room. Museum-quality matte print, 50x70 cm, made to order.',
+      'Still Water, Olive Leaf is a quiet Mediterranean note for a considered room. Archival matte print, 50x70 cm, made to order.',
   },
   {
     handle: 'still-water-olive-leaf',
@@ -91,7 +91,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'A quieter kind of blue',
     primary_text:
-      'Soft olive and water on heavyweight matte paper. 50x70 cm, printed to order and shipped ready to frame.',
+      'Soft olive and water on archival matte paper. 50x70 cm, printed to order and shipped ready to frame.',
   },
   {
     handle: 'held-breath',
@@ -99,7 +99,7 @@ const CREATIVES = [
     aiDisclosure: false,
     headline: 'A figure, held still',
     primary_text:
-      'Held Breath, an original figure study in cobalt and gold. Museum-quality matte print at 50x70 cm, made to order and shipped ready to frame.',
+      'Held Breath, an original figure study in cobalt and gold. Archival matte print at 50x70 cm, made to order and shipped ready to frame.',
     notes:
       'In-room format only. The flat close-up reads as semi-nude and risks Meta adult-nudity rejection; advertise this piece with the room shot only.',
   },
@@ -114,7 +114,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'Watch the light settle',
     primary_text:
-      'A slow pass over Portrait of the Priestess. Museum-quality matte print at 50x70 cm, made to order. Composed in our studio, curated by hand.',
+      'A slow pass over Portrait of the Priestess. Archival matte print at 50x70 cm, made to order. Composed in our studio, curated by hand.',
   },
   {
     handle: 'coral-hour-hardanger',
@@ -122,7 +122,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'A held coral hour',
     primary_text:
-      'The low sun of Coral Hour, Hardanger, lingered over for a moment. Museum-quality matte print at 50x70 cm, made to order. Composed in our studio.',
+      'The low sun of Coral Hour, Hardanger, lingered over for a moment. Archival matte print at 50x70 cm, made to order. Composed in our studio.',
   },
   {
     handle: 'still-water-olive-leaf',
@@ -130,7 +130,7 @@ const CREATIVES = [
     aiDisclosure: true,
     headline: 'Stillness, slowly',
     primary_text:
-      'A quiet pass across Still Water, Olive Leaf. Museum-quality matte print at 50x70 cm, made to order. Composed in our studio.',
+      'A quiet pass across Still Water, Olive Leaf. Archival matte print at 50x70 cm, made to order. Composed in our studio.',
   },
 ]
 
