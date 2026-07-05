@@ -39,24 +39,26 @@ export interface GenerateListingMetaResult {
   skipped: boolean;
 }
 
-const SYSTEM_PROMPT = `You write SEO and social-share copy for fine-art prints sold on Shopify by ArtInScale, a brand that turns community-contributed stories into limited-edition prints.
+const SYSTEM_PROMPT = `You write SEO and social-share copy for fine-art prints sold on Shopify by ArtInScale, a premium brand that turns community-contributed stories into archival art prints.
 
 Your job: produce four short copy fields based on the artwork details provided. Return JSON only, matching the schema exactly. No prose outside the JSON.
 
 Schema:
 {
-  "seoTitle": "string ≤60 chars — Title Case, includes artwork title + a value descriptor (e.g. 'Limited Edition Art Print' or 'Museum-Quality Matte Print'). Avoid clickbait. Avoid 'Buy Now' / '!!!' / emojis.",
-  "seoDescription": "string ≤160 chars — search snippet. Sentence case. Should describe what the print is, evoke the artwork's mood, hint at the story behind it. Plain text, no HTML.",
-  "ogTitle": "string ≤60 chars — slightly more poetic than seoTitle. Can use em-dash. This is what appears when someone shares the link on social media.",
-  "ogDescription": "string ≤200 chars — social share copy. Should make a reader stop scrolling. Concrete, not abstract. Plain text."
+  "seoTitle": "string ≤60 chars, Title Case, includes artwork title + a value descriptor (e.g. 'Archival Matte Print'). Avoid clickbait. Avoid 'Buy Now' / '!!!' / emojis.",
+  "seoDescription": "string ≤160 chars, search snippet. Sentence case. Should describe what the print is, evoke the artwork's mood, hint at the story behind it. Plain text, no HTML.",
+  "ogTitle": "string ≤60 chars, slightly more poetic than seoTitle. This is what appears when someone shares the link on social media.",
+  "ogDescription": "string ≤200 chars, social share copy. Should make a reader stop scrolling. Concrete, not abstract. Plain text."
 }
 
 Rules:
-- Do not invent facts. Only use what's in the input.
-- Do not echo the description verbatim — these are *complements* to the existing product description, not duplicates.
-- "Limited Edition" goes only when editionSize is set. Otherwise use "Open Edition" or skip the framing.
-- The size descriptor (e.g. "21×30 cm") goes only in seoTitle if there's room without crowding.
-- If the topic title is provided, weave it into ogDescription naturally (e.g. "From our 'Breath' collection — …"). Don't force it into seoTitle.`;
+- Do not invent facts. Only use what's in the input. NEVER invent an edition count, a print run, or a size; the Edition and Format lines in the brief are the only source of truth for those.
+- Say "Limited Edition" ONLY if the Edition line literally says "Limited edition of N", and then use exactly that N. When it says "Open edition", never use the words "limited" or "edition of"; either say nothing about editions or lean on craft ("archival", "made to order").
+- The product language is "archival matte print" (matches the website). Never "museum-quality".
+- Never use em dashes; use a comma, a colon, or two sentences instead.
+- Do not echo the description verbatim; these are complements to the existing product description, not duplicates.
+- The size descriptor (e.g. "50x70 cm") goes only where the Format line provides it, and only in seoTitle if there's room without crowding.
+- If the topic title is provided, weave it into ogDescription naturally. Don't force it into seoTitle.`;
 
 export async function generateListingMeta(
   args: GenerateListingMetaInput
@@ -126,7 +128,7 @@ export async function generateListingMeta(
 - Description: ${artwork.description ?? '(none)'}
 - Inspiration summary: ${artwork.inspiration_summary ?? '(none)'}
 - Edition: ${editionLabel}
-- Format: Museum-quality matte print${sizeStr ? `, ${sizeStr}` : ''}
+- Format: Archival matte print${sizeStr ? `, ${sizeStr}` : ''}
 - Topic: ${topic ? `"${topic.title}" — ${topic.description ?? ''}` : '(none)'}
 - Artist: ${artist?.name ?? '(unknown)'}${artist?.bio ? ` — ${artist.bio.slice(0, 200)}` : ''}
 
