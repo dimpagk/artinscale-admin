@@ -257,7 +257,7 @@ export async function runExternalPrintPipeline(externalPrintId: string): Promise
     const description = [
       row.title,
       row.attribution_text,
-      'Public-domain reproduction, printed on-demand on museum-quality matte paper.',
+      'Public-domain reproduction, printed on-demand on archival matte paper.',
     ].join('\n\n');
 
     const gelatoProduct = await createGelatoProduct({

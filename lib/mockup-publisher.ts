@@ -99,7 +99,7 @@ export function mockupSetToShopifyOrder(
 ): Array<{ src: string; alt: string }> {
   return [
     { src: set.original, alt: `${artworkTitle} - original artwork` },
-    { src: set.framed, alt: `${artworkTitle} - framed museum-quality matte print` },
+    { src: set.framed, alt: `${artworkTitle} - framed archival matte print` },
     { src: set.inRoom, alt: `${artworkTitle} - shown in a styled room interior` },
     { src: set.details[0], alt: `${artworkTitle} - close-up detail` },
     { src: set.details[1], alt: `${artworkTitle} - close-up detail (texture)` },
