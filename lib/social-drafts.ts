@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import type { SlideConfig, VisualConfig } from '@/lib/constants/content';
+import { BRAND_LOGO_URL, type SlideConfig, type VisualConfig } from '@/lib/constants/content';
 
 /**
  * One-click social drafts from an artwork's mockup set.
@@ -81,21 +81,32 @@ function imageSlide(url: string, alt: string): SlideConfig {
 }
 
 /**
- * The closing slide: branded text and the CTA. Brand rule (operator,
- * 2026-07): artwork posts never show the price; price lives on the PDP.
+ * The closing slide: logo, exclusivity line, title, craft line, CTA.
+ * Brand rules (operator, 2026-07): no price on artwork posts (price
+ * lives on the PDP), no accent banner, the brand mark leads, and
+ * spacers set the vertical rhythm.
  */
 function ctaSlide(a: SocialDraftArtwork): SlideConfig {
   const size = sizeText(a.product_type);
+  const craftLine = [
+    a.artistName ? `By ${a.artistName}.` : null,
+    `Museum-quality matte print${size ? `, ${size}` : ''}. Made to order.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
   return {
     bg: 'galleryWhite',
     dark: false,
-    accent: 'topBar',
+    accent: 'none',
     footer: 'artinscale.com',
     format: 'portrait',
     blocks: [
-      { type: 'tag', text: size ? `MUSEUM-QUALITY MATTE PRINT · ${size}` : 'MUSEUM-QUALITY MATTE PRINT' },
+      { type: 'logo', url: BRAND_LOGO_URL, height: 30 },
+      { type: 'spacer', height: 14 },
+      { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
       { type: 'headline', text: a.title, fontSize: 'lg' },
-      ...(a.artistName ? [{ type: 'text' as const, text: `By ${a.artistName}. Made to order.` }] : []),
+      { type: 'text', text: craftLine },
+      { type: 'spacer', height: 18 },
       {
         type: 'priceDisplay',
         price: '',

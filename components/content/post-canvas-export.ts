@@ -44,10 +44,10 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
   return cached
 }
 
-/** Preload every screenshot image in a slide; returns url -> element. */
+/** Preload every screenshot/logo image in a slide; returns url -> element. */
 async function preloadSlideImages(blocks: BlockType[]): Promise<Map<string, HTMLImageElement>> {
   const urls = blocks
-    .filter((b): b is Extract<BlockType, { type: 'screenshot' }> => b.type === 'screenshot')
+    .filter((b): b is Extract<BlockType, { type: 'screenshot' | 'logo' }> => b.type === 'screenshot' || b.type === 'logo')
     .map((b) => b.url)
     .filter(Boolean)
   const loaded = await Promise.all(urls.map((u) => loadImage(u)))
@@ -255,6 +255,9 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         h += screenshotHeight(img, maxW, s) + 10 * s
         break
       }
+      case 'logo':
+        h += (block.height ?? 30) * s + 14 * s
+        break
       case 'artworkShowcase':
         h += 100 * s + 10 * s
         break
@@ -558,6 +561,17 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
           ctx.letterSpacing = '0px'
         })
         y += cardH + 12 * s
+        break
+      }
+
+      case 'logo': {
+        const img = images?.get(block.url)
+        const logoH = (block.height ?? 30) * s
+        if (img) {
+          const logoW = logoH * (img.naturalWidth / img.naturalHeight)
+          ctx.drawImage(img, x + (maxW - logoW) / 2, y, logoW, logoH)
+        }
+        y += logoH + 14 * s
         break
       }
 

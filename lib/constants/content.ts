@@ -116,6 +116,14 @@ export type AccentPresetKey = (typeof ACCENT_PRESETS)[number]['key']
 // Block Types
 // ============================================
 
+/**
+ * The brand mark, hosted in Supabase storage (uploaded from the
+ * storefront's public/logo@2x.png) so both the editor preview and the
+ * CORS-safe canvas export can load it.
+ */
+export const BRAND_LOGO_URL =
+  'https://bkslanxgwgehcsihbkpe.supabase.co/storage/v1/object/public/ai-generated/brand/logo.png'
+
 export const BLOCK_TYPES = [
   { type: 'tag', label: 'Tag / Label', defaultValue: { type: 'tag', text: 'LABEL' } },
   { type: 'headline', label: 'Headline', defaultValue: { type: 'headline', text: 'Headline Text', fontSize: 'lg' } },
@@ -129,6 +137,7 @@ export const BLOCK_TYPES = [
   { type: 'table', label: 'Table', defaultValue: { type: 'table', headers: ['Artwork', 'Artist', 'Edition'], rows: [['Echoes', 'Maya Lin', '1/50'], ['Fragments', 'Kai Rowe', '3/25']], caption: '' } },
   { type: 'progress', label: 'Progress Bar', defaultValue: { type: 'progress', label: 'Editions Sold', value: 38, target: 50, unit: '' } },
   { type: 'screenshot', label: 'Image', defaultValue: { type: 'screenshot', url: '', alt: 'Artwork image', border: true } },
+  { type: 'logo', label: 'Logo', defaultValue: { type: 'logo', url: BRAND_LOGO_URL, height: 30 } },
   // Artwork-specific blocks
   { type: 'artworkShowcase', label: 'Artwork Showcase', defaultValue: { type: 'artworkShowcase', artworkTitle: 'Artwork Title', artistName: 'Artist Name', imageUrl: '', topicTitle: '' } },
   { type: 'artistCredit', label: 'Artist Credit', defaultValue: { type: 'artistCredit', artistName: 'Artist Name', bio: '', imageUrl: '' } },
@@ -178,6 +187,7 @@ export type BlockType =
   | { type: 'progress'; label: string; value: number; target: number; unit?: string }
   | { type: 'dashboardCard'; title: string; metrics: { value: string; label: string }[] }
   | { type: 'screenshot'; url: string; alt?: string; border?: boolean; fullBleed?: boolean }
+  | { type: 'logo'; url: string; height?: number }
   // Artwork-specific blocks
   | { type: 'artworkShowcase'; artworkTitle: string; artistName: string; imageUrl: string; topicTitle?: string }
   | { type: 'artistCredit'; artistName: string; bio: string; imageUrl: string }

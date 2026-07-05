@@ -140,6 +140,16 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
         </div>
       )
 
+    case 'logo': {
+      const h = (block.height ?? 30) * s
+      return (
+        <div key={index} style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 * s }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={block.url} alt="Artinscale" style={{ height: h, width: 'auto' }} />
+        </div>
+      )
+    }
+
     case 'screenshot':
       return (
         <div key={index} style={{ marginBottom: 10 * s }}>
