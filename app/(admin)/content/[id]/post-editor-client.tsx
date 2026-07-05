@@ -12,6 +12,7 @@ import { PostEditor } from '@/components/content/post-editor'
 import { CaptionEditor } from '@/components/content/caption-editor'
 import { ArtworkPicker, type ArtworkWithArtist } from '@/components/content/artwork-picker'
 import { downloadPostAsPng, downloadCarouselAsPngs } from '@/components/content/post-canvas-export'
+import { regenerateCaptionAction } from '../actions'
 import { VideoPreviewDialog } from '@/components/content/video/video-preview-dialog'
 import { ContentCopilotPanel } from '@/components/content/content-copilot-panel'
 import { Robot, Sparkle } from '@phosphor-icons/react'
@@ -53,6 +54,22 @@ export function PostEditorClient({ post: initialPost, linkedArtwork: initialArtw
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [aiArtOpen, setAiArtOpen] = useState(false)
   const [linkedArtwork, setLinkedArtwork] = useState<LinkedArtwork | null>(initialArtwork ?? null)
+  const [regeneratingCaption, setRegeneratingCaption] = useState(false)
+
+  const handleRegenerateCaption = async () => {
+    setRegeneratingCaption(true)
+    try {
+      const r = await regenerateCaptionAction(post.id)
+      if (r.ok && r.caption) {
+        setCaption(r.caption)
+        toast.success('Caption redrafted. Save to keep it.')
+      } else {
+        toast.error(r.message)
+      }
+    } finally {
+      setRegeneratingCaption(false)
+    }
+  }
 
   const isCarousel = post.post_type === 'carousel'
   const slides = getSlides(config)
@@ -497,7 +514,12 @@ export function PostEditorClient({ post: initialPost, linkedArtwork: initialArtw
                 </>
               )}
             </div>
-            <CaptionEditor caption={caption} onChange={setCaption} />
+            <CaptionEditor
+              caption={caption}
+              onChange={setCaption}
+              onRegenerate={handleRegenerateCaption}
+              regenerating={regeneratingCaption}
+            />
           </div>
         </div>
 

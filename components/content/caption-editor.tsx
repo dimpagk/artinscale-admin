@@ -1,15 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Copy } from '@phosphor-icons/react'
+import { ArrowsClockwise, Check, Copy } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 
 interface CaptionEditorProps {
   caption: string
   onChange: (caption: string) => void
+  /** Redraft the caption via the brand-voice agent. Omit to hide the button. */
+  onRegenerate?: () => void
+  regenerating?: boolean
 }
 
-export function CaptionEditor({ caption, onChange }: CaptionEditorProps) {
+export function CaptionEditor({ caption, onChange, onRegenerate, regenerating = false }: CaptionEditorProps) {
   const [copied, setCopied] = useState(false)
 
   const charCount = caption.length
@@ -28,16 +31,30 @@ export function CaptionEditor({ caption, onChange }: CaptionEditorProps) {
         <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
           Caption
         </label>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleCopy}
-          disabled={!caption}
-          icon={copied ? <Check size={10} /> : <Copy size={10} />}
-          className="h-6 text-[10px] font-semibold px-2.5 bg-brand-coral/10 text-brand-coral hover:bg-brand-coral/20"
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
+        <div className="flex items-center gap-1.5">
+          {onRegenerate && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRegenerate}
+              disabled={regenerating}
+              icon={<ArrowsClockwise size={10} className={regenerating ? 'animate-spin' : undefined} />}
+              className="h-6 text-[10px] font-semibold px-2.5 bg-gray-100 text-gray-600 hover:bg-gray-200"
+            >
+              {regenerating ? 'Drafting' : 'Regenerate'}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            disabled={!caption}
+            icon={copied ? <Check size={10} /> : <Copy size={10} />}
+            className="h-6 text-[10px] font-semibold px-2.5 bg-brand-coral/10 text-brand-coral hover:bg-brand-coral/20"
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
       </div>
 
       <textarea

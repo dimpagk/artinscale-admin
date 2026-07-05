@@ -99,7 +99,7 @@ hr{border:0;border-top:1px solid #eee;margin:24px 0}
 </head>
 <body>
 <div class="container">${body}</div>
-<p class="muted" style="text-align:center;margin-top:16px">ArtInScale · Made by AI-augmented artists, inspired by you.</p>
+<p class="muted" style="text-align:center;margin-top:16px">ArtInScale · Art inspired by people.</p>
 </body>
 </html>`
 }

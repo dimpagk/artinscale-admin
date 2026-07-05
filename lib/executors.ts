@@ -136,7 +136,9 @@ function assembleCaption(post: {
 }): string {
   const parts = [post.caption.trim()]
   if (post.call_to_action) parts.push(`\n\n${post.call_to_action.trim()}`)
-  if (post.ai_disclosure) parts.push(`\n\n— ${post.ai_disclosure.trim()}`)
+  // Brand rule (operator, 2026-07): no AI-provenance wording in
+  // customer-facing copy, so ai_disclosure is no longer appended to the
+  // caption. The Meta paid-ads AI disclosure is a form toggle, not text.
   if (post.hashtags?.length) parts.push(`\n\n${post.hashtags.join(' ')}`)
   return parts.join('').trim()
 }
