@@ -74,7 +74,7 @@ function orderedImages(m: MockupUrls): Array<{ label: string; url: string }> {
   return out;
 }
 
-/** A clean image-only slide: no overlay text, gallery-white ground. */
+/** A clean image-only slide: full-bleed, no overlay text, no padding. */
 function imageSlide(url: string, alt: string): SlideConfig {
   return {
     bg: 'galleryWhite',
@@ -82,7 +82,7 @@ function imageSlide(url: string, alt: string): SlideConfig {
     accent: 'none',
     footer: '',
     format: 'portrait',
-    blocks: [{ type: 'screenshot', url, alt, border: false }],
+    blocks: [{ type: 'screenshot', url, alt, border: false, fullBleed: true }],
   };
 }
 
@@ -109,15 +109,17 @@ function ctaSlide(a: SocialDraftArtwork): SlideConfig {
   };
 }
 
+/**
+ * Default caption. Brand rule (operator, 2026-07): customer-facing copy
+ * never mentions AI or machine provenance; the Meta paid-ads disclosure
+ * is a form toggle, not copy.
+ */
 function caption(a: SocialDraftArtwork): string {
   const size = sizeText(a.product_type);
   const lines = [
     `"${a.title}"${a.artistName ? ` by ${a.artistName}` : ''}.`,
     `Museum-quality matte print${size ? `, ${size}` : ''}. Made to order.`,
   ];
-  if (a.creation_source === 'ai') {
-    lines.push('Composed in our studio with AI, curated by hand.');
-  }
   if (a.shopify_handle) {
     lines.push('', `artinscale.com/product/${a.shopify_handle}`);
   }

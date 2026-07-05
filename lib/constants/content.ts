@@ -177,7 +177,7 @@ export type BlockType =
   | { type: 'table'; headers: string[]; rows: string[][]; caption?: string }
   | { type: 'progress'; label: string; value: number; target: number; unit?: string }
   | { type: 'dashboardCard'; title: string; metrics: { value: string; label: string }[] }
-  | { type: 'screenshot'; url: string; alt?: string; border?: boolean }
+  | { type: 'screenshot'; url: string; alt?: string; border?: boolean; fullBleed?: boolean }
   // Artwork-specific blocks
   | { type: 'artworkShowcase'; artworkTitle: string; artistName: string; imageUrl: string; topicTitle?: string }
   | { type: 'artistCredit'; artistName: string; bio: string; imageUrl: string }

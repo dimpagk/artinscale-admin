@@ -22,6 +22,59 @@ function getResolvedFontFamily(): string {
   return val ? `${val},system-ui,sans-serif` : B.displayFont
 }
 
+/**
+ * Load an image for canvas drawing. crossOrigin=anonymous keeps the
+ * canvas untainted (Supabase Storage and the Shopify CDN both send
+ * Access-Control-Allow-Origin: *). Resolves null on failure so a broken
+ * URL degrades to the placeholder instead of failing the whole export.
+ */
+const imageCache = new Map<string, Promise<HTMLImageElement | null>>()
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  let cached = imageCache.get(url)
+  if (!cached) {
+    cached = new Promise((resolve) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => resolve(img)
+      img.onerror = () => resolve(null)
+      img.src = url
+    })
+    imageCache.set(url, cached)
+  }
+  return cached
+}
+
+/** Preload every screenshot image in a slide; returns url -> element. */
+async function preloadSlideImages(blocks: BlockType[]): Promise<Map<string, HTMLImageElement>> {
+  const urls = blocks
+    .filter((b): b is Extract<BlockType, { type: 'screenshot' }> => b.type === 'screenshot')
+    .map((b) => b.url)
+    .filter(Boolean)
+  const loaded = await Promise.all(urls.map((u) => loadImage(u)))
+  const map = new Map<string, HTMLImageElement>()
+  urls.forEach((u, i) => {
+    const img = loaded[i]
+    if (img) map.set(u, img)
+  })
+  return map
+}
+
+/** drawImage with CSS object-fit: cover semantics (center crop). */
+function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, dx: number, dy: number, dw: number, dh: number) {
+  const scale = Math.max(dw / img.naturalWidth, dh / img.naturalHeight)
+  const sw = dw / scale
+  const sh = dh / scale
+  const sx = (img.naturalWidth - sw) / 2
+  const sy = (img.naturalHeight - sh) / 2
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)
+}
+
+/** Height an inline screenshot renders at: natural ratio, capped. */
+function screenshotHeight(img: HTMLImageElement | undefined, maxW: number, s: number): number {
+  if (!img) return 80 * s
+  return Math.min(maxW * (img.naturalHeight / img.naturalWidth), 170 * s)
+}
+
 function drawBackground(ctx: CanvasRenderingContext2D, config: VisualConfig, W: number, H: number) {
   const bgKey = config.bg
 
@@ -78,13 +131,11 @@ function drawBackground(ctx: CanvasRenderingContext2D, config: VisualConfig, W: 
   }
 }
 
-function drawAccent(ctx: CanvasRenderingContext2D, accent: string, s: number, W: number, H: number) {
+function drawAccent(ctx: CanvasRenderingContext2D, accent: string, s: number, W: number, H: number, isDark = false) {
   if (accent === 'topBar') {
-    const grd = ctx.createLinearGradient(0, 0, W, 0)
-    grd.addColorStop(0, B.coral)
-    grd.addColorStop(1, B.gold)
-    ctx.fillStyle = grd
-    ctx.fillRect(0, 0, W, 4 * s)
+    // Design-system treatment: solid hairline, no gradient.
+    ctx.fillStyle = isDark ? B.white : B.black
+    ctx.fillRect(0, 0, W, 3 * s)
   }
   if (accent === 'glowBlob') {
     const grd1 = ctx.createRadialGradient(W * 0.85, H * 0.08, 0, W * 0.85, H * 0.08, W * 0.3)
@@ -145,7 +196,7 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
  * Heights match the CSS preview component's box model (top baseline).
  * Uses ctx.measureText for accurate word-wrap measurement.
  */
-function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, fontFamily: string, W: number, padLeft?: number): number {
+function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, fontFamily: string, W: number, padLeft?: number, images?: Map<string, HTMLImageElement>): number {
   const font = (w: number, sz: number) => `${w} ${sz}px ${fontFamily}`
   const x = padLeft ?? 28 * s
   const maxW = W - x - 28 * s
@@ -158,9 +209,9 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         break
       case 'headline': {
         const sz = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
-        ctx.font = font(900, sz)
+        ctx.font = font(600, sz)
         const lines = wrapLines(ctx, block.text, maxW)
-        h += lines.length * sz * 1.1 + 14 * s
+        h += lines.length * sz * 1.15 + 14 * s
         break
       }
       case 'text': {
@@ -199,9 +250,11 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
       case 'dashboardCard':
         h += 55 * s + 12 * s
         break
-      case 'screenshot':
-        h += 80 * s + 10 * s
+      case 'screenshot': {
+        const img = images?.get(block.url)
+        h += screenshotHeight(img, maxW, s) + 10 * s
         break
+      }
       case 'artworkShowcase':
         h += 100 * s + 10 * s
         break
@@ -212,7 +265,8 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         h += 20 * s + 10 * s
         break
       case 'priceDisplay':
-        h += 28 * s + 14 * s + 10 * s
+        // price line (16 + 10 gap) + button (11 text + 2*9 padding) + margin
+        h += 16 * s + 10 * s + (11 * s + 18 * s) + 10 * s
         break
       case 'spacer':
         h += (block.height || 20) * s
@@ -229,7 +283,7 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
  * Draw content blocks onto canvas.
  * Uses textBaseline='top' to match CSS box model positioning.
  */
-function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number) {
+function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number, images?: Map<string, HTMLImageElement>) {
   const fg = isDark ? '#FFFFFF' : B.black
   const fgSub = isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.6)'
   const font = (w: number, sz: number) => `${w} ${sz}px ${fontFamily}`
@@ -244,7 +298,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   // Vertically center content (matching the preview component's justifyContent: center)
   const footerH = showFooter ? 40 * s : 0
   const contentArea = H - footerH
-  const totalHeight = measureBlocksHeight(ctx, blocks, s, fontFamily, W, padLeft)
+  const totalHeight = measureBlocksHeight(ctx, blocks, s, fontFamily, W, padLeft, images)
   // If blocks overflow the canvas (e.g. cover formats), top-align with padding
   let y = totalHeight > contentArea - 32 * s
     ? 20 * s
@@ -253,10 +307,10 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   for (const block of blocks) {
     switch (block.type) {
       case 'tag': {
-        ctx.font = font(800, 10 * s)
-        ctx.fillStyle = B.coral
+        ctx.font = font(600, 10 * s)
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'
         ctx.letterSpacing = `${2.5 * s}px`
-        ctx.fillText(block.text, x, y)
+        ctx.fillText(block.text.toUpperCase(), x, y)
         ctx.letterSpacing = '0px'
         y += 10 * s + 12 * s // fontSize + marginBottom
         break
@@ -264,12 +318,12 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
 
       case 'headline': {
         const sz = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
-        ctx.font = font(900, sz)
-        ctx.fillStyle = isDark ? B.coral : fg
+        ctx.font = font(600, sz)
+        ctx.fillStyle = fg
         const lines = wrapLines(ctx, block.text, maxW)
         for (const line of lines) {
           ctx.fillText(line, x, y)
-          y += sz * 1.1
+          y += sz * 1.15
         }
         y += 14 * s
         break
@@ -508,11 +562,28 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
       }
 
       case 'screenshot': {
-        const imgH = 80 * s
-        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'
-        ctx.beginPath()
-        ctx.roundRect(x, y, maxW, imgH, 6 * s)
-        ctx.fill()
+        const img = images?.get(block.url)
+        const imgH = screenshotHeight(img, maxW, s)
+        if (img) {
+          // Real image, center-cropped into the block rect.
+          ctx.save()
+          ctx.beginPath()
+          ctx.roundRect(x, y, maxW, imgH, 6 * s)
+          ctx.clip()
+          drawImageCover(ctx, img, x, y, maxW, imgH)
+          ctx.restore()
+        } else {
+          // Placeholder when the image failed to load.
+          ctx.fillStyle = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'
+          ctx.beginPath()
+          ctx.roundRect(x, y, maxW, imgH, 6 * s)
+          ctx.fill()
+          ctx.font = font(500, 10 * s)
+          ctx.fillStyle = fgSub
+          ctx.textAlign = 'center'
+          ctx.fillText(block.alt || 'Image', x + maxW / 2, y + imgH / 2 - 5 * s)
+          ctx.textAlign = 'left'
+        }
         if (block.border) {
           ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'
           ctx.lineWidth = 1
@@ -520,11 +591,6 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
           ctx.roundRect(x, y, maxW, imgH, 6 * s)
           ctx.stroke()
         }
-        ctx.font = font(500, 10 * s)
-        ctx.fillStyle = fgSub
-        ctx.textAlign = 'center'
-        ctx.fillText(block.alt || 'Image', x + maxW / 2, y + imgH / 2 - 5 * s)
-        ctx.textAlign = 'left'
         y += imgH + 10 * s
         break
       }
@@ -613,16 +679,31 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
       }
 
       case 'priceDisplay': {
-        // Price in large text
-        ctx.font = font(900, 28 * s)
-        ctx.fillStyle = B.coral
-        ctx.fillText(block.price || 'Price TBD', x, y)
-        y += 28 * s + 4 * s
-        // CTA below
-        ctx.font = font(600, 12 * s)
-        ctx.fillStyle = fgSub
-        ctx.fillText(block.cta || 'Shop at artinscale.com', x, y)
-        y += 14 * s + 10 * s
+        // Design-system treatment: quiet centered price, solid black CTA
+        // button (white on dark slides), square corners, no gradients.
+        const centerX = x + maxW / 2
+        ctx.textAlign = 'center'
+        if (block.price) {
+          ctx.font = font(500, 16 * s)
+          ctx.fillStyle = fg
+          ctx.fillText(block.price, centerX, y)
+          y += 16 * s + 10 * s
+        }
+        const cta = block.cta || 'Shop at artinscale.com'
+        ctx.font = font(500, 11 * s)
+        const btnPadX = 22 * s
+        const btnPadY = 9 * s
+        const textW = ctx.measureText(cta).width
+        const btnW = textW + btnPadX * 2
+        const btnH = 11 * s + btnPadY * 2
+        ctx.fillStyle = isDark ? B.white : B.black
+        ctx.fillRect(centerX - btnW / 2, y, btnW, btnH)
+        ctx.fillStyle = isDark ? B.black : B.white
+        ctx.letterSpacing = `${0.5 * s}px`
+        ctx.fillText(cta, centerX, y + btnPadY + 1 * s)
+        ctx.letterSpacing = '0px'
+        ctx.textAlign = 'left'
+        y += btnH + 10 * s
         break
       }
 
@@ -679,10 +760,22 @@ export async function renderPostToCanvas(config: VisualConfig | SlideConfig, sca
   const isCover = fmt.category === 'cover'
   const padLeft = isCover ? Math.round(W * 0.25) : undefined
 
+  const images = await preloadSlideImages(slide.blocks)
+
+  // Full-bleed image slide: a single fullBleed screenshot covers the
+  // whole canvas edge-to-edge (no padding, no accents, no footer).
+  const only = slide.blocks.length === 1 ? slide.blocks[0] : null
+  if (only && only.type === 'screenshot' && only.fullBleed) {
+    const img = images.get(only.url)
+    drawBackground(ctx, slide as VisualConfig, W, H)
+    if (img) drawImageCover(ctx, img, 0, 0, W, H)
+    return canvas
+  }
+
   const hasFooter = !isCover && !!slide.footer
   drawBackground(ctx, slide as VisualConfig, W, H)
-  drawAccent(ctx, slide.accent, s, W, H)
-  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, hasFooter, padLeft)
+  drawAccent(ctx, slide.accent, s, W, H, slide.dark)
+  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, hasFooter, padLeft, images)
   if (hasFooter) {
     drawFooter(ctx, slide.footer, slide.dark, s, fontFamily, W, H)
   }

@@ -17,14 +17,6 @@ function resolveBackgroundCss(bg: string): string {
   return preset ? preset.css : bg
 }
 
-function GradText({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <span style={{ background: `linear-gradient(135deg, ${B.coral}, ${B.gold})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', ...style }}>
-      {children}
-    </span>
-  )
-}
-
 function renderBlock(block: BlockType, index: number, s: number, isDark: boolean) {
   const fg = isDark ? B.white : B.black
   const fgSub = isDark ? 'rgba(255,255,255,0.72)' : 'rgba(10,10,10,0.6)'
@@ -32,7 +24,7 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
   switch (block.type) {
     case 'tag':
       return (
-        <div key={index} style={{ fontSize: 10 * s, fontWeight: 800, letterSpacing: 2.5 * s, color: B.coral, marginBottom: 12 * s, fontFamily: B.displayFont }}>
+        <div key={index} style={{ fontSize: 10 * s, fontWeight: 600, letterSpacing: 2.5 * s, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)', marginBottom: 12 * s, fontFamily: B.bodyFont }}>
           {block.text}
         </div>
       )
@@ -40,8 +32,8 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
     case 'headline': {
       const size = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
       return (
-        <div key={index} style={{ fontSize: size, fontWeight: 900, lineHeight: 1.1, color: fg, whiteSpace: 'pre-line', marginBottom: 14 * s, fontFamily: B.displayFont }}>
-          {isDark ? <GradText style={{ fontSize: size, fontWeight: 900 }}>{block.text}</GradText> : block.text}
+        <div key={index} style={{ fontSize: size, fontWeight: 600, lineHeight: 1.15, color: fg, whiteSpace: 'pre-line', marginBottom: 14 * s, fontFamily: B.displayFont, letterSpacing: -0.3 * s }}>
+          {block.text}
         </div>
       )
     }
@@ -261,25 +253,26 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
     }
 
     case 'priceDisplay':
+      // Design-system treatment: quiet price, solid black CTA (DS Button
+      // "primary"), no gradients, square corners.
       return (
         <div key={index} style={{ marginBottom: 10 * s, textAlign: 'center' }}>
           {block.price && (
-            <div style={{ fontSize: 28 * s, fontWeight: 900, color: fg, lineHeight: 1, marginBottom: 8 * s, fontFamily: B.displayFont }}>
+            <div style={{ fontSize: 16 * s, fontWeight: 500, color: fg, lineHeight: 1, marginBottom: 10 * s, fontFamily: B.bodyFont }}>
               {block.price}
             </div>
           )}
           <div style={{
             display: 'inline-block',
-            padding: `${8 * s}px ${20 * s}px`,
-            borderRadius: 6 * s,
-            background: `linear-gradient(135deg, ${B.coral}, ${B.gold})`,
-            fontSize: 12 * s,
-            fontWeight: 800,
-            color: B.white,
+            padding: `${9 * s}px ${22 * s}px`,
+            background: isDark ? B.white : B.black,
+            fontSize: 11 * s,
+            fontWeight: 500,
+            color: isDark ? B.black : B.white,
             letterSpacing: 0.5 * s,
             fontFamily: B.displayFont,
           }}>
-            {block.cta || 'Shop Now'}
+            {block.cta || 'Shop at artinscale.com'}
           </div>
         </div>
       )
@@ -312,6 +305,11 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
   const fmtRatio = fmt.height / fmt.width
   const s = (size / 340) * Math.min(1, fmtRatio / refRatio)
   const isCover = fmt.category === 'cover'
+  // A slide whose only block is a fullBleed screenshot renders edge-to-edge.
+  const fullBleedImage =
+    slide.blocks.length === 1 && slide.blocks[0].type === 'screenshot' && slide.blocks[0].fullBleed && slide.blocks[0].url
+      ? slide.blocks[0]
+      : null
   const padL = isCover ? size * 0.25 : 28 * s
   const bgCss = resolveBackgroundCss(slide.bg)
 
@@ -332,7 +330,7 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
     >
       {/* Accent decorations */}
       {slide.accent === 'topBar' && (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4 * s, background: `linear-gradient(135deg, ${B.coral}, ${B.gold})` }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3 * s, background: isDark ? B.white : B.black }} />
       )}
       {slide.accent === 'glowBlob' && (
         <>
@@ -347,10 +345,20 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
         <div style={{ position: 'absolute', top: 0, right: 0, width: '50%', height: '100%', background: `radial-gradient(ellipse at 100% 0%, rgba(247,45,94,0.2) 0%, transparent 60%)` }} />
       )}
 
-      {/* Content blocks */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: `${32 * s}px ${28 * s}px ${20 * s}px ${padL}px`, position: 'relative', zIndex: 1 }}>
-        {slide.blocks.map((block, i) => renderBlock(block, i, s, isDark))}
-      </div>
+      {/* Full-bleed image slide: a single fullBleed screenshot covers the
+          whole card edge-to-edge, no padding, no white space. */}
+      {fullBleedImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={fullBleedImage.url}
+          alt={fullBleedImage.alt || ''}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+        />
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: `${32 * s}px ${28 * s}px ${20 * s}px ${padL}px`, position: 'relative', zIndex: 1 }}>
+          {slide.blocks.map((block, i) => renderBlock(block, i, s, isDark))}
+        </div>
+      )}
 
       {/* Footer — gallery plate label: centered wordmark, no rule line.
           Rendered only when the slide actually has footer text, so
