@@ -224,6 +224,11 @@ export async function createSocialDraft(
       .filter(Boolean)
       .join(' ');
     postType = 'single';
+    // Full-bleed treatment (operator direction): the framed hero covers
+    // the whole 9:16 canvas as the background (first block, fullBleed),
+    // and the wording overlays it bottom-anchored on the renderer's dark
+    // scrim (white text). No CTA link: the operator adds IG's link
+    // sticker at publish time.
     visualConfig = {
       bg: 'galleryWhite',
       dark: false,
@@ -231,14 +236,10 @@ export async function createSocialDraft(
       footer: '',
       format: 'story',
       blocks: [
-        { type: 'logo', url: BRAND_LOGO_URL, height: 24, align: 'left' },
-        { type: 'spacer', height: 10 },
-        { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false, fit: 'contain' },
-        { type: 'spacer', fill: true },
+        { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false, fullBleed: true },
+        { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
         { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
         { type: 'headline', text: artwork.title, fontSize: 'md' },
-        // No CTA link on stories: the operator adds IG's interactive link
-        // sticker at publish time; baked-in link text is a false affordance.
         { type: 'text', text: craftLine },
       ],
     };
