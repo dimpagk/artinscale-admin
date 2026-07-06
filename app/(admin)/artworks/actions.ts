@@ -689,6 +689,8 @@ export async function createSocialDraftAction(
       creation_source: artwork.creation_source ?? null,
       mockup_urls: (artwork.mockup_urls ?? null) as SocialDraftArtwork['mockup_urls'],
       artistName: artwork.users?.name ?? null,
+      inspiration_summary: artwork.inspiration_summary ?? null,
+      description: artwork.description ?? null,
     },
     kind
   );

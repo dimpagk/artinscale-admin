@@ -95,6 +95,10 @@ function storyLine(a: SocialDraftArtwork): string | null {
   let out = sentences[0] ?? '';
   if (out.length < 70 && sentences[1]) out = `${out} ${sentences[1]}`;
   if (out.length > 150) out = out.slice(0, 147).trimEnd() + '...';
+  // inspiration_summary is stored as a lowercase fragment; present it as
+  // a sentence.
+  out = out.charAt(0).toUpperCase() + out.slice(1);
+  if (!/[.!?]$/.test(out)) out += '.';
   return out;
 }
 
@@ -239,15 +243,9 @@ export async function createSocialDraft(
         { type: 'spacer', fill: true },
         { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
         { type: 'headline', text: artwork.title, fontSize: 'md' },
+        // No CTA link on stories: the operator adds IG's interactive link
+        // sticker at publish time; baked-in link text is a false affordance.
         { type: 'text', text: craftLine },
-        { type: 'spacer', height: 12 },
-        {
-          type: 'priceDisplay',
-          price: '',
-          cta: 'Shop at artinscale.com',
-          shopifyHandle: artwork.shopify_handle ?? '',
-          variant: 'link',
-        },
       ],
     };
   }
