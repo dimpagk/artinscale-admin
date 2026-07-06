@@ -156,15 +156,9 @@ function ctaSlide(a: SocialDraftArtwork): SlideConfig {
       { type: 'spacer', fill: true },
       { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
       { type: 'headline', text: a.title, fontSize: 'lg' },
+      // No CTA link: links are not tappable in feed images; the operator
+      // carries the link in the caption (and the story link sticker).
       { type: 'text', text: craftLine },
-      { type: 'spacer', height: 12 },
-      {
-        type: 'priceDisplay',
-        price: '',
-        cta: 'Shop at artinscale.com',
-        shopifyHandle: a.shopify_handle ?? '',
-        variant: 'link',
-      },
     ],
   };
 }
