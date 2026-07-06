@@ -35,6 +35,8 @@ export interface SocialDraftArtwork {
   creation_source: string | null;
   mockup_urls: MockupUrls | null;
   artistName: string | null;
+  inspiration_summary: string | null;
+  description: string | null;
 }
 
 export type SocialDraftKind = 'carousel' | 'story';
@@ -78,6 +80,48 @@ function imageSlide(url: string, alt: string): SlideConfig {
     footer: '',
     format: 'square',
     blocks: [{ type: 'screenshot', url, alt, border: false, fullBleed: true }],
+  };
+}
+
+/**
+ * One-line provenance/story text for the story card: the inspiration
+ * summary when present, else the first sentence or two of the
+ * description, capped so it stays a caption, not a paragraph.
+ */
+function storyLine(a: SocialDraftArtwork): string | null {
+  const src = (a.inspiration_summary || a.description || '').trim();
+  if (!src) return null;
+  const sentences = src.split(/(?<=[.!?])\s+/);
+  let out = sentences[0] ?? '';
+  if (out.length < 70 && sentences[1]) out = `${out} ${sentences[1]}`;
+  if (out.length > 150) out = out.slice(0, 147).trimEnd() + '...';
+  return out;
+}
+
+/**
+ * The opening story card (operator direction, 2026-07): the artwork
+ * itself full-bleed, a bottom scrim, and the story anchored low in
+ * white: artist eyebrow, title, one provenance line. The hook slide;
+ * the product slides follow. Uses the original art (this card is about
+ * the work, not the print); falls back to the framed shot.
+ */
+function storyCardSlide(a: SocialDraftArtwork): SlideConfig | null {
+  const m = a.mockup_urls ?? {};
+  const url = m.original || m.framed;
+  if (!url) return null;
+  const story = storyLine(a);
+  return {
+    bg: 'galleryWhite',
+    dark: false,
+    accent: 'none',
+    footer: '',
+    format: 'square',
+    blocks: [
+      { type: 'screenshot', url, alt: `${a.title} (artwork)`, border: false, fullBleed: true },
+      ...(a.artistName ? [{ type: 'tag' as const, text: `BY ${a.artistName}` }] : []),
+      { type: 'headline', text: a.title, fontSize: 'lg' },
+      ...(story ? [{ type: 'text' as const, text: story }] : []),
+    ],
   };
 }
 
@@ -159,33 +203,50 @@ export async function createSocialDraft(
   let visualConfig: VisualConfig;
 
   if (kind === 'carousel') {
+    const story = storyCardSlide(artwork);
     const slides = [
+      ...(story ? [story] : []),
       ...images.map((img) => imageSlide(img.url, `${artwork.title} (${img.label})`)),
       ctaSlide(artwork),
     ];
     postType = 'carousel';
     visualConfig = { ...slides[0], slides };
   } else {
-    // Story: one 9:16 slide. Framed image (the canonical lead) with the
-    // branded text blocks above/below it, never painted over the art.
+    // Story: one 9:16 slide combining the carousel's first and last
+    // slides (operator direction, 2026-07): the framed hero hangs in the
+    // upper half (fit contain so the whole frame shows), and the wall
+    // label sits bottom-anchored beneath it, exactly like the carousel's
+    // closing slide. No banner, no footer, no price, link CTA.
     const hero = images[0];
     const size = sizeText(artwork.product_type);
+    const craftLine = [
+      artwork.artistName ? `By ${artwork.artistName}.` : null,
+      `Archival matte print${size ? `, ${size}` : ''}. Made to order.`,
+    ]
+      .filter(Boolean)
+      .join(' ');
     postType = 'single';
     visualConfig = {
       bg: 'galleryWhite',
       dark: false,
-      accent: 'topBar',
-      footer: 'artinscale.com',
+      accent: 'none',
+      footer: '',
       format: 'story',
       blocks: [
-        { type: 'tag', text: size ? `ARCHIVAL MATTE PRINT · ${size}` : 'ARCHIVAL MATTE PRINT' },
+        { type: 'logo', url: BRAND_LOGO_URL, height: 24, align: 'left' },
+        { type: 'spacer', height: 10 },
+        { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false, fit: 'contain' },
+        { type: 'spacer', fill: true },
+        { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
         { type: 'headline', text: artwork.title, fontSize: 'md' },
-        { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false },
+        { type: 'text', text: craftLine },
+        { type: 'spacer', height: 12 },
         {
           type: 'priceDisplay',
           price: '',
           cta: 'Shop at artinscale.com',
           shopifyHandle: artwork.shopify_handle ?? '',
+          variant: 'link',
         },
       ],
     };
@@ -213,7 +274,7 @@ export async function createSocialDraft(
     postId: (data as { id: string }).id,
     message:
       kind === 'carousel'
-        ? `Carousel draft created (${images.length} image slides + branded CTA slide).`
+        ? `Carousel draft created (story card + ${images.length} image slides + branded CTA slide).`
         : 'Story draft created.',
   };
 }

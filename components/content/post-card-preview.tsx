@@ -17,7 +17,7 @@ function resolveBackgroundCss(bg: string): string {
   return preset ? preset.css : bg
 }
 
-function renderBlock(block: BlockType, index: number, s: number, isDark: boolean) {
+function renderBlock(block: BlockType, index: number, s: number, isDark: boolean, capH?: number) {
   const fg = isDark ? B.white : B.black
   const fgSub = isDark ? 'rgba(255,255,255,0.72)' : 'rgba(10,10,10,0.6)'
 
@@ -150,14 +150,15 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
       )
     }
 
-    case 'screenshot':
+    case 'screenshot': {
+      const boxH = capH ?? 170 * s
       return (
         <div key={index} style={{ marginBottom: 10 * s }}>
           {block.url ? (
             <img
               src={block.url}
               alt={block.alt || ''}
-              style={{ width: '100%', borderRadius: 6 * s, border: block.border ? `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}` : 'none' }}
+              style={{ width: '100%', height: boxH, objectFit: block.fit ?? 'cover', borderRadius: block.fit === 'contain' ? 0 : 6 * s, border: block.border ? `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}` : 'none' }}
             />
           ) : (
             <div style={{ width: '100%', height: 80 * s, borderRadius: 6 * s, border: `1px dashed ${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 * s, color: fgSub, fontFamily: B.bodyFont }}>
@@ -166,6 +167,7 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
           )}
         </div>
       )
+    }
 
     // Artwork-specific blocks
     case 'artworkShowcase':
@@ -327,11 +329,13 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
   const fmtRatio = fmt.height / fmt.width
   const s = (size / 340) * Math.min(1, fmtRatio / refRatio)
   const isCover = fmt.category === 'cover'
-  // A slide whose only block is a fullBleed screenshot renders edge-to-edge.
+  // A slide whose FIRST block is a fullBleed screenshot renders the image
+  // edge-to-edge. Any further blocks become an overlay: a bottom scrim
+  // with white text anchored low (the story-card treatment).
+  const first = slide.blocks[0]
   const fullBleedImage =
-    slide.blocks.length === 1 && slide.blocks[0].type === 'screenshot' && slide.blocks[0].fullBleed && slide.blocks[0].url
-      ? slide.blocks[0]
-      : null
+    first && first.type === 'screenshot' && first.fullBleed && first.url ? first : null
+  const overlayBlocks = fullBleedImage ? slide.blocks.slice(1) : []
   const padL = isCover ? size * 0.25 : 28 * s
   const bgCss = resolveBackgroundCss(slide.bg)
 
@@ -370,15 +374,26 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
       {/* Full-bleed image slide: a single fullBleed screenshot covers the
           whole card edge-to-edge, no padding, no white space. */}
       {fullBleedImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={fullBleedImage.url}
-          alt={fullBleedImage.alt || ''}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
-        />
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fullBleedImage.url}
+            alt={fullBleedImage.alt || ''}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+          />
+          {overlayBlocks.length > 0 && (
+            <>
+              {/* Bottom scrim guarantees legibility on any artwork */}
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '58%', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.34) 45%, rgba(0,0,0,0.66) 100%)', zIndex: 2 }} />
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: `0 ${28 * s}px ${26 * s}px`, zIndex: 3 }}>
+                {overlayBlocks.map((block, i) => renderBlock(block, i, s, true, fmt.category === 'story' ? h * 0.5 : 170 * s))}
+              </div>
+            </>
+          )}
+        </>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: slide.blocks.some((b) => b.type === 'spacer' && b.fill) ? 'flex-start' : 'center', padding: `${32 * s}px ${28 * s}px ${24 * s}px ${padL}px`, position: 'relative', zIndex: 1 }}>
-          {slide.blocks.map((block, i) => renderBlock(block, i, s, isDark))}
+          {slide.blocks.map((block, i) => renderBlock(block, i, s, isDark, fmt.category === 'story' ? h * 0.5 : 170 * s))}
         </div>
       )}
 

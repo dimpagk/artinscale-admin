@@ -186,7 +186,7 @@ export type BlockType =
   | { type: 'table'; headers: string[]; rows: string[][]; caption?: string }
   | { type: 'progress'; label: string; value: number; target: number; unit?: string }
   | { type: 'dashboardCard'; title: string; metrics: { value: string; label: string }[] }
-  | { type: 'screenshot'; url: string; alt?: string; border?: boolean; fullBleed?: boolean }
+  | { type: 'screenshot'; url: string; alt?: string; border?: boolean; fullBleed?: boolean; fit?: 'cover' | 'contain' }
   | { type: 'logo'; url: string; height?: number; align?: 'left' | 'center' }
   // Artwork-specific blocks
   | { type: 'artworkShowcase'; artworkTitle: string; artistName: string; imageUrl: string; topicTitle?: string }

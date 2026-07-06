@@ -69,10 +69,12 @@ function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, dx
   ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)
 }
 
-/** Height an inline screenshot renders at: natural ratio, capped. */
-function screenshotHeight(img: HTMLImageElement | undefined, maxW: number, s: number): number {
-  if (!img) return 80 * s
-  return Math.min(maxW * (img.naturalHeight / img.naturalWidth), 170 * s)
+/** Height an inline screenshot renders at: fixed box, format-aware cap.
+ * Matches the preview's fixed-height image box (story: H*0.5, feed: 170*s). */
+function screenshotHeight(img: HTMLImageElement | undefined, maxW: number, s: number, cap?: number): number {
+  const box = cap ?? 170 * s
+  if (!img) return Math.min(80 * s, box)
+  return box
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, config: VisualConfig, W: number, H: number) {
@@ -196,7 +198,7 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
  * Heights match the CSS preview component's box model (top baseline).
  * Uses ctx.measureText for accurate word-wrap measurement.
  */
-function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, fontFamily: string, W: number, padLeft?: number, images?: Map<string, HTMLImageElement>): number {
+function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, fontFamily: string, W: number, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number): number {
   const font = (w: number, sz: number) => `${w} ${sz}px ${fontFamily}`
   const x = padLeft ?? 28 * s
   const maxW = W - x - 28 * s
@@ -252,7 +254,7 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         break
       case 'screenshot': {
         const img = images?.get(block.url)
-        h += screenshotHeight(img, maxW, s) + 10 * s
+        h += screenshotHeight(img, maxW, s, imgCap) + 10 * s
         break
       }
       case 'logo':
@@ -290,7 +292,7 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
  * Draw content blocks onto canvas.
  * Uses textBaseline='top' to match CSS box model positioning.
  */
-function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number, images?: Map<string, HTMLImageElement>) {
+function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number) {
   const fg = isDark ? '#FFFFFF' : B.black
   const fgSub = isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.6)'
   const font = (w: number, sz: number) => `${w} ${sz}px ${fontFamily}`
@@ -305,7 +307,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   // Vertically center content (matching the preview component's justifyContent: center)
   const footerH = showFooter ? 40 * s : 0
   const contentArea = H - footerH
-  const totalHeight = measureBlocksHeight(ctx, blocks, s, fontFamily, W, padLeft, images)
+  const totalHeight = measureBlocksHeight(ctx, blocks, s, fontFamily, W, padLeft, images, imgCap)
   // Fill spacers (flex: 1 in the preview): top-align and give each fill an
   // equal share of the leftover space, mirroring the CSS flex layout.
   const fills = blocks.filter((b) => b.type === 'spacer' && b.fill).length
@@ -590,8 +592,14 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
 
       case 'screenshot': {
         const img = images?.get(block.url)
-        const imgH = screenshotHeight(img, maxW, s)
-        if (img) {
+        const imgH = screenshotHeight(img, maxW, s, imgCap)
+        if (img && block.fit === 'contain') {
+          // Whole image visible, centered in the box (used for framed art).
+          const scale = Math.min(maxW / img.naturalWidth, imgH / img.naturalHeight)
+          const dw = img.naturalWidth * scale
+          const dh = img.naturalHeight * scale
+          ctx.drawImage(img, x + (maxW - dw) / 2, y + (imgH - dh) / 2, dw, dh)
+        } else if (img) {
           // Real image, center-cropped into the block rect.
           ctx.save()
           ctx.beginPath()
@@ -800,20 +808,35 @@ export async function renderPostToCanvas(config: VisualConfig | SlideConfig, sca
 
   const images = await preloadSlideImages(slide.blocks)
 
-  // Full-bleed image slide: a single fullBleed screenshot covers the
-  // whole canvas edge-to-edge (no padding, no accents, no footer).
-  const only = slide.blocks.length === 1 ? slide.blocks[0] : null
-  if (only && only.type === 'screenshot' && only.fullBleed) {
-    const img = images.get(only.url)
+  // Full-bleed image slide: a FIRST-block fullBleed screenshot covers the
+  // whole canvas edge-to-edge (no padding, no accents, no footer). Any
+  // further blocks become the story-card overlay: bottom scrim + white
+  // text anchored low via the fill-spacer machinery.
+  const first = slide.blocks[0]
+  if (first && first.type === 'screenshot' && first.fullBleed) {
+    const img = images.get(first.url)
     drawBackground(ctx, slide as VisualConfig, W, H)
     if (img) drawImageCover(ctx, img, 0, 0, W, H)
+    const overlay = slide.blocks.slice(1)
+    if (overlay.length > 0) {
+      const scrimTop = H * 0.42
+      const grd = ctx.createLinearGradient(0, scrimTop, 0, H)
+      grd.addColorStop(0, 'rgba(0,0,0,0)')
+      grd.addColorStop(0.45, 'rgba(0,0,0,0.34)')
+      grd.addColorStop(1, 'rgba(0,0,0,0.66)')
+      ctx.fillStyle = grd
+      ctx.fillRect(0, scrimTop, W, H - scrimTop)
+      const imgCap = fmt.category === 'story' ? H * 0.5 : 170 * s
+      drawBlocks(ctx, [{ type: 'spacer', fill: true }, ...overlay], s, true, fontFamily, W, H, false, padLeft, images, imgCap)
+    }
     return canvas
   }
 
   const hasFooter = !isCover && !!slide.footer
+  const imgCap = fmt.category === 'story' ? H * 0.5 : 170 * s
   drawBackground(ctx, slide as VisualConfig, W, H)
   drawAccent(ctx, slide.accent, s, W, H, slide.dark)
-  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, hasFooter, padLeft, images)
+  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, hasFooter, padLeft, images, imgCap)
   if (hasFooter) {
     drawFooter(ctx, slide.footer, slide.dark, s, fontFamily, W, H)
   }
