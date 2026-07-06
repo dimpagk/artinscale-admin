@@ -68,14 +68,15 @@ function orderedImages(m: MockupUrls): Array<{ label: string; url: string }> {
   return out;
 }
 
-/** A clean image-only slide: full-bleed, no overlay text, no padding. */
+/** A clean image-only slide: full-bleed, no overlay text, no padding.
+ * Square: carousel cards render 1:1, so the crop is baked in here. */
 function imageSlide(url: string, alt: string): SlideConfig {
   return {
     bg: 'galleryWhite',
     dark: false,
     accent: 'none',
     footer: '',
-    format: 'portrait',
+    format: 'square',
     blocks: [{ type: 'screenshot', url, alt, border: false, fullBleed: true }],
   };
 }
@@ -101,7 +102,7 @@ function ctaSlide(a: SocialDraftArtwork): SlideConfig {
     dark: false,
     accent: 'none',
     footer: '',
-    format: 'portrait',
+    format: 'square',
     blocks: [
       { type: 'logo', url: BRAND_LOGO_URL, height: 24, align: 'left' },
       { type: 'spacer', fill: true },
