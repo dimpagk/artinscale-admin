@@ -385,7 +385,7 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
             <>
               {/* Bottom scrim guarantees legibility on any artwork */}
               <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '58%', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.34) 45%, rgba(0,0,0,0.66) 100%)', zIndex: 2 }} />
-              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: `0 ${28 * s}px ${26 * s}px`, zIndex: 3 }}>
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: `0 19.5% ${35 * s}px`, zIndex: 3 }}>
                 {overlayBlocks.map((block, i) => renderBlock(block, i, s, true, fmt.category === 'story' ? h * 0.5 : 170 * s))}
               </div>
             </>

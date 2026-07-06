@@ -292,7 +292,7 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
  * Draw content blocks onto canvas.
  * Uses textBaseline='top' to match CSS box model positioning.
  */
-function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number) {
+function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number, padRight?: number) {
   const fg = isDark ? '#FFFFFF' : B.black
   const fgSub = isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.6)'
   const font = (w: number, sz: number) => `${w} ${sz}px ${fontFamily}`
@@ -302,7 +302,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   ctx.textBaseline = 'top'
 
   // Available width for content
-  const maxW = W - x - 28 * s
+  const maxW = W - x - (padRight ?? 28 * s)
 
   // Vertically center content (matching the preview component's justifyContent: center)
   const footerH = showFooter ? 40 * s : 0
@@ -827,7 +827,11 @@ export async function renderPostToCanvas(config: VisualConfig | SlideConfig, sca
       ctx.fillStyle = grd
       ctx.fillRect(0, scrimTop, W, H - scrimTop)
       const imgCap = fmt.category === 'story' ? H * 0.5 : 170 * s
-      drawBlocks(ctx, [{ type: 'spacer', fill: true }, ...overlay], s, true, fontFamily, W, H, false, padLeft, images, imgCap)
+      // Grid-safe zone: IG profile tiles are 3:4, cropping ~12.5% per side
+      // off a square. 19.5% symmetric insets keep overlay text inside the
+      // tile with real padding to spare. Extra end spacer lifts the block.
+      const overlayPad = Math.round(W * 0.195)
+      drawBlocks(ctx, [{ type: 'spacer', fill: true }, ...overlay, { type: 'spacer', height: 9 }], s, true, fontFamily, W, H, false, overlayPad, images, imgCap, overlayPad)
     }
     return canvas
   }

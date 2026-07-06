@@ -123,7 +123,7 @@ function storyCardSlide(a: SocialDraftArtwork): SlideConfig | null {
     blocks: [
       { type: 'screenshot', url, alt: `${a.title} (artwork)`, border: false, fullBleed: true },
       ...(a.artistName ? [{ type: 'tag' as const, text: `BY ${a.artistName}` }] : []),
-      { type: 'headline', text: a.title, fontSize: 'lg' },
+      { type: 'headline', text: a.title, fontSize: 'sm' },
       ...(story ? [{ type: 'text' as const, text: story }] : []),
     ],
   };
