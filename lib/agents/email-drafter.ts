@@ -18,6 +18,7 @@ import {
   abandonedCartEmail,
   dropAnnouncementEmail,
   weeklyDigestEmail,
+  type AbandonedCartItem,
 } from '@/lib/email/resend'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getStylePackForArtistAsync } from '@/lib/style-packs/server'
@@ -56,19 +57,17 @@ export async function draftWelcomeEmail(args: {
 export async function draftAbandonedCartEmail(args: {
   to: string
   firstName?: string
-  productTitle: string
-  productUrl: string
-  imageUrl?: string
+  items: AbandonedCartItem[]
+  cartUrl: string
 }) {
   return draftEmail({
     kind: 'abandoned_cart',
-    triggerKey: `abandoned-${args.to}-${args.productUrl}`,
+    triggerKey: `abandoned-${args.to}-${args.cartUrl}`,
     build: () =>
       abandonedCartEmail({
         firstName: args.firstName,
-        productTitle: args.productTitle,
-        productUrl: args.productUrl,
-        imageUrl: args.imageUrl,
+        items: args.items,
+        cartUrl: args.cartUrl,
       }),
     payload: (built) => ({
       kind: 'abandoned_cart',
@@ -76,7 +75,7 @@ export async function draftAbandonedCartEmail(args: {
       subject: built.subject,
       html: built.html,
       text: built.text,
-      context: { productTitle: args.productTitle },
+      context: { itemCount: args.items.length, titles: args.items.map((i) => i.title) },
     }),
   })
 }

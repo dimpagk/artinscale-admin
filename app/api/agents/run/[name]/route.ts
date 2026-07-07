@@ -10,6 +10,7 @@ import {
   draftDropAnnouncementEmail,
   draftWeeklyDigestEmail,
 } from '@/lib/agents/email-drafter'
+import type { AbandonedCartItem } from '@/lib/email/resend'
 import { runPostingWorker } from '@/lib/publishers/posting-worker'
 import { pushArtworkMockupsToShopify } from '@/lib/mockup-publisher'
 import { generateListingMeta } from '@/lib/agents/listing-generator'
@@ -33,7 +34,7 @@ import { autoPublishArtworkAfterGelatoCreate } from '@/lib/post-create-publisher
  *   - contribution_moderator          { topicId? }
  *   - insight_agent                   {}
  *   - email_welcome                   { to, firstName?, storefrontUrl }
- *   - email_abandoned_cart            { to, firstName?, productTitle, productUrl, imageUrl? }
+ *   - email_abandoned_cart            { to, firstName?, items:[{title,price,url,size?,imageUrl?}], cartUrl }
  *   - email_drop_announcement         { to, artworkId, storefrontUrl }
  *   - email_weekly_digest             { to, storefrontUrl }
  *   - posting_worker                  {}  (publishes due social posts)
@@ -121,9 +122,8 @@ async function dispatch(name: string, body: Record<string, unknown>): Promise<un
       return draftAbandonedCartEmail({
         to: requireString(body, 'to'),
         firstName: typeof body.firstName === 'string' ? body.firstName : undefined,
-        productTitle: requireString(body, 'productTitle'),
-        productUrl: requireString(body, 'productUrl'),
-        imageUrl: typeof body.imageUrl === 'string' ? body.imageUrl : undefined,
+        items: requireCartItems(body, 'items'),
+        cartUrl: requireString(body, 'cartUrl'),
       })
     case 'email_drop_announcement':
       return draftDropAnnouncementEmail({
@@ -226,4 +226,24 @@ function requireRecipients(body: Record<string, unknown>, key: string): string |
   if (typeof v === 'string') return v
   if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return v as string[]
   throw new Error(`Body field "${key}" is required (string | string[]).`)
+}
+
+function requireCartItems(body: Record<string, unknown>, key: string): AbandonedCartItem[] {
+  const v = body[key]
+  if (!Array.isArray(v) || v.length === 0) {
+    throw new Error(`Body field "${key}" is required (non-empty array of cart items).`)
+  }
+  return v.map((raw, i) => {
+    const it = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
+    if (typeof it.title !== 'string' || !it.title) throw new Error(`Body field "${key}[${i}].title" is required (string).`)
+    if (typeof it.price !== 'string' || !it.price) throw new Error(`Body field "${key}[${i}].price" is required (string).`)
+    if (typeof it.url !== 'string' || !it.url) throw new Error(`Body field "${key}[${i}].url" is required (string).`)
+    return {
+      title: it.title,
+      price: it.price,
+      url: it.url,
+      size: typeof it.size === 'string' ? it.size : undefined,
+      imageUrl: typeof it.imageUrl === 'string' ? it.imageUrl : undefined,
+    }
+  })
 }

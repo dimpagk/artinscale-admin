@@ -133,27 +133,83 @@ export function welcomeEmail(args: WelcomeTemplateArgs) {
   return { subject, html, text }
 }
 
-export interface AbandonedCartTemplateArgs {
-  firstName?: string
-  productTitle: string
-  productUrl: string
+export interface AbandonedCartItem {
+  title: string
+  /** Pre-formatted with currency symbol, e.g. '€59.00'. The template does no currency math. */
+  price: string
+  /** Print size, e.g. '30 x 40 cm'. Optional. */
+  size?: string
+  url: string
   imageUrl?: string
 }
 
-export function abandonedCartEmail(args: AbandonedCartTemplateArgs) {
-  const subject = `${args.productTitle} is still in your cart`
-  const greeting = args.firstName ? `${args.firstName}, ` : ''
-  const image = args.imageUrl
-    ? `<p><img src="${escapeHtml(args.imageUrl)}" alt="${escapeHtml(args.productTitle)}" style="max-width:100%;border:1px solid #eee" /></p>`
+export interface AbandonedCartTemplateArgs {
+  firstName?: string
+  items: AbandonedCartItem[]
+  /** Link back to the saved checkout / cart so the customer can complete the order. */
+  cartUrl: string
+}
+
+/**
+ * One line item rendered inside a uniform square frame. Every image sits in a
+ * fixed 96x96 box with `object-fit:contain` on a neutral background, so pieces
+ * of different aspect ratios line up as a consistent set instead of one being
+ * full-bleed and another letterboxed. (Outlook desktop ignores object-fit and
+ * falls back to a scaled image in the same fixed box, which is still uniform.)
+ */
+function renderCartItem(item: AbandonedCartItem): string {
+  const image = item.imageUrl
+    ? `<a href="${escapeHtml(item.url)}" style="text-decoration:none">
+      <img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.title)}" width="96" height="96" style="display:block;width:96px;height:96px;object-fit:contain;background:#f5f5f4;border:1px solid #eee" />
+    </a>`
+    : `<div style="width:96px;height:96px;background:#f5f5f4;border:1px solid #eee"></div>`
+  const size = item.size
+    ? `<div style="color:#666;font-size:13px;margin-top:2px">${escapeHtml(item.size)}</div>`
     : ''
+  return `<tr>
+  <td width="96" valign="top" style="width:96px;padding:0 16px 16px 0">${image}</td>
+  <td valign="top" style="padding:0 0 16px 0">
+    <div style="font-size:15px;font-weight:600"><a href="${escapeHtml(item.url)}" style="color:#111;text-decoration:none">${escapeHtml(item.title)}</a></div>
+    ${size}
+    <div style="font-size:14px;margin-top:6px">${escapeHtml(item.price)}</div>
+  </td>
+</tr>`
+}
+
+export function abandonedCartEmail(args: AbandonedCartTemplateArgs) {
+  const { items, cartUrl } = args
+  const greeting = args.firstName ? `${escapeHtml(args.firstName)}, ` : ''
+  const subject =
+    items.length === 1 && items[0]
+      ? `${items[0].title} is still waiting for you`
+      : 'Your selection is still with us'
+
+  const rows = items.map(renderCartItem).join('\n')
+
   const html = shell(
     subject,
-    `<h1>${greeting}you left this behind.</h1>
-${image}
-<p><strong>${escapeHtml(args.productTitle)}</strong> is still here for you.</p>
-<p><a class="cta" href="${escapeHtml(args.productUrl)}">Return to your cart</a></p>`
+    `<h1>${greeting}your selection is waiting.</h1>
+<p>We've kept the pieces you were considering. They're ready whenever you are.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:20px 0">
+${rows}
+</table>
+<p><a class="cta" href="${escapeHtml(cartUrl)}">Complete your order</a></p>
+<p class="muted">Each print is made to order on archival paper.</p>`
   )
-  const text = `${args.productTitle} is still in your cart.\n\nReturn to your cart: ${args.productUrl}`
+
+  const textLines = items.map((item) =>
+    [item.title, item.size, item.price].filter(Boolean).join(', ')
+  )
+  const text = [
+    items.length === 1 && items[0]
+      ? `${items[0].title} is still waiting for you.`
+      : 'Your selection is still with us.',
+    '',
+    ...textLines,
+    '',
+    `Complete your order: ${cartUrl}`,
+  ].join('\n')
+
   return { subject, html, text }
 }
 
