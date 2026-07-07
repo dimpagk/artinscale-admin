@@ -175,7 +175,8 @@ export type Platform = 'instagram' | 'twitter' | 'linkedin' | 'facebook'
 
 export type BlockType =
   | { type: 'tag'; text: string }
-  | { type: 'headline'; text: string; fontSize?: 'sm' | 'md' | 'lg' }
+  // `tracking` is letter-spacing in base px (pre-scale); negative tightens.
+  | { type: 'headline'; text: string; fontSize?: 'sm' | 'md' | 'lg' | 'xl'; weight?: number; tracking?: number }
   | { type: 'text'; text: string }
   | { type: 'steps'; items: string[] }
   | { type: 'bullets'; items: string[] }

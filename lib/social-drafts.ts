@@ -123,7 +123,7 @@ function storyCardSlide(a: SocialDraftArtwork): SlideConfig | null {
     blocks: [
       { type: 'screenshot', url, alt: `${a.title} (artwork)`, border: false, fullBleed: true },
       ...(a.artistName ? [{ type: 'tag' as const, text: `BY ${a.artistName}` }] : []),
-      { type: 'headline', text: a.title, fontSize: 'sm' },
+      { type: 'headline', text: a.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
       ...(story ? [{ type: 'text' as const, text: story }] : []),
     ],
   };
@@ -155,7 +155,7 @@ function ctaSlide(a: SocialDraftArtwork): SlideConfig {
       { type: 'logo', url: BRAND_LOGO_URL, height: 24, align: 'left' },
       { type: 'spacer', fill: true },
       { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
-      { type: 'headline', text: a.title, fontSize: 'lg' },
+      { type: 'headline', text: a.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
       // No CTA link: links are not tappable in feed images; the operator
       // carries the link in the caption (and the story link sticker).
       { type: 'text', text: craftLine },
@@ -239,7 +239,7 @@ export async function createSocialDraft(
         { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false, fullBleed: true },
         { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
         { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
-        { type: 'headline', text: artwork.title, fontSize: 'md' },
+        { type: 'headline', text: artwork.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
         { type: 'text', text: craftLine },
       ],
     };

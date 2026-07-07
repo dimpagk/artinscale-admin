@@ -11,6 +11,11 @@ import { BRAND_TOKENS, getPostFormat, getSlides, type VisualConfig, type SlideCo
 
 const B = BRAND_TOKENS
 
+/** Headline base size (pre-scale px) for each fontSize token. */
+function headlineSize(fontSize?: string): number {
+  return fontSize === 'sm' ? 22 : fontSize === 'md' ? 26 : fontSize === 'xl' ? 34 : 28
+}
+
 /**
  * Resolve the actual font family from the CSS variable set by next/font.
  * next/font registers fonts with hashed names (e.g. __Outfit_abc123),
@@ -20,6 +25,18 @@ function getResolvedFontFamily(): string {
   if (typeof document === 'undefined') return B.displayFont
   const val = getComputedStyle(document.documentElement).getPropertyValue('--font-outfit').trim()
   return val ? `${val},system-ui,sans-serif` : B.displayFont
+}
+
+/**
+ * Body family (DM Sans) resolved from the next/font CSS variable, mirroring
+ * getResolvedFontFamily. Used for the eyebrow + body copy so the exported
+ * PNG matches the preview's Outfit-titles / DM-Sans-body pairing instead of
+ * rendering every block in Outfit.
+ */
+function getResolvedBodyFont(): string {
+  if (typeof document === 'undefined') return B.bodyFont
+  const val = getComputedStyle(document.documentElement).getPropertyValue('--font-dm-sans').trim()
+  return val ? `${val},system-ui,sans-serif` : B.bodyFont
 }
 
 /**
@@ -198,8 +215,9 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
  * Heights match the CSS preview component's box model (top baseline).
  * Uses ctx.measureText for accurate word-wrap measurement.
  */
-function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, fontFamily: string, W: number, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number): number {
+function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, fontFamily: string, W: number, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number, bodyFamily?: string): number {
   const font = (w: number, sz: number) => `${w} ${sz}px ${fontFamily}`
+  const body = bodyFamily ?? fontFamily
   const x = padLeft ?? 28 * s
   const maxW = W - x - 28 * s
   let h = 0
@@ -210,14 +228,16 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         h += 10 * s + 12 * s
         break
       case 'headline': {
-        const sz = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
-        ctx.font = font(500, sz)
+        const sz = headlineSize(block.fontSize) * s
+        ctx.font = font(block.weight ?? 500, sz)
+        ctx.letterSpacing = `${(block.tracking ?? -0.4) * s}px`
         const lines = wrapLines(ctx, block.text, maxW)
+        ctx.letterSpacing = '0px'
         h += lines.length * sz * 1.15 + 14 * s
         break
       }
       case 'text': {
-        ctx.font = font(500, 13 * s)
+        ctx.font = `500 ${13 * s}px ${body}`
         const lines = wrapLines(ctx, block.text, maxW)
         h += lines.length * 13 * s * 1.55
         break
@@ -232,7 +252,7 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         h += 32 * s + 4 * s + 11 * s + 8 * s
         break
       case 'quote': {
-        ctx.font = `italic 500 ${13 * s}px ${fontFamily}`
+        ctx.font = `italic 500 ${13 * s}px ${body}`
         const lines = wrapLines(ctx, `"${block.text}"`, maxW - 12 * s)
         h += lines.length * 13 * s * 1.5
         if (block.author) h += 6 * s + 10 * s
@@ -292,10 +312,13 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
  * Draw content blocks onto canvas.
  * Uses textBaseline='top' to match CSS box model positioning.
  */
-function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number, padRight?: number) {
+function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: number, isDark: boolean, fontFamily: string, W: number, H: number, showFooter = true, padLeft?: number, images?: Map<string, HTMLImageElement>, imgCap?: number, padRight?: number, bodyFamily?: string) {
   const fg = isDark ? '#FFFFFF' : B.black
   const fgSub = isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.6)'
+  // font() = display (Outfit) for titles/numbers; bfont() = body (DM Sans)
+  // for the eyebrow + copy, mirroring the preview's type pairing.
   const font = (w: number, sz: number) => `${w} ${sz}px ${fontFamily}`
+  const bfont = (w: number, sz: number) => `${w} ${sz}px ${bodyFamily ?? fontFamily}`
   const x = padLeft ?? 28 * s
 
   // Use 'top' baseline so text is positioned from its top edge (like CSS)
@@ -307,7 +330,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   // Vertically center content (matching the preview component's justifyContent: center)
   const footerH = showFooter ? 40 * s : 0
   const contentArea = H - footerH
-  const totalHeight = measureBlocksHeight(ctx, blocks, s, fontFamily, W, padLeft, images, imgCap)
+  const totalHeight = measureBlocksHeight(ctx, blocks, s, fontFamily, W, padLeft, images, imgCap, bodyFamily)
   // Fill spacers (flex: 1 in the preview): top-align and give each fill an
   // equal share of the leftover space, mirroring the CSS flex layout.
   const fills = blocks.filter((b) => b.type === 'spacer' && b.fill).length
@@ -324,7 +347,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
   for (const block of blocks) {
     switch (block.type) {
       case 'tag': {
-        ctx.font = font(600, 10 * s)
+        ctx.font = bfont(600, 10 * s)
         ctx.fillStyle = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'
         ctx.letterSpacing = `${2.5 * s}px`
         ctx.fillText(block.text.toUpperCase(), x, y)
@@ -334,20 +357,22 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
       }
 
       case 'headline': {
-        const sz = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
-        ctx.font = font(500, sz)
+        const sz = headlineSize(block.fontSize) * s
+        ctx.font = font(block.weight ?? 500, sz)
         ctx.fillStyle = fg
+        ctx.letterSpacing = `${(block.tracking ?? -0.4) * s}px`
         const lines = wrapLines(ctx, block.text, maxW)
         for (const line of lines) {
           ctx.fillText(line, x, y)
           y += sz * 1.15
         }
+        ctx.letterSpacing = '0px'
         y += 14 * s
         break
       }
 
       case 'text': {
-        ctx.font = font(500, 13 * s)
+        ctx.font = bfont(500, 13 * s)
         ctx.fillStyle = fgSub
         const lines = wrapLines(ctx, block.text, maxW)
         for (const line of lines) {
@@ -375,7 +400,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
           ctx.fillText(String(i + 1).padStart(2, '0'), bx + badgeSize / 2, y + (badgeSize - 12 * s) / 2)
           ctx.textAlign = 'left'
           // Step text centered with badge
-          ctx.font = font(500, 13 * s)
+          ctx.font = bfont(500, 13 * s)
           ctx.fillStyle = fgSub
           ctx.fillText(block.items[i], bx + badgeSize + 10 * s, y + (badgeSize - 13 * s) / 2)
           y += badgeSize + 10 * s
@@ -391,7 +416,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
           ctx.beginPath()
           ctx.arc(x + bulletR, y + textSize * 0.5, bulletR, 0, Math.PI * 2)
           ctx.fill()
-          ctx.font = font(500, textSize)
+          ctx.font = bfont(500, textSize)
           ctx.fillStyle = fgSub
           ctx.fillText(block.items[i], x + 14 * s, y)
           y += 15 * s + (i < block.items.length - 1 ? 8 * s : 0)
@@ -404,7 +429,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         ctx.fillStyle = B.coral
         ctx.fillText(block.value, x, y)
         y += 32 * s + 4 * s
-        ctx.font = font(600, 11 * s)
+        ctx.font = bfont(600, 11 * s)
         ctx.fillStyle = fgSub
         ctx.letterSpacing = `${1.5 * s}px`
         ctx.fillText(block.label.toUpperCase(), x, y)
@@ -416,7 +441,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
       case 'quote': {
         const quoteTextSize = 13 * s
         const lineH = quoteTextSize * 1.5
-        ctx.font = `italic 500 ${quoteTextSize}px ${fontFamily}`
+        ctx.font = `italic 500 ${quoteTextSize}px ${bodyFamily ?? fontFamily}`
         const quoteMaxW = maxW - 12 * s
         const lines = wrapLines(ctx, `"${block.text}"`, quoteMaxW)
         const totalQuoteH = lines.length * lineH + (block.author ? 6 * s + 10 * s : 0)
@@ -431,7 +456,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         }
         if (block.author) {
           y += 6 * s
-          ctx.font = font(700, 10 * s)
+          ctx.font = bfont(700, 10 * s)
           ctx.fillStyle = B.coral
           ctx.fillText(`\u2014 ${block.author}`, x + 12 * s, y)
           y += 10 * s
@@ -464,7 +489,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         ctx.fillRect(x, y + headerH, maxW, 1)
         y += headerH + 1
         // Rows
-        ctx.font = font(500, 10 * s)
+        ctx.font = bfont(500, 10 * s)
         ctx.fillStyle = fgSub
         for (let ri = 0; ri < block.rows.length; ri++) {
           const row = block.rows[ri]
@@ -479,7 +504,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
           y += rowH
         }
         if (block.caption) {
-          ctx.font = `italic 500 ${8 * s}px ${fontFamily}`
+          ctx.font = `italic 500 ${8 * s}px ${bodyFamily ?? fontFamily}`
           ctx.fillStyle = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)'
           ctx.fillText(block.caption, x + 8 * s, y + 2 * s)
           y += 12 * s
@@ -490,7 +515,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
 
       case 'progress': {
         // Label (left)
-        ctx.font = font(600, 11 * s)
+        ctx.font = bfont(600, 11 * s)
         ctx.fillStyle = fgSub
         ctx.fillText(block.label, x, y)
 
@@ -568,7 +593,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
           ctx.fillStyle = fg
           ctx.fillText(m.value, mx, y + 10 * s + 12 * s)
           // Label (small uppercase muted)
-          ctx.font = font(600, 7 * s)
+          ctx.font = bfont(600, 7 * s)
           ctx.fillStyle = fgSub
           ctx.letterSpacing = `${0.5 * s}px`
           ctx.fillText(m.label.toUpperCase(), mx, y + 10 * s + 12 * s + 20 * s)
@@ -613,7 +638,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
           ctx.beginPath()
           ctx.roundRect(x, y, maxW, imgH, 6 * s)
           ctx.fill()
-          ctx.font = font(500, 10 * s)
+          ctx.font = bfont(500, 10 * s)
           ctx.fillStyle = fgSub
           ctx.textAlign = 'center'
           ctx.fillText(block.alt || 'Image', x + maxW / 2, y + imgH / 2 - 5 * s)
@@ -646,7 +671,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         ctx.roundRect(x + framePad, y + framePad, maxW - 2 * framePad, frameH - 2 * framePad, 2 * s)
         ctx.fill()
         // Placeholder text
-        ctx.font = font(500, 10 * s)
+        ctx.font = bfont(500, 10 * s)
         ctx.fillStyle = fgSub
         ctx.textAlign = 'center'
         ctx.fillText(block.artworkTitle || 'Artwork', x + maxW / 2, y + frameH / 2 - 5 * s)
@@ -658,7 +683,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         ctx.fillText(block.artworkTitle, x, y)
         y += 14 * s + 4 * s
         // Artist name
-        ctx.font = font(500, 10 * s)
+        ctx.font = bfont(500, 10 * s)
         ctx.fillStyle = B.coral
         ctx.fillText(block.artistName, x, y)
         y += 10 * s
@@ -673,7 +698,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         y += 24 * s + 4 * s
         // Bio text smaller
         if (block.bio) {
-          ctx.font = font(500, 12 * s)
+          ctx.font = bfont(500, 12 * s)
           ctx.fillStyle = fgSub
           const lines = wrapLines(ctx, block.bio, maxW)
           for (const line of lines) {
@@ -730,7 +755,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         const centerX = x + maxW / 2
         ctx.textAlign = 'center'
         if (block.price) {
-          ctx.font = font(500, 16 * s)
+          ctx.font = bfont(500, 16 * s)
           ctx.fillStyle = fg
           ctx.fillText(block.price, centerX, y)
           y += 16 * s + 10 * s
@@ -796,6 +821,7 @@ export async function renderPostToCanvas(config: VisualConfig | SlideConfig, sca
   const W = fmt.width
   const H = fmt.height
   const fontFamily = getResolvedFontFamily()
+  const bodyFamily = getResolvedBodyFont()
   const canvas = document.createElement('canvas')
   canvas.width = W * scale
   canvas.height = H * scale
@@ -819,19 +845,23 @@ export async function renderPostToCanvas(config: VisualConfig | SlideConfig, sca
     if (img) drawImageCover(ctx, img, 0, 0, W, H)
     const overlay = slide.blocks.slice(1)
     if (overlay.length > 0) {
-      const scrimTop = H * 0.42
+      // Scrim starts higher and lands darker so the eyebrow stays legible
+      // once the larger title pushes the text block up into brighter art.
+      const scrimTop = H * 0.38
       const grd = ctx.createLinearGradient(0, scrimTop, 0, H)
       grd.addColorStop(0, 'rgba(0,0,0,0)')
-      grd.addColorStop(0.45, 'rgba(0,0,0,0.34)')
-      grd.addColorStop(1, 'rgba(0,0,0,0.66)')
+      grd.addColorStop(0.4, 'rgba(0,0,0,0.42)')
+      grd.addColorStop(1, 'rgba(0,0,0,0.72)')
       ctx.fillStyle = grd
       ctx.fillRect(0, scrimTop, W, H - scrimTop)
       const imgCap = fmt.category === 'story' ? H * 0.5 : 170 * s
       // Grid-safe zone: IG profile tiles are 3:4, cropping ~12.5% per side
       // off a square. 19.5% symmetric insets keep overlay text inside the
       // tile with real padding to spare. Extra end spacer lifts the block.
-      const overlayPad = Math.round(W * 0.195)
-      drawBlocks(ctx, [{ type: 'spacer', fill: true }, ...overlay, { type: 'spacer', height: 9 }], s, true, fontFamily, W, H, false, overlayPad, images, imgCap, overlayPad)
+      // Square feed cards keep the 19.5% inset for the IG profile-grid crop.
+      // The 9:16 story isn't in the grid, so its text block runs wider.
+      const overlayPad = Math.round(W * (fmt.category === 'story' ? 0.11 : 0.195))
+      drawBlocks(ctx, [{ type: 'spacer', fill: true }, ...overlay, { type: 'spacer', height: 4 }], s, true, fontFamily, W, H, false, overlayPad, images, imgCap, overlayPad, bodyFamily)
     }
     return canvas
   }
@@ -840,7 +870,7 @@ export async function renderPostToCanvas(config: VisualConfig | SlideConfig, sca
   const imgCap = fmt.category === 'story' ? H * 0.5 : 170 * s
   drawBackground(ctx, slide as VisualConfig, W, H)
   drawAccent(ctx, slide.accent, s, W, H, slide.dark)
-  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, hasFooter, padLeft, images, imgCap)
+  drawBlocks(ctx, slide.blocks, s, slide.dark, fontFamily, W, H, hasFooter, padLeft, images, imgCap, undefined, bodyFamily)
   if (hasFooter) {
     drawFooter(ctx, slide.footer, slide.dark, s, fontFamily, W, H)
   }

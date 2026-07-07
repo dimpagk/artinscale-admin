@@ -30,9 +30,9 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
       )
 
     case 'headline': {
-      const size = block.fontSize === 'sm' ? 22 * s : block.fontSize === 'md' ? 26 * s : 28 * s
+      const baseSize = block.fontSize === 'sm' ? 22 : block.fontSize === 'md' ? 26 : block.fontSize === 'xl' ? 34 : 28
       return (
-        <div key={index} style={{ fontSize: size, fontWeight: 500, lineHeight: 1.15, color: fg, whiteSpace: 'pre-line', marginBottom: 14 * s, fontFamily: B.displayFont, letterSpacing: -0.4 * s }}>
+        <div key={index} style={{ fontSize: baseSize * s, fontWeight: block.weight ?? 500, lineHeight: 1.15, color: fg, whiteSpace: 'pre-line', marginBottom: 14 * s, fontFamily: B.displayFont, letterSpacing: (block.tracking ?? -0.4) * s }}>
           {block.text}
         </div>
       )
@@ -384,8 +384,8 @@ export function PostCardPreview({ config, size = 340, slideIndex = 0 }: PostCard
           {overlayBlocks.length > 0 && (
             <>
               {/* Bottom scrim guarantees legibility on any artwork */}
-              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '58%', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.34) 45%, rgba(0,0,0,0.66) 100%)', zIndex: 2 }} />
-              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: `0 19.5% ${35 * s}px`, zIndex: 3 }}>
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.42) 40%, rgba(0,0,0,0.72) 100%)', zIndex: 2 }} />
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: `0 ${fmt.category === 'story' ? '11%' : '19.5%'} ${30 * s}px`, zIndex: 3 }}>
                 {overlayBlocks.map((block, i) => renderBlock(block, i, s, true, fmt.category === 'story' ? h * 0.5 : 170 * s))}
               </div>
             </>
