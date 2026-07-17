@@ -319,6 +319,12 @@ export interface ListedPrintPiece {
   sizeKey: string;
   price: number;
   unitsSold: number;
+  /**
+   * Per-sale artist royalty % — community pieces only (the artist's
+   * `royalty_percent`, else `finance_settings.default_community_royalty_percent`);
+   * 0 for AI / public-domain. Matches order_artist_royalty.
+   */
+  royaltyPercent: number;
 }
 
 /**
@@ -331,7 +337,7 @@ export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
   try {
     const { data: arts, error } = await supabaseAdmin
       .from('artworks')
-      .select('id, title, product_type, price')
+      .select('id, title, product_type, price, creation_source, artist_id')
       .eq('status', 'listed');
     if (error || !arts) return [];
 
@@ -344,11 +350,31 @@ export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
       units[e.id] = e.units_sold ?? 0;
     }
 
+    // Community royalty: the artist's rate, else the finance_settings default.
+    // Mirrors order_artist_royalty (community pieces only).
+    const royaltyByArtist: Record<string, number | null> = {};
+    const { data: usersRows } = await supabaseAdmin
+      .from('users')
+      .select('id, royalty_percent');
+    for (const u of (usersRows ?? []) as Array<{ id: string; royalty_percent: number | null }>) {
+      royaltyByArtist[u.id] = u.royalty_percent;
+    }
+    const { data: fsRows } = await supabaseAdmin
+      .from('finance_settings')
+      .select('default_community_royalty_percent')
+      .limit(1);
+    const defaultRoyalty = Number(
+      (fsRows?.[0] as { default_community_royalty_percent?: number } | undefined)
+        ?.default_community_royalty_percent ?? 0
+    );
+
     return (arts as Array<{
       id: string;
       title: string | null;
       product_type: string | null;
       price: number | null;
+      creation_source: string | null;
+      artist_id: string | null;
     }>)
       .filter(
         (a) =>
@@ -356,13 +382,22 @@ export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
           a.product_type != null &&
           a.product_type.startsWith('museum-poster-')
       )
-      .map((a) => ({
-        id: a.id,
-        title: a.title ?? '',
-        sizeKey: a.product_type as string,
-        price: Number(a.price),
-        unitsSold: units[a.id] ?? 0,
-      }));
+      .map((a) => {
+        const artistRate =
+          a.artist_id != null ? royaltyByArtist[a.artist_id] : null;
+        const royaltyPercent =
+          a.creation_source === 'community'
+            ? Number(artistRate ?? defaultRoyalty)
+            : 0;
+        return {
+          id: a.id,
+          title: a.title ?? '',
+          sizeKey: a.product_type as string,
+          price: Number(a.price),
+          unitsSold: units[a.id] ?? 0,
+          royaltyPercent,
+        };
+      });
   } catch {
     return [];
   }

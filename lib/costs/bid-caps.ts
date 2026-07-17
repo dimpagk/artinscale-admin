@@ -106,20 +106,27 @@ export function paymentFee(price: number): number {
 
 /**
  * Contribution for `sizeKey` sold at gross (VAT-inclusive) `price`, shipped
- * to `country`, NET of output VAT so it matches order_economics:
- *   netRev = price ÷ (1 + vatPercent/100);  contribution = netRev − landed − fee.
+ * to `country`, NET of output VAT and the community artist royalty so it
+ * matches order_economics:
+ *   netRev  = price ÷ (1 + vatPercent/100)
+ *   royalty = price × royaltyPercent/100        (on gross line revenue, as in
+ *                                                order_artist_royalty; 0 for
+ *                                                non-community pieces)
+ *   contribution = netRev − landed − paymentFee − royalty
  * `vatPercent` is the OUTPUT VAT for that country (use `outputVatPercent`).
  */
 export function contributionFor(
   sizeKey: string,
   country: string,
   price: number,
-  vatPercent: number = DEFAULT_HOME_VAT_PERCENT
+  vatPercent: number = DEFAULT_HOME_VAT_PERCENT,
+  royaltyPercent: number = 0
 ): number | null {
   const cell = getGelatoLandedCost(sizeKey, country);
   if (!cell) return null;
   const netRev = price / (1 + vatPercent / 100);
-  return round2(netRev - cell.landed - paymentFee(price));
+  const royalty = round2((price * royaltyPercent) / 100);
+  return round2(netRev - cell.landed - paymentFee(price) - royalty);
 }
 
 /** One listed catalog piece: what it is and what it sells for. */
@@ -128,6 +135,8 @@ export interface CatalogPiece {
   price: number;
   /** Units sold to date — reserved for future sales-weighting. */
   unitsSold?: number;
+  /** Per-sale community artist royalty % (0 / omitted for non-community). */
+  royaltyPercent?: number;
 }
 
 export interface MarketCap {
@@ -184,7 +193,7 @@ export function getCatalogBidCaps(
     let weightTotal = 0;
     let n = 0;
     for (const p of pieces) {
-      const c = contributionFor(p.sizeKey, country, p.price, vatPercent);
+      const c = contributionFor(p.sizeKey, country, p.price, vatPercent, p.royaltyPercent ?? 0);
       if (c == null) continue;
       // +1 smoothing so unsold pieces still count once when weighted.
       const w = weighted ? (p.unitsSold ?? 0) + 1 : 1;
