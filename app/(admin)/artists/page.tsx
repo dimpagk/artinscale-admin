@@ -40,10 +40,17 @@ interface ArtistRow extends User {
 export default async function ArtistsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; kind?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    kind?: string;
+    sort?: string;
+    dir?: string;
+    page?: string;
+  }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, Number(params.page) || 1);
+  const dir = params.dir === 'desc' ? 'desc' : 'asc';
   const q = params.q || undefined;
   const kind = KIND_OPTIONS.some((k) => k.value === params.kind)
     ? (params.kind as ArtistKind)
@@ -51,7 +58,7 @@ export default async function ArtistsPage({
   const hasFilters = !!q || !!kind;
 
   const [{ rows: artists, total, page: effectivePage }, stylePacks] = await Promise.all([
-    listArtists({ q, kind, page, pageSize: PAGE_SIZE }),
+    listArtists({ q, kind, sort: params.sort, dir, page, pageSize: PAGE_SIZE }),
     listStylePacksAsync(),
   ]);
 
@@ -79,6 +86,7 @@ export default async function ArtistsPage({
     {
       key: 'name',
       header: 'Name',
+      sortKey: 'name',
       render: (a) => {
         const kindBadge = a.artist_kind ? ARTIST_KIND_BADGE[a.artist_kind] : null;
         return (
@@ -122,6 +130,7 @@ export default async function ArtistsPage({
     {
       key: 'email',
       header: 'Email',
+      sortKey: 'email',
       render: (a) => <span className="text-gray-600">{a.email}</span>,
     },
     {
@@ -144,6 +153,7 @@ export default async function ArtistsPage({
     {
       key: 'created',
       header: 'Created',
+      sortKey: 'created',
       render: (a) => (
         <span className="text-gray-500">
           {new Date(a.created_at).toLocaleDateString()}
@@ -178,6 +188,12 @@ export default async function ArtistsPage({
         rows={rows}
         columns={columns}
         rowKey={(a) => a.id}
+        sort={{
+          key: params.sort,
+          dir,
+          basePath: '/artists',
+          params: { q: params.q, kind: params.kind },
+        }}
         emptyState={
           hasFilters ? (
             <EmptyState
@@ -198,7 +214,12 @@ export default async function ArtistsPage({
         pageSize={PAGE_SIZE}
         total={total}
         basePath="/artists"
-        params={{ q: params.q, kind: params.kind }}
+        params={{
+          q: params.q,
+          kind: params.kind,
+          sort: params.sort,
+          dir: params.sort ? dir : undefined,
+        }}
       />
     </div>
   );

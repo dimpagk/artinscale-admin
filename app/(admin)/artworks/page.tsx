@@ -33,11 +33,14 @@ export default async function ArtworksPage({
     artist?: string;
     topic?: string;
     type?: string;
+    sort?: string;
+    dir?: string;
     page?: string;
   }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, Number(params.page) || 1);
+  const dir = params.dir === 'desc' ? 'desc' : 'asc';
   const filters = {
     q: params.q || undefined,
     status: params.status || undefined,
@@ -49,7 +52,13 @@ export default async function ArtworksPage({
 
   const [{ rows: artworks, total, page: effectivePage }, artists, topics, productTypes] =
     await Promise.all([
-      listArtworks({ ...filters, page, pageSize: PAGE_SIZE }),
+      listArtworks({
+        ...filters,
+        sort: params.sort,
+        dir,
+        page,
+        pageSize: PAGE_SIZE,
+      }),
       getArtists(),
       getAllTopics(),
       getArtworkProductTypes(),
@@ -59,6 +68,7 @@ export default async function ArtworksPage({
     {
       key: 'artwork',
       header: 'Artwork',
+      sortKey: 'title',
       render: (a) => (
         <div className="flex items-center gap-3">
           <ImageThumb src={a.image_url} alt={a.title} />
@@ -84,11 +94,13 @@ export default async function ArtworksPage({
     {
       key: 'status',
       header: 'Status',
+      sortKey: 'status',
       render: (a) => <StatusBadge domain="artwork" status={a.status} />,
     },
     {
       key: 'edition',
       header: 'Edition',
+      sortKey: 'edition',
       render: (a) => (
         <span className="text-gray-600">
           {a.edition_size != null
@@ -100,6 +112,7 @@ export default async function ArtworksPage({
     {
       key: 'product_type',
       header: 'Type',
+      sortKey: 'product_type',
       render: (a) => <span className="text-gray-600">{a.product_type || '—'}</span>,
     },
     {
@@ -162,6 +175,18 @@ export default async function ArtworksPage({
         rows={artworks}
         columns={columns}
         rowKey={(a) => a.id}
+        sort={{
+          key: params.sort,
+          dir,
+          basePath: '/artworks',
+          params: {
+            q: params.q,
+            status: params.status,
+            artist: params.artist,
+            topic: params.topic,
+            type: params.type,
+          },
+        }}
         emptyState={
           hasFilters ? (
             <EmptyState
@@ -188,6 +213,8 @@ export default async function ArtworksPage({
           artist: params.artist,
           topic: params.topic,
           type: params.type,
+          sort: params.sort,
+          dir: params.sort ? dir : undefined,
         }}
       />
     </div>

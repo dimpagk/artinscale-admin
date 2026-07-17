@@ -28,6 +28,15 @@ export async function getArtworks(): Promise<ArtworkWithJoins[]> {
   return (data ?? []) as ArtworkWithJoins[]
 }
 
+/** Whitelist of sortable URL keys → real columns on the artworks table. */
+const ARTWORK_SORT_COLUMNS: Record<string, string> = {
+  title: 'title',
+  status: 'status',
+  edition: 'edition_size',
+  product_type: 'product_type',
+  created: 'created_at',
+}
+
 export interface ArtworkListOptions {
   /** Free-text search over title + description. */
   q?: string
@@ -35,6 +44,9 @@ export interface ArtworkListOptions {
   artistId?: string
   topicId?: string
   productType?: string
+  /** One of ARTWORK_SORT_COLUMNS keys; unknown values fall back to default order. */
+  sort?: string
+  dir?: 'asc' | 'desc'
   page?: number
   pageSize?: number
 }
@@ -67,10 +79,21 @@ export async function listArtworks(
     const q = options.q?.replace(/[,()]/g, ' ').trim()
     if (q) query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%`)
 
+    const sortCol = options.sort ? ARTWORK_SORT_COLUMNS[options.sort] : undefined
+    if (sortCol) {
+      query = query.order(sortCol, {
+        ascending: options.dir !== 'desc',
+        nullsFirst: false,
+      })
+    } else {
+      query = query.order('created_at', { ascending: false })
+    }
+    // Unique tiebreaker so pagination stays deterministic when the sort
+    // column has ties (or is all-null).
+    query = query.order('id', { ascending: false })
+
     const from = (p - 1) * pageSize
-    return query
-      .order('created_at', { ascending: false })
-      .range(from, from + pageSize - 1)
+    return query.range(from, from + pageSize - 1)
   }
 
   let effectivePage = page

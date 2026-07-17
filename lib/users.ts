@@ -33,10 +33,20 @@ export async function getArtists(): Promise<User[]> {
   return data || [];
 }
 
+/** Whitelist of sortable URL keys → real columns on the users table. */
+const ARTIST_SORT_COLUMNS: Record<string, string> = {
+  name: 'name',
+  email: 'email',
+  created: 'created_at',
+}
+
 export interface ArtistListOptions {
   /** Free-text search over name + email + bio. */
   q?: string
   kind?: ArtistKind
+  /** One of ARTIST_SORT_COLUMNS keys; unknown values fall back to default order. */
+  sort?: string
+  dir?: 'asc' | 'desc'
   page?: number
   pageSize?: number
 }
@@ -67,10 +77,21 @@ export async function listArtists(
       query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,bio.ilike.%${q}%`)
     }
 
+    const sortCol = options.sort ? ARTIST_SORT_COLUMNS[options.sort] : undefined
+    if (sortCol) {
+      query = query.order(sortCol, {
+        ascending: options.dir !== 'desc',
+        nullsFirst: false,
+      })
+    } else {
+      query = query.order('name', { ascending: true })
+    }
+    // Unique tiebreaker so pagination stays deterministic when the sort
+    // column has ties (or is all-null).
+    query = query.order('id', { ascending: false })
+
     const from = (p - 1) * pageSize
-    return query
-      .order('name', { ascending: true })
-      .range(from, from + pageSize - 1)
+    return query.range(from, from + pageSize - 1)
   }
 
   let effectivePage = page

@@ -10,7 +10,7 @@ export { PageHeader, type PageHeaderAction, type PageHeaderBadge } from './page-
 export { PageMeta } from './page-meta'
 export { BackLink } from './back-link'
 export { EmptyState } from './empty-state'
-export { DataTable, type DataTableColumn } from './data-table'
+export { DataTable, type DataTableColumn, type DataTableSort } from './data-table'
 export { EditPageLayout } from './edit-page-layout'
 export { SidebarCard } from './sidebar-card'
 export { StatCard } from './stat-card'
