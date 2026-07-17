@@ -38,8 +38,14 @@ for (const line of envText.split('\n')) {
 // Flags
 const args = process.argv.slice(2)
 const CREATE_ROWS = args.includes('--create-artworks')
+const SKIP_UPLOAD = args.includes('--skip-upload') // reuse manifest URLs, rows only
 const priceIdx = args.indexOf('--price')
 const PRICE = priceIdx >= 0 ? Number(args[priceIdx + 1]) : 59
+const sizeIdx = args.indexOf('--size')
+// The 4724x5906 masters print at exactly 300 dpi at 40x50 (their max size).
+// Pinning this also stops the push from auto-deriving a size AND stamping a
+// default edition_size over our open edition.
+const SIZE = sizeIdx >= 0 ? args[sizeIdx + 1] : 'museum-poster-40x50'
 
 // Emil Varga — pinned studio persona (sql/047_seed_emil_varga_artist.sql).
 const ARTIST_ID = '00000000-0000-0000-0000-000000000a10'
@@ -84,65 +90,74 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-// 1. Verify every master exists before uploading anything.
-const files = []
-for (const { seed } of PIECES) {
-  const abs = path.join(MASTERS_DIR, fileFor(seed))
-  try {
-    const stat = await fs.stat(abs)
-    files.push({ seed, abs, bytes: stat.size })
-  } catch {
-    console.error(`Missing master for ${pad(seed)}: ${abs}`)
-    console.error('Render the masters first:')
-    console.error(
-      '  cd ../generative/field-notation/node && node render.js masters ' +
-        PIECES.map((p) => p.seed).join(',') +
-        ' --outdir ./masters'
-    )
-    process.exit(1)
+const noteBySeed = Object.fromEntries(PIECES.map((p) => [p.seed, p.note]))
+let results = []
+
+if (SKIP_UPLOAD) {
+  // Reuse the URLs from a prior upload; only touch the rows.
+  const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'))
+  results = manifest.map((m) => ({ ...m, note: noteBySeed[m.seed] }))
+  console.log(`Loaded ${results.length} URLs from manifest (skip-upload).`)
+} else {
+  // 1. Verify every master exists before uploading anything.
+  const files = []
+  for (const { seed } of PIECES) {
+    const abs = path.join(MASTERS_DIR, fileFor(seed))
+    try {
+      const stat = await fs.stat(abs)
+      files.push({ seed, abs, bytes: stat.size })
+    } catch {
+      console.error(`Missing master for ${pad(seed)}: ${abs}`)
+      console.error('Render the masters first:')
+      console.error(
+        '  cd ../generative/field-notation/node && node render.js masters ' +
+          PIECES.map((p) => p.seed).join(',') +
+          ' --outdir ./masters'
+      )
+      process.exit(1)
+    }
   }
-}
 
-console.log(`Uploading ${files.length} masters to bucket "${BUCKET}/field-notation/"…\n`)
+  console.log(`Uploading ${files.length} masters to bucket "${BUCKET}/field-notation/"…\n`)
 
-// 2. Upload each (upsert), collect public URLs.
-const results = []
-for (let i = 0; i < files.length; i++) {
-  const { seed, abs, bytes } = files[i]
-  const buf = await fs.readFile(abs)
-  const storagePath = `field-notation/s${String(seed).padStart(6, '0')}.png`
-  const { error } = await supabase.storage.from(BUCKET).upload(storagePath, buf, {
-    contentType: 'image/png',
-    cacheControl: '31536000',
-    upsert: true,
-  })
-  if (error) {
-    console.error(`\nUpload failed for ${pad(seed)}: ${error.message}`)
-    console.error('Fix and re-run (upsert makes prior uploads safe to redo).')
-    process.exit(1)
+  // 2. Upload each (upsert), collect public URLs.
+  for (let i = 0; i < files.length; i++) {
+    const { seed, abs, bytes } = files[i]
+    const buf = await fs.readFile(abs)
+    const storagePath = `field-notation/s${String(seed).padStart(6, '0')}.png`
+    const { error } = await supabase.storage.from(BUCKET).upload(storagePath, buf, {
+      contentType: 'image/png',
+      cacheControl: '31536000',
+      upsert: true,
+    })
+    if (error) {
+      console.error(`\nUpload failed for ${pad(seed)}: ${error.message}`)
+      console.error('Fix and re-run (upsert makes prior uploads safe to redo).')
+      process.exit(1)
+    }
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath)
+    results.push({
+      index: i + 1,
+      seed,
+      title: `Field Notation ${pad(seed)}`,
+      note: noteBySeed[seed],
+      path: storagePath,
+      url: data.publicUrl,
+    })
+    console.log(`  ok  ${String(i + 1).padStart(2, '0')}  ${pad(seed)}  (${(bytes / 1024 / 1024).toFixed(1)} MB)`)
   }
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath)
-  results.push({
-    index: i + 1,
-    seed,
-    title: `Field Notation ${pad(seed)}`,
-    note: PIECES[i].note,
-    path: storagePath,
-    url: data.publicUrl,
-  })
-  console.log(`  ok  ${String(i + 1).padStart(2, '0')}  ${pad(seed)}  (${(bytes / 1024 / 1024).toFixed(1)} MB)`)
-}
 
-// 3. Write the manifest.
-await fs.writeFile(
-  MANIFEST,
-  JSON.stringify(
-    results.map(({ index, seed, title, path: p, url }) => ({ index, seed, title, path: p, url })),
-    null,
-    2
-  ) + '\n'
-)
-console.log(`\nManifest written: ${path.relative(REPO_ROOT, MANIFEST)}`)
+  // 3. Write the manifest.
+  await fs.writeFile(
+    MANIFEST,
+    JSON.stringify(
+      results.map(({ index, seed, title, path: p, url }) => ({ index, seed, title, path: p, url })),
+      null,
+      2
+    ) + '\n'
+  )
+  console.log(`\nManifest written: ${path.relative(REPO_ROOT, MANIFEST)}`)
+}
 
 // 4. Optionally create/update the artworks rows.
 if (CREATE_ROWS) {
@@ -173,6 +188,7 @@ if (CREATE_ROWS) {
       price: PRICE,
       currency: 'EUR',
       edition_size: null, // open edition
+      product_type: SIZE, // pin 40x50 (exact 300 dpi); also protects open edition at push
       creation_source: 'manual', // deterministic code, not the AI pipeline
     }
 
