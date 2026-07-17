@@ -1,5 +1,4 @@
 import { Suspense } from 'react';
-import { PageHeader } from '@/components/admin-ui';
 import { getArtworkEconomics, getFinanceSettings } from '@/lib/costs/economics';
 import {
   getPnl,
@@ -94,10 +93,12 @@ export default async function EconomicsPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Economics"
-        description="Profit & loss by day, week, month, quarter or year. Order revenue and per-order costs come from live orders; creation, marketing and tools are booked at the date they occur. VAT is shown but excluded from every margin (it is pass-through)."
-      />
+      <p className="max-w-3xl text-sm text-gray-500">
+        Profit &amp; loss by day, week, month, quarter or year. Order revenue and
+        per-order costs come from live orders; creation, marketing and tools are
+        booked at the date they occur. VAT is shown but excluded from every
+        margin (it is pass-through).
+      </p>
 
       {/* ── Controls + headline ─────────────────────── */}
       <section className="flex flex-wrap items-center justify-between gap-3">

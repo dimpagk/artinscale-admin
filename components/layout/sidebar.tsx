@@ -12,10 +12,8 @@ import {
   Image,
   Receipt,
   ChartLineUp,
-  Tag,
   Globe,
   PencilSimpleLine,
-  Megaphone,
   MagicWand,
   Palette,
   Armchair,
@@ -30,27 +28,54 @@ interface NavItem {
   icon: ReactNode;
 }
 
-const navItems: NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: <House size={16} weight="duotone" /> },
-  { href: '/queue', label: 'Inbox', icon: <Tray size={16} weight="duotone" /> },
-  { href: '/topics', label: 'Topics', icon: <ListBullets size={16} weight="duotone" /> },
-  { href: '/contributions', label: 'Contributions', icon: <ChatCircle size={16} weight="duotone" /> },
-  // Each artist owns one style pack — they're edited together from the
-  // artist's page rather than as separate sidebar entries.
-  { href: '/artists', label: 'Artists', icon: <PaintBrushHousehold size={16} weight="duotone" /> },
-  { href: '/artworks', label: 'Artworks', icon: <Image size={16} weight="duotone" /> },
-  { href: '/orders', label: 'Orders', icon: <Receipt size={16} weight="duotone" /> },
-  { href: '/economics', label: 'Economics', icon: <ChartLineUp size={16} weight="duotone" /> },
-  { href: '/pricing', label: 'Pricing', icon: <Tag size={16} weight="duotone" /> },
-  { href: '/external-prints', label: 'External Prints', icon: <Globe size={16} weight="duotone" /> },
-  { href: '/content', label: 'Content', icon: <PencilSimpleLine size={16} weight="duotone" /> },
-  { href: '/marketing', label: 'Ad Copy', icon: <Megaphone size={16} weight="duotone" /> },
-  { href: '/art-generator', label: 'AI Art', icon: <MagicWand size={16} weight="duotone" /> },
-];
+interface NavSection {
+  /** Section heading; omitted for the top (unlabeled) group. */
+  label?: string;
+  items: NavItem[];
+}
 
-const utilityItems: NavItem[] = [
-  { href: '/scenes', label: 'Room Scenes', icon: <Armchair size={16} weight="duotone" /> },
-  { href: '/components-demo', label: 'Components', icon: <Palette size={16} weight="duotone" /> },
+// Grouped so the eye scans ~5 sections instead of a flat wall of links.
+// Pricing lives under Economics now; the old "Ad Copy" page folded into
+// Content. Both still resolve via redirects.
+const sections: NavSection[] = [
+  {
+    items: [
+      { href: '/', label: 'Dashboard', icon: <House size={16} weight="duotone" /> },
+      { href: '/queue', label: 'Inbox', icon: <Tray size={16} weight="duotone" /> },
+    ],
+  },
+  {
+    label: 'Catalog',
+    items: [
+      { href: '/topics', label: 'Topics', icon: <ListBullets size={16} weight="duotone" /> },
+      { href: '/contributions', label: 'Contributions', icon: <ChatCircle size={16} weight="duotone" /> },
+      // Each artist owns one style pack — edited from the artist's page.
+      { href: '/artists', label: 'Artists', icon: <PaintBrushHousehold size={16} weight="duotone" /> },
+      { href: '/artworks', label: 'Artworks', icon: <Image size={16} weight="duotone" /> },
+      { href: '/art-generator', label: 'AI Art', icon: <MagicWand size={16} weight="duotone" /> },
+      { href: '/external-prints', label: 'External Prints', icon: <Globe size={16} weight="duotone" /> },
+    ],
+  },
+  {
+    label: 'Commerce',
+    items: [
+      { href: '/orders', label: 'Orders', icon: <Receipt size={16} weight="duotone" /> },
+      { href: '/economics', label: 'Economics', icon: <ChartLineUp size={16} weight="duotone" /> },
+    ],
+  },
+  {
+    label: 'Marketing',
+    items: [
+      { href: '/content', label: 'Content', icon: <PencilSimpleLine size={16} weight="duotone" /> },
+    ],
+  },
+  {
+    label: 'Utility',
+    items: [
+      { href: '/scenes', label: 'Room Scenes', icon: <Armchair size={16} weight="duotone" /> },
+      { href: '/components-demo', label: 'Components', icon: <Palette size={16} weight="duotone" /> },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -71,18 +96,20 @@ export function Sidebar() {
         <p className="text-[11px] text-white/50">Admin Panel</p>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-3 py-4">
-        {navItems.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} />
-        ))}
-
-        <div className="my-4 border-t border-white/10" />
-
-        <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-          Utility
-        </p>
-        {utilityItems.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} />
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {sections.map((section, i) => (
+          <div key={section.label ?? `top-${i}`} className={cn(i > 0 && 'mt-5')}>
+            {section.label && (
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                {section.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {section.items.map((item) => (
+                <NavLink key={item.href} item={item} pathname={pathname} />
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

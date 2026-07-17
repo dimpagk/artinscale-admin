@@ -39,7 +39,7 @@ export async function saveAdCreativeAction(input: {
     .eq('id', input.id);
 
   if (error) return { ok: false, message: error.message };
-  revalidatePath('/marketing');
+  revalidatePath('/content');
   return { ok: true, message: 'Saved.' };
 }
 
@@ -56,6 +56,6 @@ export async function setAdCreativeStatusAction(input: {
     .eq('id', input.id);
 
   if (error) return { ok: false, message: error.message };
-  revalidatePath('/marketing');
+  revalidatePath('/content');
   return { ok: true, message: `Marked ${input.status}.` };
 }

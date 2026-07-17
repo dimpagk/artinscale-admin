@@ -1,0 +1,484 @@
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import {
+  getPrintSizePricing,
+  getPricingFinance,
+  getCampaigns,
+  findActiveCampaignForScope,
+  campaignsForScope,
+  getArtworkShopifyRefs,
+  netMarginPct,
+  type PrintSizePrice,
+  type PricingFinance,
+  type PricingCampaign,
+  type ArtworkShopifyRef,
+} from '@/lib/pricing';
+import { getArtworkEconomics, type ArtworkEconomics } from '@/lib/costs/economics';
+import {
+  updatePriceAction,
+  updateOriginalPriceAction,
+  createCampaignAction,
+  applyCampaignAction,
+  revertCampaignAction,
+} from './actions';
+
+// Pricing is operator-editable and margin-aware; never cache it.
+export const dynamic = 'force-dynamic';
+
+type Tab = 'classics' | 'originals';
+
+function marginColor(pct: number | null): string {
+  if (pct == null) return 'text-gray-400';
+  if (pct >= 30) return 'text-green-700';
+  if (pct >= 15) return 'text-amber-700';
+  return 'text-red-700';
+}
+
+function fmtPct(pct: number | null): string {
+  return pct == null ? '—' : `${pct.toFixed(0)}%`;
+}
+
+function eur(n: number | null | undefined): string {
+  return n == null ? '—' : `€${Number(n).toFixed(2)}`;
+}
+
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const activeTab: Tab = tab === 'originals' ? 'originals' : 'classics';
+
+  return (
+    <div>
+      <p className="mb-6 max-w-3xl text-sm text-gray-500">
+        Edit prices for both catalogs: classics by print size, originals per
+        piece. Each save reprices the live Shopify listing and shows the margin
+        it earns.
+      </p>
+
+      <div className="mb-6 flex gap-1 border-b border-gray-200">
+        {(
+          [
+            { key: 'classics', label: 'Classics' },
+            { key: 'originals', label: 'Originals' },
+          ] as const
+        ).map((t) => (
+          <Link
+            key={t.key}
+            href={`/economics/pricing?tab=${t.key}`}
+            className={cn(
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === t.key
+                ? 'border-gray-900 text-gray-900'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            )}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
+      {activeTab === 'classics' ? <ClassicsView /> : <OriginalsView />}
+    </div>
+  );
+}
+
+async function ClassicsView() {
+  const [{ rows, source }, finance, campaigns] = await Promise.all([
+    getPrintSizePricing(),
+    getPricingFinance(),
+    getCampaigns(),
+  ]);
+  const active = findActiveCampaignForScope(campaigns, 'classics');
+
+  return (
+    <div>
+      {active && (
+        <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <strong>Sale live:</strong> “{active.name}” — {active.discount_percent}% off all
+          classics. Prices below are the pre-sale base; Shopify shows the discounted price with a
+          strikethrough. Revert it in the campaigns panel to end the sale.
+        </div>
+      )}
+
+      {source === 'fallback' && (
+        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>Migration 032 not applied.</strong> Showing built-in default
+          prices. Run <code className="rounded bg-amber-100 px-1">sql/032_pricing.sql</code>{' '}
+          in the Supabase SQL editor to enable saving. (Live Shopify listings
+          still reprice on save; only DB persistence needs the migration.)
+        </div>
+      )}
+
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
+          <strong>Margin</strong> = floor at {finance.vatPercent}% VAT (Greek domestic — price
+          against this). <strong>No-VAT</strong> = export / EU-B2B / exempt sales (your ceiling).
+          Fee {finance.paymentFeePercent}% + €{finance.paymentFeeFixed.toFixed(2)}.
+        </span>
+        <span className="text-gray-400">
+          {finance.source === 'finance_settings'
+            ? 'rates from finance settings'
+            : 'defaults — configure in Economics'}
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th className="px-4 py-3 font-medium">Size</th>
+              <th className="px-4 py-3 font-medium">Est. cost</th>
+              <th className="px-4 py-3 font-medium">Price (€)</th>
+              <th className="px-4 py-3 font-medium">Margin · {finance.vatPercent}% VAT</th>
+              <th className="px-4 py-3 font-medium">No-VAT</th>
+              <th className="px-4 py-3 font-medium">At −20%</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map((r) => (
+              <PricingRow key={r.size_key} row={r} finance={finance} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <CampaignPanel
+        scope="classics"
+        campaigns={campaignsForScope(campaigns, 'classics')}
+        hasActive={!!active}
+      />
+    </div>
+  );
+}
+
+function CampaignPanel({
+  scope,
+  campaigns,
+  hasActive,
+}: {
+  scope: 'classics' | 'originals';
+  campaigns: PricingCampaign[];
+  hasActive: boolean;
+}) {
+  const label = scope === 'originals' ? 'originals' : 'classics';
+  return (
+    <section className="mt-10">
+      <h2 className="mb-1 text-base font-semibold text-gray-900">Discount campaigns</h2>
+      <p className="mb-4 text-sm text-gray-500">
+        A campaign discounts every {label} listing by a percentage via Shopify’s
+        compare-at-price (the “was €X” strikethrough). One can be live per catalog at a time.
+      </p>
+
+      {/* Create */}
+      <form
+        action={createCampaignAction}
+        className="mb-5 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
+      >
+        <input type="hidden" name="scope" value={scope} />
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Campaign name
+          <input
+            type="text"
+            name="name"
+            required
+            placeholder="Summer sale"
+            className="w-56 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Discount %
+          <input
+            type="number"
+            name="discount_percent"
+            required
+            min="1"
+            max="99"
+            step="1"
+            placeholder="20"
+            className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-sm tabular-nums focus:border-gray-900 focus:outline-none"
+          />
+        </label>
+        <button
+          type="submit"
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100"
+        >
+          Create draft
+        </button>
+      </form>
+
+      {/* List */}
+      {campaigns.length === 0 ? (
+        <p className="text-sm text-gray-400">No campaigns yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {campaigns.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-gray-900">
+                  {c.name}{' '}
+                  <span className="text-gray-500">· {c.discount_percent}% off {label}</span>
+                </p>
+                <p className="text-xs text-gray-400">
+                  <CampaignStatus status={c.status} />
+                  {c.applied_at && c.status === 'active' ? ` · applied` : ''}
+                  {c.reverted_at && c.status === 'ended' ? ` · ended` : ''}
+                </p>
+              </div>
+              <div className="shrink-0">
+                {c.status === 'draft' && (
+                  <form action={applyCampaignAction}>
+                    <input type="hidden" name="campaign_id" value={c.id} />
+                    <button
+                      type="submit"
+                      disabled={hasActive}
+                      title={hasActive ? 'Revert the live sale first' : ''}
+                      className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Apply
+                    </button>
+                  </form>
+                )}
+                {c.status === 'active' && (
+                  <form action={revertCampaignAction}>
+                    <input type="hidden" name="campaign_id" value={c.id} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      Revert
+                    </button>
+                  </form>
+                )}
+                {c.status === 'ended' && <span className="text-xs text-gray-400">closed</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function CampaignStatus({ status }: { status: PricingCampaign['status'] }) {
+  const map: Record<PricingCampaign['status'], string> = {
+    draft: 'text-gray-500',
+    active: 'text-green-700 font-medium',
+    ended: 'text-gray-400',
+  };
+  return <span className={map[status]}>{status}</span>;
+}
+
+function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFinance }) {
+  const cost = row.gelato_cost_estimate_eur;
+  // Floor: worst-case VAT (Greek domestic) — the margin you're guaranteed.
+  // Ceiling: no VAT (export / EU-B2B reverse-charge / exempt) — the upside.
+  const floor = netMarginPct(row.price_eur, cost, finance);
+  const ceiling = netMarginPct(row.price_eur, cost, { ...finance, vatPercent: 0 });
+  const floorAt20 = netMarginPct(row.price_eur * 0.8, cost, finance);
+
+  return (
+    <tr className="hover:bg-gray-50/50">
+      <td className="px-4 py-3">
+        <span className="font-medium text-gray-900">{row.display_name}</span>
+        {!row.active && <span className="ml-2 text-xs text-gray-400">(inactive)</span>}
+      </td>
+      <td className="px-4 py-3 text-gray-600">
+        {cost == null ? (
+          '—'
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            €{cost.toFixed(2)}
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                row.cost_source === 'actual'
+                  ? 'bg-green-50 text-green-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {row.cost_source === 'actual' ? 'actual' : 'est'}
+            </span>
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <form action={updatePriceAction} className="flex items-center gap-2">
+          <input type="hidden" name="size_key" value={row.size_key} />
+          <input type="hidden" name="display_name" value={row.display_name} />
+          <input type="hidden" name="width_cm" value={row.width_cm} />
+          <input type="hidden" name="height_cm" value={row.height_cm} />
+          <input
+            type="number"
+            name="price"
+            step="0.01"
+            min="0"
+            defaultValue={row.price_eur.toFixed(2)}
+            className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm tabular-nums focus:border-gray-900 focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
+          >
+            Save
+          </button>
+        </form>
+      </td>
+      <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(floor)}`}>
+        {fmtPct(floor)}
+      </td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(ceiling)}`}>{fmtPct(ceiling)}</td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(floorAt20)}`}>{fmtPct(floorAt20)}</td>
+    </tr>
+  );
+}
+
+async function OriginalsView() {
+  const [rows, finance, refs, campaigns] = await Promise.all([
+    getArtworkEconomics(),
+    getPricingFinance(),
+    getArtworkShopifyRefs(),
+    getCampaigns(),
+  ]);
+  const active = findActiveCampaignForScope(campaigns, 'originals');
+
+  return (
+    <div>
+      {active && (
+        <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <strong>Sale live:</strong> “{active.name}” — {active.discount_percent}% off all
+          originals. Prices below are the pre-sale base; Shopify shows the discounted price with a
+          strikethrough. Editing a piece while the sale is live keeps it discounted. Revert it in
+          the campaigns panel to end the sale.
+        </div>
+      )}
+
+      <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        Originals are priced per piece. Saving writes the price and reprices the live Shopify
+        listing. Margin uses the same VAT {finance.vatPercent}% + fee {finance.paymentFeePercent}%
+        model as Classics; creation cost is one-time, amortised over units sold to date.
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
+          <strong>Margin</strong> = floor at {finance.vatPercent}% VAT (Greek domestic).{' '}
+          <strong>No-VAT</strong> = export / EU-B2B / exempt ceiling. <strong>At −20%</strong>{' '}
+          previews a sale. Margin vs unit production cost only (creation cost amortised separately).
+        </span>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500">
+          No originals economics yet. If you expected data, run{' '}
+          <code className="rounded bg-gray-100 px-1">sql/030_cost_tracking.sql</code> in Supabase
+          (creates the <code>artwork_economics</code> view) and make sure pieces have a synced
+          production cost.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-4 py-3 font-medium">Piece</th>
+                <th className="px-4 py-3 font-medium">Price (€)</th>
+                <th className="px-4 py-3 font-medium">Prod. cost</th>
+                <th className="px-4 py-3 font-medium">Margin · {finance.vatPercent}% VAT</th>
+                <th className="px-4 py-3 font-medium">No-VAT</th>
+                <th className="px-4 py-3 font-medium">At −20%</th>
+                <th className="px-4 py-3 font-medium">Creation</th>
+                <th className="px-4 py-3 font-medium">Amort./unit</th>
+                <th className="px-4 py-3 font-medium">Sold</th>
+                <th className="px-4 py-3 font-medium">Recouped</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((a) => (
+                <OriginalsRow key={a.id} a={a} finance={finance} shopifyRef={refs[a.id]} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <CampaignPanel
+        scope="originals"
+        campaigns={campaignsForScope(campaigns, 'originals')}
+        hasActive={!!active}
+      />
+    </div>
+  );
+}
+
+function OriginalsRow({
+  a,
+  finance,
+  shopifyRef,
+}: {
+  a: ArtworkEconomics;
+  finance: PricingFinance;
+  shopifyRef?: ArtworkShopifyRef;
+}) {
+  const cost = a.unit_production_cost;
+  const price = a.price;
+  // Same margin band as Classics: floor (Greek VAT) / ceiling (no VAT) /
+  // preview at −20%. Null until the piece has both a price and a unit cost.
+  const floor = price != null ? netMarginPct(price, cost, finance) : null;
+  const ceiling = price != null ? netMarginPct(price, cost, { ...finance, vatPercent: 0 }) : null;
+  const floorAt20 = price != null ? netMarginPct(price * 0.8, cost, finance) : null;
+  const published = !!shopifyRef?.shopify_product_id;
+
+  return (
+    <tr className="hover:bg-gray-50/50">
+      <td className="px-4 py-3">
+        <p className="max-w-[16rem] truncate font-medium text-gray-900">{a.title}</p>
+        <p className="text-xs text-gray-400">
+          {a.creation_source}
+          {a.status ? ` · ${a.status}` : ''}
+          {!published && <span className="ml-1 text-amber-600">· not published</span>}
+        </p>
+      </td>
+      <td className="px-4 py-3">
+        <form action={updateOriginalPriceAction} className="flex items-center gap-2">
+          <input type="hidden" name="artwork_id" value={a.id} />
+          <input
+            type="number"
+            name="price"
+            step="0.01"
+            min="0"
+            defaultValue={price != null ? price.toFixed(2) : ''}
+            placeholder="—"
+            className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm tabular-nums focus:border-gray-900 focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
+          >
+            Save
+          </button>
+        </form>
+      </td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(cost)}</td>
+      <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(floor)}`}>
+        {fmtPct(floor)}
+      </td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(ceiling)}`}>{fmtPct(ceiling)}</td>
+      <td className={`px-4 py-3 tabular-nums ${marginColor(floorAt20)}`}>{fmtPct(floorAt20)}</td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.creation_cost)}</td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{eur(a.amortized_creation_per_unit)}</td>
+      <td className="px-4 py-3 tabular-nums text-gray-700">{a.units_sold}</td>
+      <td className="px-4 py-3">
+        {a.creation_recouped == null ? (
+          <span className="text-gray-400">—</span>
+        ) : a.creation_recouped ? (
+          <span className="text-green-700">yes</span>
+        ) : (
+          <span className="text-amber-700">not yet</span>
+        )}
+      </td>
+    </tr>
+  );
+}

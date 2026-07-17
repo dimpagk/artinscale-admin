@@ -1,7 +1,12 @@
 import { ContentStatsHeader } from '@/components/content/content-stats'
 import { ContentPageClient } from './content-page-client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { getAdCreativeGroups } from '@/lib/ad-creatives'
 import type { ContentStats, SocialPost } from '@/lib/constants/content'
+
+// The ad-copy review tool (was its own "Ad Copy" page) now lives here as a
+// tab, scoped to the active paid campaign.
+const AD_CAMPAIGN = 'test-2026-07'
 
 async function getContentStats(): Promise<ContentStats> {
   const { data, error } = await supabaseAdmin
@@ -43,11 +48,17 @@ async function getScheduledPosts(): Promise<SocialPost[]> {
   return (data || []) as SocialPost[]
 }
 
-export default async function ContentPage() {
-  const [stats, posts, scheduledPosts] = await Promise.all([
+export default async function ContentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const { tab } = await searchParams
+  const [stats, posts, scheduledPosts, adGroups] = await Promise.all([
     getContentStats(),
     getContentPosts(),
     getScheduledPosts(),
+    getAdCreativeGroups(AD_CAMPAIGN),
   ])
 
   return (
@@ -55,12 +66,18 @@ export default async function ContentPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Content</h1>
-          <p className="text-gray-500 text-sm">Create and schedule social media posts</p>
+          <p className="text-gray-500 text-sm">Social posts and paid-ad copy</p>
         </div>
       </div>
 
       <ContentStatsHeader stats={stats} />
-      <ContentPageClient posts={posts} scheduledPosts={scheduledPosts} />
+      <ContentPageClient
+        posts={posts}
+        scheduledPosts={scheduledPosts}
+        adGroups={adGroups}
+        adCampaign={AD_CAMPAIGN}
+        initialTab={tab}
+      />
     </div>
   )
 }

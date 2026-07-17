@@ -69,7 +69,7 @@ export async function updatePriceAction(formData: FormData): Promise<void> {
     console.error('[pricing] Shopify variant patch failed:', e);
   });
 
-  revalidatePath('/pricing');
+  revalidatePath('/economics/pricing');
 }
 
 /**
@@ -174,7 +174,7 @@ export async function updateOriginalPriceAction(formData: FormData): Promise<voi
     }
   }
 
-  revalidatePath('/pricing');
+  revalidatePath('/economics/pricing');
 }
 
 /** Active originals-campaign discount %, or null (scoped to originals/all). */
@@ -253,7 +253,7 @@ export async function createCampaignAction(formData: FormData): Promise<void> {
     status: 'draft',
   });
   if (error) console.error('[pricing] createCampaign failed:', error.message);
-  revalidatePath('/pricing');
+  revalidatePath('/economics/pricing');
 }
 
 /**
@@ -285,7 +285,7 @@ export async function applyCampaignAction(formData: FormData): Promise<void> {
     .eq('status', 'draft');
   if (actErr) {
     console.error('[pricing] applyCampaign activate blocked:', actErr.message);
-    revalidatePath('/pricing');
+    revalidatePath('/economics/pricing');
     return;
   }
 
@@ -305,7 +305,7 @@ export async function applyCampaignAction(formData: FormData): Promise<void> {
       console.error(`[pricing] apply variant ${v.id} failed:`, e)
     );
   }
-  revalidatePath('/pricing');
+  revalidatePath('/economics/pricing');
 }
 
 /**
@@ -349,7 +349,7 @@ export async function revertCampaignAction(formData: FormData): Promise<void> {
     .update({ status: 'ended', reverted_at: new Date().toISOString() })
     .eq('id', id);
   if (error) console.error('[pricing] revertCampaign status write failed:', error.message);
-  revalidatePath('/pricing');
+  revalidatePath('/economics/pricing');
 }
 
 interface ExtVariant {
