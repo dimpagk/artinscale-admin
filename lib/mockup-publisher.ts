@@ -99,14 +99,21 @@ export async function pushArtworkMockupsToShopify(
  * images before uploading, a single 422 wipes the whole gallery.
  *
  * When the URL is a public Supabase object we rewrite it to the render
- * endpoint with a width cap, so Shopify fetches a downscaled copy that
- * stays comfortably under 20 MP. Non-Supabase URLs (already web-sized
- * community art) pass through untouched.
+ * endpoint with a bounded, aspect-preserving downscale, so Shopify
+ * fetches a copy that stays comfortably under 20 MP. Non-Supabase URLs
+ * (already web-sized community art) pass through untouched.
+ *
+ * IMPORTANT: pass both width AND height with `resize=contain`. Supabase's
+ * render endpoint does NOT scale height when only `width` is given — it
+ * keeps the source height and squashes the width, producing a distorted
+ * image (a 4724x5906 master became 2200x5906). `contain` with a square
+ * bounding box scales the longest side down to the box while preserving
+ * aspect (a 4:5 master → 2400x3000), and never pads.
  */
 export function toShopifySafeImageUrl(url: string): string {
   if (typeof url !== 'string' || !url.includes('/storage/v1/object/public/')) return url;
   const rendered = url.replace('/object/public/', '/render/image/public/');
-  return `${rendered}${rendered.includes('?') ? '&' : '?'}width=2200&quality=88`;
+  return `${rendered}${rendered.includes('?') ? '&' : '?'}width=3000&height=3000&resize=contain&quality=90`;
 }
 
 /**
