@@ -9,6 +9,7 @@ import corfuGouache from './corfu-gouache.json';
 import amsterdamNocturne from './amsterdam-nocturne.json';
 import newyorkOil from './newyork-oil.json';
 import nordicDusk from './nordic-dusk.json';
+import fieldNotation from './field-notation.json';
 
 export type { StylePack } from './types';
 
@@ -33,6 +34,7 @@ export const STYLE_PACKS: Record<string, StylePack> = {
   [amsterdamNocturne.id]: amsterdamNocturne as StylePack,
   [newyorkOil.id]: newyorkOil as StylePack,
   [nordicDusk.id]: nordicDusk as StylePack,
+  [fieldNotation.id]: fieldNotation as StylePack,
 };
 
 /** Synchronous lookup — JSON only. Use in client components. */

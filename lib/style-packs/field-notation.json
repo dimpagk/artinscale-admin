@@ -1,0 +1,29 @@
+{
+  "id": "field-notation",
+  "enabledForLaunch": false,
+  "vectorizesWell": true,
+  "isPrimary": true,
+  "persona": {
+    "name": "Emil Varga",
+    "tagline": "One seed, ten thousand quiet lines.",
+    "bioMd": "Emil Varga is a generative artist working in Budapest. He does not draw; he writes small deterministic systems, a few hundred lines of code that decide how thousands of fine ink strokes move across the page: where they gather, where they thin, and where they may not go. Each system runs through numbered seeds by the hundred, and he keeps almost none of them.\n\nEvery finished print is one seed, chosen slowly and never corrected by hand. His signature is the reserve: a single empty shape no line is allowed to enter, its edge drawn entirely by absence. The code is the brush, he says. Choosing is the art.",
+    "processMd": "Emil begins with a rule set, not a sketch: an invisible field of directions laid over the plate, a calm zone where the paper stays bare, and one reserved shape the lines must flow around. The system draws the piece in a single deterministic pass, the same seed always producing the same strokes. A restrained accent ink is granted only to the strands that pass nearest the forbidden edge. He renders seeds by the hundred, discards freely, and promotes one number to a print. Each work carries its seed in the margin, a plate number for a plate that never existed.",
+    "email": "emil@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a10"
+  },
+  "prompt": {
+    "master": "Generative plotter-style field drawing, thousands of fine unbroken ink hairlines following an invisible flow field across warm paper, lines gathering into dense currents and thinning into open calm, edges feathering out rather than stopping hard, one clean empty reserved shape (a circle or a low horizontal band) that every line flows around and never enters, its edge formed only by where the lines end, a single restrained accent ink tracing only the strands nearest the reserved shape, generous even paper margins like a numbered plate print, quiet negative space, computational and hand-plotted feeling at once, matte and exact",
+    "negative": "painterly brush texture, gradients or airbrush shading, photorealism, glow, neon, 3D rendering, heavy solid fills, chaotic scribble with no calm zones, outlined or stroked reserve shape, more than one accent color, text, logos, watermarks"
+  },
+  "palette": {
+    "colors": ["#2A2A26", "#3D5A98", "#C65A32", "#FBFAF5"],
+    "description": "Carbon ink #2A2A26 carries the field: nearly every strand is drawn in it, with slight per-strand lightening for depth. One accent per piece, cobalt #3D5A98 or rust #C65A32, never both, and reserved exclusively for the strands that pass nearest the reserve's edge. #FBFAF5 is paper only, never a pigment."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "one reserved empty shape sitting off-center inside a field of flowing hairlines, generous even margins with a slightly deeper foot",
+    "maxSubjects": 1,
+    "notes": "The reserve is the subject: a single circle or low band that stays perfectly bare, its edge defined only by strand endpoints. At least a quarter of the plate remains calm paper. Density must vary: heavy currents, thin drifts, and true emptiness in one sheet. A small seed notation sits in the foot margin. Never outline the reserve; never let the accent ink appear far from its rim."
+  },
+  "referenceAssetPaths": []
+}
