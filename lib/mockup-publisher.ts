@@ -89,6 +89,27 @@ export async function pushArtworkMockupsToShopify(
 }
 
 /**
+ * Cap an image URL to Shopify's hard 20-megapixel product-image limit.
+ *
+ * Shopify rejects any product image over 20 MP with a 422. Most gallery
+ * images (framed/in-room/detail composites) are already web-sized, but
+ * the `original` we surface is the print master — for high-resolution
+ * pieces (e.g. Emil Varga's 300 DPI code renders, ~28 MP) that busts the
+ * limit and, because `replaceShopifyProductImages` deletes existing
+ * images before uploading, a single 422 wipes the whole gallery.
+ *
+ * When the URL is a public Supabase object we rewrite it to the render
+ * endpoint with a width cap, so Shopify fetches a downscaled copy that
+ * stays comfortably under 20 MP. Non-Supabase URLs (already web-sized
+ * community art) pass through untouched.
+ */
+export function toShopifySafeImageUrl(url: string): string {
+  if (typeof url !== 'string' || !url.includes('/storage/v1/object/public/')) return url;
+  const rendered = url.replace('/object/public/', '/render/image/public/');
+  return `${rendered}${rendered.includes('?') ? '&' : '?'}width=2200&quality=88`;
+}
+
+/**
  * Convert the composer's MockupSet to the Shopify image array in
  * display order, with descriptive alt text for SEO + accessibility.
  * Exported so the compose-mockups route shares the exact ordering.
@@ -98,7 +119,7 @@ export function mockupSetToShopifyOrder(
   artworkTitle: string
 ): Array<{ src: string; alt: string }> {
   return [
-    { src: set.original, alt: `${artworkTitle} - original artwork` },
+    { src: toShopifySafeImageUrl(set.original), alt: `${artworkTitle} - original artwork` },
     { src: set.framed, alt: `${artworkTitle} - framed archival matte print` },
     { src: set.inRoom, alt: `${artworkTitle} - shown in a styled room interior` },
     { src: set.details[0], alt: `${artworkTitle} - close-up detail` },

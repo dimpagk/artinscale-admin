@@ -289,7 +289,7 @@ export async function syncEditionToShopifyInventory(args: {
 export async function replaceShopifyProductImages(args: {
   shopifyHandle: string;
   images: ProductImageInput[];
-}): Promise<ShopifyAdminResult<{ uploaded: number; deleted: number }>> {
+}): Promise<ShopifyAdminResult<{ uploaded: number; deleted: number; failed?: number }>> {
   const productRes = await getShopifyProductByHandle(args.shopifyHandle);
   if (!productRes.ok) return { ok: false, error: productRes.error };
   const product = productRes.data;
@@ -307,8 +307,15 @@ export async function replaceShopifyProductImages(args: {
     deleted++;
   }
 
-  // 2. Upload new images in order
+  // 2. Upload new images in order.
+  //
+  // A single image failing (e.g. a >20 MP source hitting Shopify's
+  // pixel limit) must NOT abort the whole gallery: we already deleted
+  // the old images in step 1, so bailing here would leave the product
+  // with zero images. Instead we record per-image failures, keep going,
+  // and only surface an error when *every* upload failed.
   let uploaded = 0;
+  const failures: string[] = [];
   for (let i = 0; i < args.images.length; i++) {
     const img = args.images[i];
     const r = await shopifyFetch(`/products/${product.id}/images.json`, {
@@ -321,11 +328,21 @@ export async function replaceShopifyProductImages(args: {
         },
       }),
     });
-    if (!r.ok) return { ok: false, error: r.error };
+    if (!r.ok) {
+      failures.push(`image ${i + 1} (${img.src}): ${r.error ?? 'upload failed'}`);
+      continue;
+    }
     uploaded++;
   }
 
-  return { ok: true, data: { uploaded, deleted } };
+  if (uploaded === 0 && failures.length > 0) {
+    return { ok: false, error: `All image uploads failed: ${failures.join('; ')}` };
+  }
+
+  return {
+    ok: true,
+    data: { uploaded, deleted, ...(failures.length ? { failed: failures.length } : {}) },
+  };
 }
 
 /**

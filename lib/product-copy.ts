@@ -45,6 +45,15 @@ export interface ProductCopyInput {
    * during migration.
    */
   style?: string | null;
+  /**
+   * Medium descriptor for the "Medium:" line in the Artwork details
+   * block. Defaults to "Digital illustration" when null/omitted — the
+   * right value for the community pieces, whose artwork originates as a
+   * digital render. Studio artists working in other media (e.g. Emil
+   * Varga, who works in code) declare their own value via the style
+   * pack's `persona.medium`, resolved by the caller.
+   */
+  medium?: string | null;
 }
 
 export interface ProductCopyOutput {
@@ -103,7 +112,7 @@ export function buildProductCopy(input: ProductCopyInput): ProductCopyOutput {
     { label: 'Title', value: input.title },
   ];
   if (input.topicTitle) detailLines.push({ label: 'Collection', value: input.topicTitle });
-  detailLines.push({ label: 'Medium', value: 'Digital illustration' });
+  detailLines.push({ label: 'Medium', value: input.medium?.trim() || 'Digital illustration' });
   if (style) detailLines.push({ label: 'Style', value: style });
   if (dimensions) detailLines.push({ label: 'Dimensions', value: dimensions });
 

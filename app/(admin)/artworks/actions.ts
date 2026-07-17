@@ -11,7 +11,7 @@ import {
 import { createGelatoProduct } from '@/lib/gelato';
 import { getTemplateConfig, pickLargestPrintSize, SMALLEST_TEMPLATE } from '@/lib/gelato-templates';
 import { buildProductCopy } from '@/lib/product-copy';
-import { syncArtworkToShopify, getArtistPrimaryStyle } from '@/lib/listing-sync';
+import { syncArtworkToShopify, getArtistPrimaryStyle, getArtistPrimaryMedium } from '@/lib/listing-sync';
 import { generateListingMeta } from '@/lib/agents/listing-generator';
 import {
   draftArtworkFields,
@@ -543,6 +543,7 @@ export async function pushToGelatoAction(id: string) {
       ? `${artwork.edition_sold ?? 0} of ${artwork.edition_size}`
       : 'Open edition';
   const style = artwork.artist_id ? await getArtistPrimaryStyle(artwork.artist_id) : null;
+  const medium = artwork.artist_id ? await getArtistPrimaryMedium(artwork.artist_id) : null;
   const copy = buildProductCopy({
     title: artwork.title,
     artworkSynopsis: artwork.description || null,
@@ -554,6 +555,7 @@ export async function pushToGelatoAction(id: string) {
     productConfig: getTemplateConfig(productType),
     editionLabel,
     style,
+    medium,
   });
 
   const result = await createGelatoProduct({

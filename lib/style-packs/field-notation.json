@@ -5,6 +5,7 @@
   "isPrimary": true,
   "persona": {
     "name": "Emil Varga",
+    "medium": "Archival print",
     "tagline": "One seed, ten thousand quiet lines.",
     "bioMd": "Emil Varga is a Berlin artist who works in code. He does not draw; he writes small deterministic systems, a few hundred lines of code that decide how thousands of fine ink strokes move across the page: where they gather, where they thin, and where they may not go. Each system runs through numbered seeds by the hundred, and he keeps almost none of them.\n\nEvery finished print is one seed, chosen slowly and never corrected by hand. His signature is the reserve: a single empty shape no line is allowed to enter, its edge drawn entirely by absence. The code is the brush, he says. Choosing is the art.",
     "processMd": "Emil begins with a rule set, not a sketch: an invisible field of directions laid over the plate, a calm zone where the paper stays bare, and one reserved shape the lines must flow around. The system draws the piece in a single deterministic pass, the same seed always producing the same strokes. A restrained accent ink is granted only to the strands that pass nearest the forbidden edge. He renders seeds by the hundred, discards freely, and promotes one number to a print. Each work carries its seed in the margin, a plate number for a plate that never existed.",

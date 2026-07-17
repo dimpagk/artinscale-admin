@@ -259,6 +259,7 @@ export async function syncArtworkToShopify(
   // canonical Artwork-details block has a "Style:" line. Best-effort —
   // omitted gracefully when no style pack is configured.
   const style = artist?.id ? await getArtistPrimaryStyle(artist.id) : null;
+  const medium = artist?.id ? await getArtistPrimaryMedium(artist.id) : null;
 
   const copy = buildProductCopy({
     title: artwork.title,
@@ -271,6 +272,7 @@ export async function syncArtworkToShopify(
     productConfig,
     editionLabel,
     style,
+    medium,
   });
 
   const vendor = artist?.name?.trim() || 'Artinscale';
@@ -710,6 +712,51 @@ export async function getArtistPrimaryStyle(
     .eq('is_primary', true)
     .maybeSingle();
   return deriveStyleDescriptor(pack);
+}
+
+/**
+ * Resolve an artist's medium for the Artwork-details "Medium:" line.
+ *
+ * Lookup order:
+ *   1. `pack.persona.medium` on the artist's primary style pack —
+ *      explicit operator override, per artist, no code change.
+ *   2. artist_kind === 'studio' → "Archival print". Studio artists
+ *      (e.g. Emil Varga, who works in code) sell their pieces as
+ *      archival prints, not as the "Digital illustration" default that
+ *      fits the AI-rendered community pieces.
+ *   3. null — the caller's `buildProductCopy` applies the
+ *      "Digital illustration" default.
+ */
+export async function getArtistPrimaryMedium(
+  artistId: string
+): Promise<string | null> {
+  const [{ data: pack }, { data: user }] = await Promise.all([
+    supabaseAdmin
+      .from('style_packs')
+      .select('id, pack')
+      .eq('artist_id', artistId)
+      .eq('is_primary', true)
+      .maybeSingle(),
+    supabaseAdmin.from('users').select('artist_kind').eq('id', artistId).maybeSingle(),
+  ]);
+  const packMedium = deriveMedium(pack);
+  if (packMedium) return packMedium;
+  if (user?.artist_kind === 'studio') return 'Archival print';
+  return null;
+}
+
+/**
+ * Medium for the Artwork-details "Medium:" line, read from the artist's
+ * primary style pack (`pack.persona.medium`). Returns null when unset so
+ * the caller applies the "Digital illustration" default. Mirrors
+ * `deriveStyleDescriptor` — operator control via pack JSON, no code change.
+ */
+function deriveMedium(pack: { id?: string; pack?: unknown } | null): string | null {
+  if (!pack) return null;
+  const inner = (pack.pack ?? null) as { persona?: { medium?: unknown } } | null;
+  const personaMedium = inner?.persona?.medium;
+  if (typeof personaMedium === 'string' && personaMedium.trim()) return personaMedium.trim();
+  return null;
 }
 
 /**
