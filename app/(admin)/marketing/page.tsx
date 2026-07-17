@@ -1,6 +1,7 @@
 import { PageHeader } from '@/components/admin-ui';
 import { getAdCreativeGroups, summarize } from '@/lib/ad-creatives';
 import { MarketingClient } from './marketing-client';
+import { BidCapsSection } from './bid-caps-section';
 
 // Copy is operator-editable; always read fresh.
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,7 @@ export default async function MarketingPage() {
         approve here, then paste the approved copy into Meta Ads Manager. Nothing
         on this page publishes anywhere on its own.
       </p>
+      <BidCapsSection />
       <MarketingClient groups={groups} />
     </div>
   );

@@ -1,0 +1,1132 @@
+{
+  "generatedAt": "2026-07-16T23:18:56.233Z",
+  "source": "gelato order quote api (v4)",
+  "currency": "EUR",
+  "paymentFee": {
+    "percent": 1.9,
+    "fixed": 0.25
+  },
+  "note": "Contribution excludes VAT. See docs/GEOGRAPHY_ECONOMICS.md.",
+  "sizes": {
+    "museum-poster-21x30": {
+      "label": "21x30",
+      "retail": 29,
+      "markets": {
+        "US": {
+          "production": 8.15,
+          "shipping": 4.13,
+          "shippingMethod": "USPS Ground Advantage",
+          "deliveryDays": "5-6",
+          "madeIn": "US",
+          "landed": 12.28,
+          "paymentFee": 0.8,
+          "contribution": 15.92,
+          "marginPct": 55
+        },
+        "GB": {
+          "production": 8.85,
+          "shipping": 5.35,
+          "shippingMethod": "EVRI 48 Packets",
+          "deliveryDays": "6-7",
+          "madeIn": "GB",
+          "landed": 14.2,
+          "paymentFee": 0.8,
+          "contribution": 14,
+          "marginPct": 48
+        },
+        "SE": {
+          "production": 8.69,
+          "shipping": 7.07,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "7-12",
+          "madeIn": "PL",
+          "landed": 15.76,
+          "paymentFee": 0.8,
+          "contribution": 12.44,
+          "marginPct": 43
+        },
+        "DE": {
+          "production": 9.29,
+          "shipping": 6.49,
+          "shippingMethod": "Sendcloud Home Delivery Domestic",
+          "deliveryDays": "4-6",
+          "madeIn": "DE",
+          "landed": 15.78,
+          "paymentFee": 0.8,
+          "contribution": 12.42,
+          "marginPct": 43
+        },
+        "BE": {
+          "production": 14.02,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 19.88,
+          "paymentFee": 0.8,
+          "contribution": 8.32,
+          "marginPct": 29
+        },
+        "FR": {
+          "production": 12.31,
+          "shipping": 7.9,
+          "shippingMethod": "DPD domestic home delivery",
+          "deliveryDays": "4-5",
+          "madeIn": "FR",
+          "landed": 20.21,
+          "paymentFee": 0.8,
+          "contribution": 7.99,
+          "marginPct": 28
+        },
+        "GR": {
+          "production": 14.88,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "10-17",
+          "madeIn": "PL",
+          "landed": 20.74,
+          "paymentFee": 0.8,
+          "contribution": 7.46,
+          "marginPct": 26
+        },
+        "PL": {
+          "production": 14.88,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 20.74,
+          "paymentFee": 0.8,
+          "contribution": 7.46,
+          "marginPct": 26
+        },
+        "PT": {
+          "production": 14.88,
+          "shipping": 5.86,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "7-10",
+          "madeIn": "ES",
+          "landed": 20.74,
+          "paymentFee": 0.8,
+          "contribution": 7.46,
+          "marginPct": 26
+        },
+        "ES": {
+          "production": 14.88,
+          "shipping": 6.89,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 21.77,
+          "paymentFee": 0.8,
+          "contribution": 6.43,
+          "marginPct": 22
+        },
+        "NL": {
+          "production": 15.42,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 21.28,
+          "paymentFee": 0.8,
+          "contribution": 6.92,
+          "marginPct": 24
+        },
+        "AT": {
+          "production": 15.42,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "6-10",
+          "madeIn": "PL",
+          "landed": 21.28,
+          "paymentFee": 0.8,
+          "contribution": 6.92,
+          "marginPct": 24
+        },
+        "IE": {
+          "production": 15.42,
+          "shipping": 5.99,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "7-13",
+          "madeIn": "PL",
+          "landed": 21.41,
+          "paymentFee": 0.8,
+          "contribution": 6.79,
+          "marginPct": 23
+        },
+        "IT": {
+          "production": 16.82,
+          "shipping": 6.89,
+          "shippingMethod": "DHL Warenpost International",
+          "deliveryDays": "7-12",
+          "madeIn": "PL",
+          "landed": 23.71,
+          "paymentFee": 0.8,
+          "contribution": 4.49,
+          "marginPct": 15
+        }
+      }
+    },
+    "museum-poster-30x40": {
+      "label": "30x40",
+      "retail": 39,
+      "markets": {
+        "US": {
+          "production": 7.76,
+          "shipping": 4.13,
+          "shippingMethod": "USPS Ground Advantage",
+          "deliveryDays": "5-6",
+          "madeIn": "US",
+          "landed": 11.89,
+          "paymentFee": 0.99,
+          "contribution": 26.12,
+          "marginPct": 67
+        },
+        "GB": {
+          "production": 10.01,
+          "shipping": 5.35,
+          "shippingMethod": "EVRI 48 Packets",
+          "deliveryDays": "6-7",
+          "madeIn": "GB",
+          "landed": 15.36,
+          "paymentFee": 0.99,
+          "contribution": 22.65,
+          "marginPct": 58
+        },
+        "SE": {
+          "production": 9.59,
+          "shipping": 7.07,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-10",
+          "madeIn": "PL",
+          "landed": 16.66,
+          "paymentFee": 0.99,
+          "contribution": 21.35,
+          "marginPct": 55
+        },
+        "DE": {
+          "production": 11.19,
+          "shipping": 6.89,
+          "shippingMethod": "DHL Warenpost",
+          "deliveryDays": "5-5",
+          "madeIn": "PL",
+          "landed": 18.08,
+          "paymentFee": 0.99,
+          "contribution": 19.93,
+          "marginPct": 51
+        },
+        "BE": {
+          "production": 18.83,
+          "shipping": 5.86,
+          "shippingMethod": "DPD home delivery international",
+          "deliveryDays": "5-6",
+          "madeIn": "FR",
+          "landed": 24.69,
+          "paymentFee": 0.99,
+          "contribution": 13.32,
+          "marginPct": 34
+        },
+        "FR": {
+          "production": 17.02,
+          "shipping": 7.9,
+          "shippingMethod": "DPD domestic home delivery",
+          "deliveryDays": "4-5",
+          "madeIn": "FR",
+          "landed": 24.92,
+          "paymentFee": 0.99,
+          "contribution": 13.09,
+          "marginPct": 34
+        },
+        "GR": {
+          "production": 18.83,
+          "shipping": 5.86,
+          "shippingMethod": "UPS Standard Tariff",
+          "deliveryDays": "10-12",
+          "madeIn": "DE",
+          "landed": 24.69,
+          "paymentFee": 0.99,
+          "contribution": 13.32,
+          "marginPct": 34
+        },
+        "PL": {
+          "production": 18.83,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "4-5",
+          "madeIn": "PL",
+          "landed": 24.69,
+          "paymentFee": 0.99,
+          "contribution": 13.32,
+          "marginPct": 34
+        },
+        "PT": {
+          "production": 18.83,
+          "shipping": 5.86,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "7-10",
+          "madeIn": "ES",
+          "landed": 24.69,
+          "paymentFee": 0.99,
+          "contribution": 13.32,
+          "marginPct": 34
+        },
+        "ES": {
+          "production": 16.43,
+          "shipping": 7.39,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 23.82,
+          "paymentFee": 0.99,
+          "contribution": 14.19,
+          "marginPct": 36
+        },
+        "NL": {
+          "production": 20.71,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "PL",
+          "landed": 26.57,
+          "paymentFee": 0.99,
+          "contribution": 11.44,
+          "marginPct": 29
+        },
+        "AT": {
+          "production": 20.71,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "PL",
+          "landed": 26.57,
+          "paymentFee": 0.99,
+          "contribution": 11.44,
+          "marginPct": 29
+        },
+        "IE": {
+          "production": 20.63,
+          "shipping": 5.99,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "7-11",
+          "madeIn": "PL",
+          "landed": 26.62,
+          "paymentFee": 0.99,
+          "contribution": 11.39,
+          "marginPct": 29
+        },
+        "IT": {
+          "production": 19.72,
+          "shipping": 7.39,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-10",
+          "madeIn": "PL",
+          "landed": 27.11,
+          "paymentFee": 0.99,
+          "contribution": 10.9,
+          "marginPct": 28
+        }
+      }
+    },
+    "museum-poster-30x45": {
+      "label": "30x45",
+      "retail": 42,
+      "markets": {
+        "US": {
+          "production": 9.7,
+          "shipping": 4.13,
+          "shippingMethod": "USPS Ground Advantage",
+          "deliveryDays": "5-6",
+          "madeIn": "US",
+          "landed": 13.83,
+          "paymentFee": 1.05,
+          "contribution": 27.12,
+          "marginPct": 65
+        },
+        "GB": {
+          "production": 11.65,
+          "shipping": 5.35,
+          "shippingMethod": "EVRI 48 Packets",
+          "deliveryDays": "6-7",
+          "madeIn": "GB",
+          "landed": 17,
+          "paymentFee": 1.05,
+          "contribution": 23.95,
+          "marginPct": 57
+        },
+        "SE": {
+          "production": 11.31,
+          "shipping": 7.16,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 18.47,
+          "paymentFee": 1.05,
+          "contribution": 22.48,
+          "marginPct": 54
+        },
+        "DE": {
+          "production": 12.09,
+          "shipping": 6.89,
+          "shippingMethod": "DHL Warenpost",
+          "deliveryDays": "5-5",
+          "madeIn": "DE",
+          "landed": 18.98,
+          "paymentFee": 1.05,
+          "contribution": 21.97,
+          "marginPct": 52
+        },
+        "BE": {
+          "production": 19.62,
+          "shipping": 5.86,
+          "shippingMethod": "DPD home delivery international",
+          "deliveryDays": "5-6",
+          "madeIn": "FR",
+          "landed": 25.48,
+          "paymentFee": 1.05,
+          "contribution": 15.47,
+          "marginPct": 37
+        },
+        "FR": {
+          "production": 17.59,
+          "shipping": 7.9,
+          "shippingMethod": "DPD domestic home delivery",
+          "deliveryDays": "4-5",
+          "madeIn": "FR",
+          "landed": 25.49,
+          "paymentFee": 1.05,
+          "contribution": 15.46,
+          "marginPct": 37
+        },
+        "GR": {
+          "production": 20.38,
+          "shipping": 5.86,
+          "shippingMethod": "UPS Standard Tariff",
+          "deliveryDays": "10-12",
+          "madeIn": "DE",
+          "landed": 26.24,
+          "paymentFee": 1.05,
+          "contribution": 14.71,
+          "marginPct": 35
+        },
+        "PL": {
+          "production": 20.38,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 26.24,
+          "paymentFee": 1.05,
+          "contribution": 14.71,
+          "marginPct": 35
+        },
+        "PT": {
+          "production": 20.38,
+          "shipping": 5.86,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 26.24,
+          "paymentFee": 1.05,
+          "contribution": 14.71,
+          "marginPct": 35
+        },
+        "ES": {
+          "production": 20.38,
+          "shipping": 7.39,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "5-6",
+          "madeIn": "ES",
+          "landed": 27.77,
+          "paymentFee": 1.05,
+          "contribution": 13.18,
+          "marginPct": 31
+        },
+        "NL": {
+          "production": 21.58,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-6",
+          "madeIn": "DE",
+          "landed": 27.44,
+          "paymentFee": 1.05,
+          "contribution": 13.51,
+          "marginPct": 32
+        },
+        "AT": {
+          "production": 21.58,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-6",
+          "madeIn": "DE",
+          "landed": 27.44,
+          "paymentFee": 1.05,
+          "contribution": 13.51,
+          "marginPct": 32
+        },
+        "IE": {
+          "production": 21.58,
+          "shipping": 5.99,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 27.57,
+          "paymentFee": 1.05,
+          "contribution": 13.38,
+          "marginPct": 32
+        },
+        "IT": {
+          "production": 22.33,
+          "shipping": 7.39,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 29.72,
+          "paymentFee": 1.05,
+          "contribution": 11.23,
+          "marginPct": 27
+        }
+      }
+    },
+    "museum-poster-40x50": {
+      "label": "40x50",
+      "retail": 55,
+      "markets": {
+        "US": {
+          "production": 10.23,
+          "shipping": 4.13,
+          "shippingMethod": "USPS Ground Advantage",
+          "deliveryDays": "5-6",
+          "madeIn": "US",
+          "landed": 14.36,
+          "paymentFee": 1.3,
+          "contribution": 39.35,
+          "marginPct": 72
+        },
+        "GB": {
+          "production": 12.58,
+          "shipping": 5.35,
+          "shippingMethod": "EVRI 48 Packets",
+          "deliveryDays": "6-7",
+          "madeIn": "GB",
+          "landed": 17.93,
+          "paymentFee": 1.3,
+          "contribution": 35.78,
+          "marginPct": 65
+        },
+        "SE": {
+          "production": 12,
+          "shipping": 7.16,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 19.16,
+          "paymentFee": 1.3,
+          "contribution": 34.55,
+          "marginPct": 63
+        },
+        "DE": {
+          "production": 12.99,
+          "shipping": 8.19,
+          "shippingMethod": "DHL Parcel",
+          "deliveryDays": "4-6",
+          "madeIn": "DE",
+          "landed": 21.18,
+          "paymentFee": 1.3,
+          "contribution": 32.53,
+          "marginPct": 59
+        },
+        "BE": {
+          "production": 21.63,
+          "shipping": 5.86,
+          "shippingMethod": "DPD home delivery international",
+          "deliveryDays": "5-6",
+          "madeIn": "FR",
+          "landed": 27.49,
+          "paymentFee": 1.3,
+          "contribution": 26.22,
+          "marginPct": 48
+        },
+        "FR": {
+          "production": 18.4,
+          "shipping": 9.9,
+          "shippingMethod": "DPD domestic home delivery",
+          "deliveryDays": "4-5",
+          "madeIn": "FR",
+          "landed": 28.3,
+          "paymentFee": 1.3,
+          "contribution": 25.41,
+          "marginPct": 46
+        },
+        "GR": {
+          "production": 21.63,
+          "shipping": 5.86,
+          "shippingMethod": "UPS Standard Tariff",
+          "deliveryDays": "10-12",
+          "madeIn": "DE",
+          "landed": 27.49,
+          "paymentFee": 1.3,
+          "contribution": 26.22,
+          "marginPct": 48
+        },
+        "PL": {
+          "production": 21.63,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 27.49,
+          "paymentFee": 1.3,
+          "contribution": 26.22,
+          "marginPct": 48
+        },
+        "PT": {
+          "production": 21.63,
+          "shipping": 5.86,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 27.49,
+          "paymentFee": 1.3,
+          "contribution": 26.22,
+          "marginPct": 48
+        },
+        "ES": {
+          "production": 21.63,
+          "shipping": 7.39,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 29.02,
+          "paymentFee": 1.3,
+          "contribution": 24.69,
+          "marginPct": 45
+        },
+        "NL": {
+          "production": 23.79,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-6",
+          "madeIn": "DE",
+          "landed": 29.65,
+          "paymentFee": 1.3,
+          "contribution": 24.06,
+          "marginPct": 44
+        },
+        "AT": {
+          "production": 23.79,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-6",
+          "madeIn": "DE",
+          "landed": 29.65,
+          "paymentFee": 1.3,
+          "contribution": 24.06,
+          "marginPct": 44
+        },
+        "IE": {
+          "production": 23.69,
+          "shipping": 5.99,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 29.68,
+          "paymentFee": 1.3,
+          "contribution": 24.03,
+          "marginPct": 44
+        },
+        "IT": {
+          "production": 23.7,
+          "shipping": 7.39,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 31.09,
+          "paymentFee": 1.3,
+          "contribution": 22.62,
+          "marginPct": 41
+        }
+      }
+    },
+    "museum-poster-50x70": {
+      "label": "50x70",
+      "retail": 79,
+      "markets": {
+        "US": {
+          "production": 13.7,
+          "shipping": 4.13,
+          "shippingMethod": "USPS Ground Advantage",
+          "deliveryDays": "5-6",
+          "madeIn": "US",
+          "landed": 17.83,
+          "paymentFee": 1.75,
+          "contribution": 59.42,
+          "marginPct": 75
+        },
+        "GB": {
+          "production": 15.03,
+          "shipping": 5.35,
+          "shippingMethod": "EVRI 48 Packets",
+          "deliveryDays": "6-7",
+          "madeIn": "GB",
+          "landed": 20.38,
+          "paymentFee": 1.75,
+          "contribution": 56.87,
+          "marginPct": 72
+        },
+        "SE": {
+          "production": 15.06,
+          "shipping": 7.07,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 22.13,
+          "paymentFee": 1.75,
+          "contribution": 55.12,
+          "marginPct": 70
+        },
+        "DE": {
+          "production": 14.49,
+          "shipping": 8.19,
+          "shippingMethod": "DHL Parcel",
+          "deliveryDays": "4-6",
+          "madeIn": "DE",
+          "landed": 22.68,
+          "paymentFee": 1.75,
+          "contribution": 54.57,
+          "marginPct": 69
+        },
+        "BE": {
+          "production": 24.36,
+          "shipping": 5.86,
+          "shippingMethod": "DPD home delivery international",
+          "deliveryDays": "5-6",
+          "madeIn": "FR",
+          "landed": 30.22,
+          "paymentFee": 1.75,
+          "contribution": 47.03,
+          "marginPct": 60
+        },
+        "FR": {
+          "production": 20.82,
+          "shipping": 9.9,
+          "shippingMethod": "DPD domestic home delivery",
+          "deliveryDays": "4-5",
+          "madeIn": "FR",
+          "landed": 30.72,
+          "paymentFee": 1.75,
+          "contribution": 46.53,
+          "marginPct": 59
+        },
+        "GR": {
+          "production": 24.36,
+          "shipping": 5.86,
+          "shippingMethod": "UPS Standard Tariff",
+          "deliveryDays": "10-12",
+          "madeIn": "DE",
+          "landed": 30.22,
+          "paymentFee": 1.75,
+          "contribution": 47.03,
+          "marginPct": 60
+        },
+        "PL": {
+          "production": 24.36,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 30.22,
+          "paymentFee": 1.75,
+          "contribution": 47.03,
+          "marginPct": 60
+        },
+        "PT": {
+          "production": 24.36,
+          "shipping": 5.86,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 30.22,
+          "paymentFee": 1.75,
+          "contribution": 47.03,
+          "marginPct": 60
+        },
+        "ES": {
+          "production": 24.36,
+          "shipping": 7.39,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 31.75,
+          "paymentFee": 1.75,
+          "contribution": 45.5,
+          "marginPct": 58
+        },
+        "NL": {
+          "production": 26.8,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-6",
+          "madeIn": "DE",
+          "landed": 32.66,
+          "paymentFee": 1.75,
+          "contribution": 44.59,
+          "marginPct": 56
+        },
+        "AT": {
+          "production": 26.8,
+          "shipping": 5.86,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "5-6",
+          "madeIn": "DE",
+          "landed": 32.66,
+          "paymentFee": 1.75,
+          "contribution": 44.59,
+          "marginPct": 56
+        },
+        "IE": {
+          "production": 26.69,
+          "shipping": 5.99,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 32.68,
+          "paymentFee": 1.75,
+          "contribution": 44.57,
+          "marginPct": 56
+        },
+        "IT": {
+          "production": 28.54,
+          "shipping": 7.39,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-11",
+          "madeIn": "DE",
+          "landed": 35.93,
+          "paymentFee": 1.75,
+          "contribution": 41.32,
+          "marginPct": 52
+        }
+      }
+    },
+    "museum-poster-60x90": {
+      "label": "60x90",
+      "retail": 109,
+      "markets": {
+        "US": {
+          "production": 17.16,
+          "shipping": 4.98,
+          "shippingMethod": "ShipX Ground",
+          "deliveryDays": "5-6",
+          "madeIn": "US",
+          "landed": 22.14,
+          "paymentFee": 2.32,
+          "contribution": 84.54,
+          "marginPct": 78
+        },
+        "GB": {
+          "production": 18.52,
+          "shipping": 5.82,
+          "shippingMethod": "EVRI 48 Packets",
+          "deliveryDays": "6-7",
+          "madeIn": "GB",
+          "landed": 24.34,
+          "paymentFee": 2.32,
+          "contribution": 82.34,
+          "marginPct": 76
+        },
+        "SE": {
+          "production": 17.12,
+          "shipping": 7.83,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "7-12",
+          "madeIn": "DE",
+          "landed": 24.95,
+          "paymentFee": 2.32,
+          "contribution": 81.73,
+          "marginPct": 75
+        },
+        "DE": {
+          "production": 19.29,
+          "shipping": 8.89,
+          "shippingMethod": "DHL Parcel",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 28.18,
+          "paymentFee": 2.32,
+          "contribution": 78.5,
+          "marginPct": 72
+        },
+        "BE": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "DE",
+          "landed": 34.44,
+          "paymentFee": 2.32,
+          "contribution": 72.24,
+          "marginPct": 66
+        },
+        "FR": {
+          "production": 26.1,
+          "shipping": 9.9,
+          "shippingMethod": "DPD domestic home delivery",
+          "deliveryDays": "4-5",
+          "madeIn": "FR",
+          "landed": 36,
+          "paymentFee": 2.32,
+          "contribution": 70.68,
+          "marginPct": 65
+        },
+        "GR": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "UPS Standard Tariff",
+          "deliveryDays": "11-13",
+          "madeIn": "DE",
+          "landed": 34.44,
+          "paymentFee": 2.32,
+          "contribution": 72.24,
+          "marginPct": 66
+        },
+        "PL": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-10",
+          "madeIn": "DE",
+          "landed": 34.44,
+          "paymentFee": 2.32,
+          "contribution": 72.24,
+          "marginPct": 66
+        },
+        "PT": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 34.44,
+          "paymentFee": 2.32,
+          "contribution": 72.24,
+          "marginPct": 66
+        },
+        "ES": {
+          "production": 26.37,
+          "shipping": 8.89,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "5-6",
+          "madeIn": "ES",
+          "landed": 35.26,
+          "paymentFee": 2.32,
+          "contribution": 71.42,
+          "marginPct": 66
+        },
+        "NL": {
+          "production": 30.14,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "DE",
+          "landed": 37.18,
+          "paymentFee": 2.32,
+          "contribution": 69.5,
+          "marginPct": 64
+        },
+        "AT": {
+          "production": 30.14,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "DE",
+          "landed": 37.18,
+          "paymentFee": 2.32,
+          "contribution": 69.5,
+          "marginPct": 64
+        },
+        "IE": {
+          "production": 30.14,
+          "shipping": 6.52,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "7-12",
+          "madeIn": "DE",
+          "landed": 36.66,
+          "paymentFee": 2.32,
+          "contribution": 70.02,
+          "marginPct": 64
+        },
+        "IT": {
+          "production": 30.89,
+          "shipping": 8.89,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "7-12",
+          "madeIn": "DE",
+          "landed": 39.78,
+          "paymentFee": 2.32,
+          "contribution": 66.9,
+          "marginPct": 61
+        }
+      }
+    },
+    "museum-poster-70x100": {
+      "label": "70x100",
+      "retail": 139,
+      "markets": {
+        "US": {
+          "production": 17.66,
+          "shipping": 4.98,
+          "shippingMethod": "ShipX Ground",
+          "deliveryDays": "5-6",
+          "madeIn": "US",
+          "landed": 22.64,
+          "paymentFee": 2.89,
+          "contribution": 113.47,
+          "marginPct": 82
+        },
+        "GB": {
+          "production": 18.87,
+          "shipping": 5.82,
+          "shippingMethod": "EVRI 48 Packets",
+          "deliveryDays": "6-7",
+          "madeIn": "GB",
+          "landed": 24.69,
+          "paymentFee": 2.89,
+          "contribution": 111.42,
+          "marginPct": 80
+        },
+        "SE": {
+          "production": 17.46,
+          "shipping": 7.83,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "7-12",
+          "madeIn": "DE",
+          "landed": 25.29,
+          "paymentFee": 2.89,
+          "contribution": 110.82,
+          "marginPct": 80
+        },
+        "DE": {
+          "production": 19.79,
+          "shipping": 8.89,
+          "shippingMethod": "DHL Parcel",
+          "deliveryDays": "5-7",
+          "madeIn": "DE",
+          "landed": 28.68,
+          "paymentFee": 2.89,
+          "contribution": 107.43,
+          "marginPct": 77
+        },
+        "BE": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "DE",
+          "landed": 34.44,
+          "paymentFee": 2.89,
+          "contribution": 101.67,
+          "marginPct": 73
+        },
+        "FR": {
+          "production": 27.72,
+          "shipping": 9.9,
+          "shippingMethod": "DPD domestic home delivery",
+          "deliveryDays": "4-5",
+          "madeIn": "FR",
+          "landed": 37.62,
+          "paymentFee": 2.89,
+          "contribution": 98.49,
+          "marginPct": 71
+        },
+        "GR": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "UPS Standard Tariff",
+          "deliveryDays": "11-13",
+          "madeIn": "DE",
+          "landed": 34.44,
+          "paymentFee": 2.89,
+          "contribution": 101.67,
+          "marginPct": 73
+        },
+        "PL": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-10",
+          "madeIn": "DE",
+          "landed": 34.44,
+          "paymentFee": 2.89,
+          "contribution": 101.67,
+          "marginPct": 73
+        },
+        "PT": {
+          "production": 27.4,
+          "shipping": 7.04,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "6-7",
+          "madeIn": "ES",
+          "landed": 34.44,
+          "paymentFee": 2.89,
+          "contribution": 101.67,
+          "marginPct": 73
+        },
+        "ES": {
+          "production": 26.89,
+          "shipping": 8.89,
+          "shippingMethod": "Package 48/72",
+          "deliveryDays": "5-6",
+          "madeIn": "ES",
+          "landed": 35.78,
+          "paymentFee": 2.89,
+          "contribution": 100.33,
+          "marginPct": 72
+        },
+        "NL": {
+          "production": 30.14,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "DE",
+          "landed": 37.18,
+          "paymentFee": 2.89,
+          "contribution": 98.93,
+          "marginPct": 71
+        },
+        "AT": {
+          "production": 30.14,
+          "shipping": 7.04,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "6-7",
+          "madeIn": "DE",
+          "landed": 37.18,
+          "paymentFee": 2.89,
+          "contribution": 98.93,
+          "marginPct": 71
+        },
+        "IE": {
+          "production": 30.14,
+          "shipping": 6.52,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "7-12",
+          "madeIn": "DE",
+          "landed": 36.66,
+          "paymentFee": 2.89,
+          "contribution": 99.45,
+          "marginPct": 72
+        },
+        "IT": {
+          "production": 31.5,
+          "shipping": 8.89,
+          "shippingMethod": "DHL Global Parcel",
+          "deliveryDays": "7-12",
+          "madeIn": "DE",
+          "landed": 40.39,
+          "paymentFee": 2.89,
+          "contribution": 95.72,
+          "marginPct": 69
+        }
+      }
+    }
+  }
+}
