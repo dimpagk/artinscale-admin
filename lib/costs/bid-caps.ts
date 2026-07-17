@@ -7,15 +7,15 @@
  * that into the cost cap (max CPA) to enter on each market's Meta ad set.
  *
  * Two things are decoupled on purpose:
- *   - Landed COST per (size × country) is the slow-moving Gelato part — it
+ *   - Landed COST per (size × country) is the slow-moving Gelato part; it
  *     lives in the committed snapshot (gelato-costs.json).
- *   - PRICE is volatile and operator-editable — it is passed in live from
+ *   - PRICE is volatile and operator-editable; it is passed in live from
  *     `print_size_pricing` / the listed artworks, never frozen here.
  * So a price edit on the Pricing page moves the caps immediately.
  *
  * Caps are grounded in what is actually for sale: the caps that matter are
  * averaged over the LISTED catalog pieces, each at its real size and price
- * (today the catalog is 40×50 and 50×70 — no 21×30 is listed). The average
+ * (today the catalog is 40×50 and 50×70; no 21×30 is listed). The average
  * is unweighted for now; pass `unitsSold` and set `weighted: true` to weight
  * by sales per item once that is wanted.
  *
@@ -51,7 +51,7 @@ export const PAYMENT_FEE_FIXED = 0.25;
  */
 export const DEFAULT_HOME_VAT_PERCENT = 24;
 
-/** EU-27 member states (ISO alpha-2) — B2C sales here carry output VAT. */
+/** EU-27 member states (ISO alpha-2): B2C sales here carry output VAT. */
 const EU_MEMBERS = new Set([
   'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR',
   'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK',
@@ -133,10 +133,12 @@ export function contributionFor(
 export interface CatalogPiece {
   sizeKey: string;
   price: number;
-  /** Units sold to date — reserved for future sales-weighting. */
+  /** Units sold to date, reserved for future sales-weighting. */
   unitsSold?: number;
   /** Per-sale community artist royalty % (0 / omitted for non-community). */
   royaltyPercent?: number;
+  /** One-time creation/acquisition cost (EUR), used by the per-€1 summary. */
+  creationCost?: number;
 }
 
 export interface MarketCap {
@@ -147,7 +149,7 @@ export interface MarketCap {
   vatPercent: number;
   /** Mean per-order contribution across the listed pieces, net of VAT (EUR). */
   avgContribution: number;
-  /** avgContribution × targetRatio — the cost cap to enter in Meta (EUR). */
+  /** avgContribution × targetRatio: the cost cap to enter in Meta (EUR). */
   cap: number;
   deliveryDays: string;
   /** How many listed pieces the average is over. */
@@ -156,8 +158,8 @@ export interface MarketCap {
 }
 
 function guidanceForTier(tier: CountryTier | null): string {
-  if (tier === 'A') return 'Cheap to fulfil — bid up to the cap.';
-  if (tier === 'B') return 'Expensive to fulfil — cap tight; lead larger formats.';
+  if (tier === 'A') return 'Cheap to fulfil: bid up to the cap.';
+  if (tier === 'B') return 'Expensive to fulfil: cap tight; lead larger formats.';
   return '';
 }
 
@@ -168,6 +170,72 @@ function mostCommonSize(pieces: CatalogPiece[]): string {
     Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
     'museum-poster-50x70'
   );
+}
+
+/** Weight scheme shared by every catalog average: +1 smoothing so unsold
+ * pieces still count once when sales-weighted. */
+function pieceWeight(p: CatalogPiece, weighted: boolean): number {
+  return weighted ? (p.unitsSold ?? 0) + 1 : 1;
+}
+
+interface MarketAverages {
+  country: string;
+  vatPercent: number;
+  /** Weighted average gross (VAT-inclusive) price across pieces (EUR). */
+  gross: number;
+  /** Weighted average net (ex-VAT) revenue (EUR). */
+  net: number;
+  /** Weighted average contribution (EUR), unrounded. */
+  contrib: number;
+  /** Pieces included (snapshot-covered sizes only). */
+  pieces: number;
+}
+
+/**
+ * The single per-market reducer both the caps table and the per-euro summary
+ * consume, so weighting, VAT, and piece coverage can never diverge between
+ * them. Pieces whose size is missing from the landed-cost snapshot are
+ * skipped consistently (they contribute to nothing).
+ */
+function marketWeightedAverages(
+  pieces: CatalogPiece[],
+  weighted: boolean,
+  homeVatPercent: number
+): MarketAverages[] {
+  const rows: MarketAverages[] = [];
+  for (const country of supportedMarkets()) {
+    const vatPercent = outputVatPercent(country, homeVatPercent);
+    let wsGross = 0;
+    let wsNet = 0;
+    let wsContrib = 0;
+    let wt = 0;
+    let n = 0;
+    for (const p of pieces) {
+      const c = contributionFor(p.sizeKey, country, p.price, vatPercent, p.royaltyPercent ?? 0);
+      if (c == null) continue;
+      const w = pieceWeight(p, weighted);
+      wsGross += p.price * w;
+      wsNet += (p.price / (1 + vatPercent / 100)) * w;
+      wsContrib += c * w;
+      wt += w;
+      n++;
+    }
+    if (!wt) continue;
+    rows.push({
+      country,
+      vatPercent,
+      gross: wsGross / wt,
+      net: wsNet / wt,
+      contrib: wsContrib / wt,
+      pieces: n,
+    });
+  }
+  return rows;
+}
+
+/** Per-market cap with the same rounding the table displays. */
+function capOf(contrib: number, targetRatio: number): number {
+  return round2(round2(contrib) * targetRatio);
 }
 
 /**
@@ -186,36 +254,20 @@ export function getCatalogBidCaps(
   } = opts;
   if (!pieces.length) return [];
   const deliverySize = mostCommonSize(pieces);
-  const rows: MarketCap[] = [];
-  for (const country of supportedMarkets()) {
-    const vatPercent = outputVatPercent(country, homeVatPercent);
-    let weightedSum = 0;
-    let weightTotal = 0;
-    let n = 0;
-    for (const p of pieces) {
-      const c = contributionFor(p.sizeKey, country, p.price, vatPercent, p.royaltyPercent ?? 0);
-      if (c == null) continue;
-      // +1 smoothing so unsold pieces still count once when weighted.
-      const w = weighted ? (p.unitsSold ?? 0) + 1 : 1;
-      weightedSum += c * w;
-      weightTotal += w;
-      n++;
-    }
-    if (!n) continue;
-    const avg = round2(weightedSum / weightTotal);
-    const tier = getCountryTier(country);
-    rows.push({
-      country,
-      name: MARKET_NAMES[country] ?? country,
+  const rows = marketWeightedAverages(pieces, weighted, homeVatPercent).map((m) => {
+    const tier = getCountryTier(m.country);
+    return {
+      country: m.country,
+      name: MARKET_NAMES[m.country] ?? m.country,
       tier,
-      vatPercent,
-      avgContribution: avg,
-      cap: round2(avg * targetRatio),
-      deliveryDays: getGelatoLandedCost(deliverySize, country)?.deliveryDays ?? '',
-      pieces: n,
+      vatPercent: m.vatPercent,
+      avgContribution: round2(m.contrib),
+      cap: capOf(m.contrib, targetRatio),
+      deliveryDays: getGelatoLandedCost(deliverySize, m.country)?.deliveryDays ?? '',
+      pieces: m.pieces,
       guidance: guidanceForTier(tier),
-    });
-  }
+    };
+  });
   return rows.sort((a, b) => b.cap - a.cap);
 }
 
@@ -342,6 +394,122 @@ export function buildMarketPerformance(
       verdict,
     };
   });
+}
+
+/**
+ * Blended "per €1" economics at the CAC caps: the four operator ratios
+ * (target max CAC, ROAS at cap, revenue per €1 of total spend, EBITDA per
+ * €1 of total spend). Blended = simple mean across the covered markets (the
+ * real blend follows budget allocation; this is the neutral baseline), built
+ * on the same marketWeightedAverages/capOf the caps table uses, so the tile
+ * always equals the mean of the table's CAC-cap column.
+ *
+ * Two bases:
+ *   - marginal ("sunk"): creation cost of existing pieces ignored.
+ *   - loaded: blended creation cost amortised over `amortUnits` sales per
+ *     piece, plus `opexPerOrder` (subscriptions ÷ orders; 0 until wired to
+ *     recurring_costs).
+ *
+ * Total spend per order = (netRev − contribution) + CAC [+ creation + opex],
+ * i.e. landed + payment fee + royalty + CAC, all pre-VAT cash out.
+ *
+ * Returns null when there is nothing meaningful to show: no pieces, no
+ * covered markets, or blended contribution ≤ 0 (a below-cost price would
+ * otherwise render Infinity/negative ratios; the per-market table still
+ * exposes the negative caps so the problem stays visible).
+ */
+export interface PerEuroSummary {
+  /** Mean of the per-market CAC caps (EUR), same rounding as the table. */
+  blendedCap: number;
+  /** Gross order value ÷ CAC at the blended cap (what Meta shows). */
+  roas: number;
+  /** Net (ex-VAT) revenue per €1 of total spend, marginal basis. */
+  revenuePerEuro: number;
+  /** ...loaded basis (creation amortised + opex). */
+  revenuePerEuroLoaded: number;
+  /** EBITDA per order at the cap (EUR), loaded basis. */
+  ebitdaPerOrderLoaded: number;
+  /** EBITDA per €1 of total spend, loaded basis (= revenuePerEuroLoaded − 1). */
+  roiLoaded: number;
+  /** Blended creation cost charged per order in the loaded basis (EUR). */
+  creationPerOrder: number;
+  amortUnits: number;
+  opexPerOrder: number;
+  markets: number;
+}
+
+export function getPerEuroSummary(
+  pieces: CatalogPiece[],
+  opts: {
+    targetRatio?: number;
+    weighted?: boolean;
+    homeVatPercent?: number;
+    /** Lifetime sales assumed per piece for creation amortisation. */
+    amortUnits?: number;
+    /** Flat opex allocation per order (subscriptions ÷ expected orders). */
+    opexPerOrder?: number;
+  } = {}
+): PerEuroSummary | null {
+  const {
+    targetRatio = DEFAULT_TARGET_CAC_RATIO,
+    weighted = false,
+    homeVatPercent = DEFAULT_HOME_VAT_PERCENT,
+    amortUnits = 10,
+    opexPerOrder = 0,
+  } = opts;
+  if (!pieces.length) return null;
+
+  const markets = marketWeightedAverages(pieces, weighted, homeVatPercent);
+  if (!markets.length) return null;
+
+  // Creation blend over the SAME universe as revenue: only snapshot-covered
+  // pieces (a piece the market loop skips must not add creation cost either).
+  const firstMarket = markets[0].country;
+  const covered = pieces.filter(
+    (p) => getGelatoLandedCost(p.sizeKey, firstMarket) != null
+  );
+  let ccSum = 0;
+  let ccW = 0;
+  for (const p of covered) {
+    const w = pieceWeight(p, weighted);
+    ccSum += (p.creationCost ?? 0) * w;
+    ccW += w;
+  }
+  const creationPerOrder =
+    amortUnits > 0 && ccW > 0 ? round2(ccSum / ccW / amortUnits) : 0;
+
+  // Simple-mean blend across markets; caps rounded exactly as the table.
+  const mkts = markets.length;
+  const gross = markets.reduce((s, m) => s + m.gross, 0) / mkts;
+  const net = markets.reduce((s, m) => s + m.net, 0) / mkts;
+  const contrib = markets.reduce((s, m) => s + m.contrib, 0) / mkts;
+  const cap = markets.reduce((s, m) => s + capOf(m.contrib, targetRatio), 0) / mkts;
+
+  // Below-cost pricing makes the blended ratios meaningless; hide the tiles.
+  if (cap <= 0) return null;
+
+  // net − contribution = landed + payment fee + royalty (per-order cash cost).
+  const variableCost = net - contrib;
+  const totalMarginal = variableCost + cap + opexPerOrder;
+  const totalLoaded = totalMarginal + creationPerOrder;
+  if (totalMarginal <= 0) return null;
+
+  const revenuePerEuro = round2(net / totalMarginal);
+  const revenuePerEuroLoaded = round2(net / totalLoaded);
+
+  return {
+    blendedCap: round2(cap),
+    roas: round2(gross / cap),
+    revenuePerEuro,
+    revenuePerEuroLoaded,
+    ebitdaPerOrderLoaded: round2(contrib - cap - opexPerOrder - creationPerOrder),
+    // Derived from the same rounded figure so adjacent tiles always reconcile.
+    roiLoaded: round2(revenuePerEuroLoaded - 1),
+    creationPerOrder,
+    amortUnits,
+    opexPerOrder,
+    markets: mkts,
+  };
 }
 
 export function bidCapsGeneratedAt(): string {

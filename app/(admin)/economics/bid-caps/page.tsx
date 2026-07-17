@@ -3,6 +3,7 @@ import {
   getCatalogBidCaps,
   getSizeCapReference,
   buildMarketPerformance,
+  getPerEuroSummary,
   bidCapsGeneratedAt,
   type PricedSize,
 } from '@/lib/costs/bid-caps';
@@ -32,6 +33,12 @@ export default async function BidCapsPage() {
   const caps = getCatalogBidCaps(pieces, { weighted: true, homeVatPercent });
   const perfRows = buildMarketPerformance(caps, actuals.byCountry);
 
+  // Blended per-€1 economics at the caps. Creation is amortised over the
+  // default 10 lifetime sales per piece; subscriptions/opex are NOT wired in
+  // yet (follow-up: read recurring_costs + monthly_fixed_cost and pass
+  // opexPerOrder, and make amortUnits a finance_settings field).
+  const perEuro = getPerEuroSummary(pieces, { weighted: true, homeVatPercent });
+
   const pricedSizes: PricedSize[] = pricing.rows.map((r) => ({
     sizeKey: r.size_key,
     label: r.display_name,
@@ -43,6 +50,7 @@ export default async function BidCapsPage() {
 
   return (
     <BidCapsSection
+      perEuro={perEuro}
       perfRows={perfRows}
       sizeRows={sizeRows}
       generatedAt={bidCapsGeneratedAt().slice(0, 10)}

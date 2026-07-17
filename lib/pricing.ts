@@ -320,32 +320,45 @@ export interface ListedPrintPiece {
   price: number;
   unitsSold: number;
   /**
-   * Per-sale artist royalty % — community pieces only (the artist's
+   * Per-sale artist royalty %, community pieces only (the artist's
    * `royalty_percent`, else `finance_settings.default_community_royalty_percent`);
    * 0 for AI / public-domain. Matches order_artist_royalty.
    */
   royaltyPercent: number;
+  /** One-time creation/acquisition cost (EUR), amortised in the per-€1 summary. */
+  creationCost: number;
 }
 
 /**
- * The pieces that are actually for sale — status = 'listed', with a valid
+ * The pieces that are actually for sale: status = 'listed', with a valid
  * print size and price. This is the universe the bid-caps calculation is
  * grounded in (retired / draft pieces don't generate sales). `unitsSold` is
  * carried for future sales-weighting but not used in the average yet.
  */
 export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
   try {
-    const { data: arts, error } = await supabaseAdmin
-      .from('artworks')
-      .select('id, title, product_type, price, creation_source, artist_id')
-      .eq('status', 'listed');
+    // The four reads are independent; run them in one round-trip.
+    const [
+      { data: arts, error },
+      { data: econ },
+      { data: usersRows },
+      { data: fsRows },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('artworks')
+        .select('id, title, product_type, price, creation_source, artist_id, creation_cost')
+        .eq('status', 'listed'),
+      supabaseAdmin.from('artwork_economics').select('id, units_sold'),
+      supabaseAdmin.from('users').select('id, royalty_percent'),
+      supabaseAdmin
+        .from('finance_settings')
+        .select('default_community_royalty_percent')
+        .limit(1),
+    ]);
     if (error || !arts) return [];
 
     // units_sold lives in the artwork_economics view; carried for weighting.
     const units: Record<string, number> = {};
-    const { data: econ } = await supabaseAdmin
-      .from('artwork_economics')
-      .select('id, units_sold');
     for (const e of (econ ?? []) as Array<{ id: string; units_sold: number | null }>) {
       units[e.id] = e.units_sold ?? 0;
     }
@@ -353,16 +366,9 @@ export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
     // Community royalty: the artist's rate, else the finance_settings default.
     // Mirrors order_artist_royalty (community pieces only).
     const royaltyByArtist: Record<string, number | null> = {};
-    const { data: usersRows } = await supabaseAdmin
-      .from('users')
-      .select('id, royalty_percent');
     for (const u of (usersRows ?? []) as Array<{ id: string; royalty_percent: number | null }>) {
       royaltyByArtist[u.id] = u.royalty_percent;
     }
-    const { data: fsRows } = await supabaseAdmin
-      .from('finance_settings')
-      .select('default_community_royalty_percent')
-      .limit(1);
     const defaultRoyalty = Number(
       (fsRows?.[0] as { default_community_royalty_percent?: number } | undefined)
         ?.default_community_royalty_percent ?? 0
@@ -375,6 +381,7 @@ export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
       price: number | null;
       creation_source: string | null;
       artist_id: string | null;
+      creation_cost: number | null;
     }>)
       .filter(
         (a) =>
@@ -396,6 +403,7 @@ export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
           price: Number(a.price),
           unitsSold: units[a.id] ?? 0,
           royaltyPercent,
+          creationCost: Number(a.creation_cost ?? 0),
         };
       });
   } catch {

@@ -10,7 +10,7 @@ export default function EconomicsLayout({ children }: { children: ReactNode }) {
     <div className="space-y-6">
       <PageHeader
         title="Economics"
-        description="P&L, pricing, and per-market ad economics — the money view."
+        description="P&L, pricing, and per-market ad economics: the money view."
       />
       <EconomicsTabs />
       {children}

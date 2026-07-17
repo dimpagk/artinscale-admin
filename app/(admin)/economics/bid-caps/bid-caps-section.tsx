@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
-import { DataTable, type DataTableColumn, SectionLabel } from '@/components/admin-ui';
-import type { MarketPerfRow, SizeCapRow } from '@/lib/costs/bid-caps';
+import { DataTable, type DataTableColumn, SectionLabel, StatCard } from '@/components/admin-ui';
+import type { MarketPerfRow, PerEuroSummary, SizeCapRow } from '@/lib/costs/bid-caps';
 
 const CURRENCY_SYMBOL: Record<string, string> = { EUR: '€', USD: '$', GBP: '£' };
 
@@ -24,6 +24,7 @@ const VERDICT: Record<
 };
 
 interface BidCapsSectionProps {
+  perEuro: PerEuroSummary | null;
   perfRows: MarketPerfRow[];
   sizeRows: SizeCapRow[];
   generatedAt: string;
@@ -36,6 +37,7 @@ interface BidCapsSectionProps {
 }
 
 export function BidCapsSection({
+  perEuro,
   perfRows,
   sizeRows,
   generatedAt,
@@ -156,8 +158,37 @@ export function BidCapsSection({
 
   return (
     <div className="space-y-8">
+      {perEuro && (
+        <section className="space-y-3">
+          <SectionLabel>Per €1 at the caps (blended)</SectionLabel>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Target max CAC (blended)"
+              value={`€${perEuro.blendedCap.toFixed(2)}`}
+              description={`Simple mean across ${perEuro.markets} markets; bid per market, not the blend`}
+            />
+            <StatCard
+              label="€1 of ads → revenue"
+              value={`${perEuro.roas.toFixed(1)}×`}
+              description="Gross order value ÷ CAC at cap (Meta ROAS view)"
+            />
+            <StatCard
+              label="€1 of total spend → revenue"
+              value={`€${perEuro.revenuePerEuroLoaded.toFixed(2)}`}
+              description={`Net revenue per €1 of all cash out · €${perEuro.revenuePerEuro.toFixed(2)} if creation is sunk`}
+            />
+            <StatCard
+              label="€1 of total spend → EBITDA"
+              value={`€${perEuro.roiLoaded.toFixed(2)}`}
+              valueColorClass={perEuro.roiLoaded >= 0 ? 'text-green-700' : 'text-red-700'}
+              description={`€${perEuro.ebitdaPerOrderLoaded.toFixed(2)}/order · creation €${perEuro.creationPerOrder.toFixed(2)}/order at ${perEuro.amortUnits} lifetime sales; subscriptions not included yet`}
+            />
+          </div>
+        </section>
+      )}
+
       <section className="space-y-3">
-        <SectionLabel>CAC by market — cap vs actual</SectionLabel>
+        <SectionLabel>CAC by market: cap vs actual</SectionLabel>
         <p className="max-w-2xl text-sm text-gray-500">
           The cost cap (max CPA) to enter on each market&rsquo;s Meta ad set, set
           at 60% of contribution so ~40% stays as profit. Contribution is{' '}
@@ -195,7 +226,7 @@ export function BidCapsSection({
 
         <p className="text-xs text-gray-400">
           Caps are sales-weighted by units sold (with light smoothing while
-          volume is low). Actual CAC is Meta-attributed — an operational
+          volume is low). Actual CAC is Meta-attributed, an operational
           signal, not audited incrementality. Landed-cost snapshot {generatedAt};
           refresh with <code>node scripts/gelato-country-costs.mjs --write</code>.
         </p>
