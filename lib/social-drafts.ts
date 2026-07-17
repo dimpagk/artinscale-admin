@@ -39,7 +39,7 @@ export interface SocialDraftArtwork {
   description: string | null;
 }
 
-export type SocialDraftKind = 'carousel' | 'story';
+export type SocialDraftKind = 'carousel' | 'story' | 'ad';
 
 export interface SocialDraftResult {
   ok: boolean;
@@ -100,6 +100,45 @@ function storyLine(a: SocialDraftArtwork): string | null {
   out = out.charAt(0).toUpperCase() + out.slice(1);
   if (!/[.!?]$/.test(out)) out += '.';
   return out;
+}
+
+/**
+ * One ad-kit slide (operator direction, 2026-07): the paid-ads template.
+ * Same composition at every format so the three exports read as one
+ * campaign: brand mark top-centre, the framed print floating on gallery
+ * white, and the wall label (tag, title, craft line) beneath it. All
+ * type renders through the branded canvas blocks (Outfit / DM Sans,
+ * real logo asset) - never text baked into the artwork. No price on
+ * the image; price lives in the ad's primary text and on the PDP.
+ */
+function adKitSlide(
+  a: SocialDraftArtwork,
+  format: 'square' | 'portrait' | 'story',
+  imageUrl: string
+): SlideConfig {
+  const size = sizeText(a.product_type);
+  const craftLine = [
+    a.artistName ? `By ${a.artistName}.` : null,
+    `Archival matte print${size ? `, ${size}` : ''}. Made to order.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return {
+    bg: 'galleryWhite',
+    dark: false,
+    accent: 'none',
+    footer: '',
+    format,
+    blocks: [
+      { type: 'logo', url: BRAND_LOGO_URL, height: 26, align: 'center' },
+      { type: 'spacer', fill: true },
+      { type: 'screenshot', url: imageUrl, alt: `${a.title} (framed)`, border: false, fit: 'contain' },
+      { type: 'spacer', fill: true },
+      { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
+      { type: 'headline', text: a.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
+      { type: 'text', text: craftLine },
+    ],
+  };
 }
 
 /**
@@ -200,7 +239,28 @@ export async function createSocialDraft(
   let postType: string;
   let visualConfig: VisualConfig;
 
-  if (kind === 'carousel') {
+  if (kind === 'ad') {
+    // Ad kit: one post whose three slides are the three ad placements
+    // (feed 1:1, feed 4:5, story 9:16). Stored as a carousel so the
+    // grid's Export & Upload renders every slide - the exported PNGs
+    // land in placement order, ready to attach in Ads Manager. The
+    // framed mockup is the hero (it sells scale); falls back to the
+    // original art if the framed composite is missing.
+    const hero = mockups.framed || mockups.original;
+    if (!hero) {
+      return {
+        ok: false,
+        message: 'No framed mockup or original image. Generate mockups first.',
+      };
+    }
+    const slides = [
+      adKitSlide(artwork, 'square', hero),
+      adKitSlide(artwork, 'portrait', hero),
+      adKitSlide(artwork, 'story', hero),
+    ];
+    postType = 'carousel';
+    visualConfig = { ...slides[0], slides };
+  } else if (kind === 'carousel') {
     const story = storyCardSlide(artwork);
     const slides = [
       ...(story ? [story] : []),
@@ -248,7 +308,7 @@ export async function createSocialDraft(
   const { data, error } = await supabaseAdmin
     .from('social_posts')
     .insert({
-      title: `${artwork.title} (${kind})`,
+      title: `${artwork.title} (${kind === 'ad' ? 'ad kit' : kind})`,
       platform: 'instagram',
       post_type: postType,
       visual_config: visualConfig,
@@ -266,8 +326,10 @@ export async function createSocialDraft(
     ok: true,
     postId: (data as { id: string }).id,
     message:
-      kind === 'carousel'
-        ? `Carousel draft created (story card + ${images.length} image slides + branded CTA slide).`
-        : 'Story draft created.',
+      kind === 'ad'
+        ? 'Ad kit draft created (1:1, 4:5 and 9:16 slides). Export & Upload renders the three placement PNGs.'
+        : kind === 'carousel'
+          ? `Carousel draft created (story card + ${images.length} image slides + branded CTA slide).`
+          : 'Story draft created.',
   };
 }

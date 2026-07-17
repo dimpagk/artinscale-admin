@@ -62,6 +62,14 @@ export function SocialDraftButtons({
             >
               Generate story
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => generate('ad')}
+            >
+              Generate ad kit
+            </Button>
           </div>
           {lastPostId && (
             <Link
