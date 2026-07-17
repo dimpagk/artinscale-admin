@@ -28,6 +28,100 @@ export async function getArtworks(): Promise<ArtworkWithJoins[]> {
   return (data ?? []) as ArtworkWithJoins[]
 }
 
+export interface ArtworkListOptions {
+  /** Free-text search over title + description. */
+  q?: string
+  status?: string
+  artistId?: string
+  topicId?: string
+  productType?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface ArtworkListResult {
+  rows: ArtworkWithJoins[]
+  total: number
+  /** Effective page served — may differ from the requested page when a stale link points past the last page. */
+  page: number
+}
+
+export async function listArtworks(
+  options: ArtworkListOptions = {}
+): Promise<ArtworkListResult> {
+  const page = Math.max(1, options.page ?? 1)
+  const pageSize = options.pageSize ?? 20
+
+  const build = (p: number) => {
+    let query = supabaseAdmin
+      .from('artworks')
+      .select('*, users(id, name, image, bio), topics(id, title)', {
+        count: 'exact',
+      })
+
+    if (options.status) query = query.eq('status', options.status)
+    if (options.artistId) query = query.eq('artist_id', options.artistId)
+    if (options.topicId) query = query.eq('topic_id', options.topicId)
+    if (options.productType) query = query.eq('product_type', options.productType)
+    // Commas and parens would break PostgREST's .or() filter syntax.
+    const q = options.q?.replace(/[,()]/g, ' ').trim()
+    if (q) query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%`)
+
+    const from = (p - 1) * pageSize
+    return query
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+  }
+
+  let effectivePage = page
+  let { data, error, count } = await build(page)
+
+  // A stale page link past the last row makes PostgREST reject the
+  // range (or return an empty page) — recover by re-counting and
+  // serving the last real page.
+  if (error && page > 1) {
+    effectivePage = 1
+    ;({ data, error, count } = await build(1))
+    const lastPage = Math.max(1, Math.ceil((count ?? 0) / pageSize))
+    if (!error && lastPage > 1) {
+      effectivePage = lastPage
+      ;({ data, error, count } = await build(lastPage))
+    }
+  } else if (!error && page > 1 && (data?.length ?? 0) === 0 && (count ?? 0) > 0) {
+    effectivePage = Math.max(1, Math.ceil((count ?? 0) / pageSize))
+    ;({ data, error, count } = await build(effectivePage))
+  }
+
+  if (error) {
+    console.error('Error listing artworks:', error)
+    return { rows: [], total: 0, page: 1 }
+  }
+
+  return {
+    rows: (data ?? []) as ArtworkWithJoins[],
+    total: count ?? 0,
+    page: effectivePage,
+  }
+}
+
+/** Distinct product_type values in use, for the list page's type filter. */
+export async function getArtworkProductTypes(): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from('artworks')
+    .select('product_type')
+    .not('product_type', 'is', null)
+
+  if (error) {
+    console.error('Error fetching artwork product types:', error)
+    return []
+  }
+
+  const types = (data ?? [])
+    .map((row) => row.product_type as string)
+    .filter(Boolean)
+  return [...new Set(types)].sort()
+}
+
 export async function getArtworkById(id: string): Promise<ArtworkWithJoins | null> {
   const { data, error } = await supabaseAdmin
     .from('artworks')

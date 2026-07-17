@@ -1,11 +1,13 @@
 import Link from 'next/link';
-import { getArtists } from '@/lib/users';
+import { listArtists } from '@/lib/users';
 import { listStylePacksAsync } from '@/lib/style-packs/server';
 import { Badge } from '@/components/ui/badge';
 import {
   PageHeader,
   DataTable,
   EmptyState,
+  TableFilters,
+  Pagination,
   type DataTableColumn,
 } from '@/components/admin-ui';
 import type { ArtistKind, User } from '@/lib/types';
@@ -21,15 +23,35 @@ const ARTIST_KIND_BADGE: Record<
   classic: { label: 'Classic', variant: 'outline' },
 };
 
+const PAGE_SIZE = 20;
+
+const KIND_OPTIONS = [
+  { value: 'studio', label: 'Studio' },
+  { value: 'community', label: 'Community' },
+  { value: 'classic', label: 'Classic' },
+];
+
 interface ArtistRow extends User {
   stylePackName: string | null;
   stylePackId: string | null;
   variantCount: number;
 }
 
-export default async function ArtistsPage() {
-  const [artists, stylePacks] = await Promise.all([
-    getArtists(),
+export default async function ArtistsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; kind?: string; page?: string }>;
+}) {
+  const params = await searchParams;
+  const page = Math.max(1, Number(params.page) || 1);
+  const q = params.q || undefined;
+  const kind = KIND_OPTIONS.some((k) => k.value === params.kind)
+    ? (params.kind as ArtistKind)
+    : undefined;
+  const hasFilters = !!q || !!kind;
+
+  const [{ rows: artists, total, page: effectivePage }, stylePacks] = await Promise.all([
+    listArtists({ q, kind, page, pageSize: PAGE_SIZE }),
     listStylePacksAsync(),
   ]);
 
@@ -58,14 +80,14 @@ export default async function ArtistsPage() {
       key: 'name',
       header: 'Name',
       render: (a) => {
-        const kind = a.artist_kind ? ARTIST_KIND_BADGE[a.artist_kind] : null;
+        const kindBadge = a.artist_kind ? ARTIST_KIND_BADGE[a.artist_kind] : null;
         return (
           <div>
             <div className="flex items-center gap-2">
               <p className="font-medium text-gray-900">{a.name || 'Unnamed'}</p>
-              {kind && (
-                <Badge variant={kind.variant} size="sm">
-                  {kind.label}
+              {kindBadge && (
+                <Badge variant={kindBadge.variant} size="sm">
+                  {kindBadge.label}
                 </Badge>
               )}
             </div>
@@ -143,22 +165,40 @@ export default async function ArtistsPage() {
   ];
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Artists"
         action={{ href: '/artists/new', label: 'Add Artist' }}
+      />
+      <TableFilters
+        searchPlaceholder="Search name, email, or bio"
+        selects={[{ param: 'kind', allLabel: 'All kinds', options: KIND_OPTIONS }]}
       />
       <DataTable
         rows={rows}
         columns={columns}
         rowKey={(a) => a.id}
         emptyState={
-          <EmptyState
-            title="No artists yet"
-            description="Real artists or AI-augmented personas live here. The launch collection's three personas are seeded via migration 009; their style packs come from migration 013."
-            action={{ href: '/artists/new', label: 'Add Artist' }}
-          />
+          hasFilters ? (
+            <EmptyState
+              title="No matching artists"
+              description="No artists match the current search and filters."
+            />
+          ) : (
+            <EmptyState
+              title="No artists yet"
+              description="Real artists or AI-augmented personas live here. The launch collection's three personas are seeded via migration 009; their style packs come from migration 013."
+              action={{ href: '/artists/new', label: 'Add Artist' }}
+            />
+          )
         }
+      />
+      <Pagination
+        page={effectivePage}
+        pageSize={PAGE_SIZE}
+        total={total}
+        basePath="/artists"
+        params={{ q: params.q, kind: params.kind }}
       />
     </div>
   );
