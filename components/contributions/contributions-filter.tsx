@@ -8,14 +8,24 @@ interface ContributionsFilterProps {
   currentStatus?: string;
   currentTopicId?: string;
   currentType?: string;
+  currentSort?: string;
   topics: { value: string; label: string }[];
   stats: { pending: number; approved: number; rejected: number; total: number };
 }
+
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'contributor', label: 'Contributor A–Z' },
+  { value: 'type', label: 'Type' },
+  { value: 'status', label: 'Status' },
+];
 
 export function ContributionsFilter({
   currentStatus,
   currentTopicId,
   currentType,
+  currentSort,
   topics,
   stats,
 }: ContributionsFilterProps) {
@@ -67,6 +77,16 @@ export function ContributionsFilter({
             ]}
             value={currentType || ''}
             onChange={(e) => updateParam('type', e.target.value)}
+          />
+        </div>
+        <div className="ml-auto w-44">
+          <Select
+            options={SORT_OPTIONS}
+            value={currentSort || 'newest'}
+            aria-label="Sort contributions"
+            onChange={(e) =>
+              updateParam('sort', e.target.value === 'newest' ? '' : e.target.value)
+            }
           />
         </div>
       </div>

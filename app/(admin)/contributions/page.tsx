@@ -9,13 +9,19 @@ import type { ContributionStatus, ContributionType } from '@/lib/types';
 export default async function ContributionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; topic_id?: string; type?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    topic_id?: string;
+    type?: string;
+    sort?: string;
+  }>;
 }) {
   const params = await searchParams;
   const filters = {
     status: (params.status || undefined) as ContributionStatus | undefined,
     topic_id: params.topic_id || undefined,
     type: (params.type || undefined) as ContributionType | undefined,
+    sort: params.sort || undefined,
   };
 
   const [contributions, stats, topics] = await Promise.all([
@@ -36,6 +42,7 @@ export default async function ContributionsPage({
         currentStatus={filters.status}
         currentTopicId={filters.topic_id}
         currentType={filters.type}
+        currentSort={filters.sort}
         topics={topicOptions}
         stats={stats}
       />

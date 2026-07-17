@@ -5,13 +5,35 @@ export interface ContributionFilters {
   status?: ContributionStatus;
   topic_id?: string;
   type?: ContributionType;
+  /** One of CONTRIBUTION_SORTS keys; unknown values fall back to newest-first. */
+  sort?: string;
 }
 
+/** Named sort options for the contributions list (a card list, not a table). */
+export const CONTRIBUTION_SORTS: Record<
+  string,
+  { column: string; ascending: boolean }
+> = {
+  newest: { column: 'created_at', ascending: false },
+  oldest: { column: 'created_at', ascending: true },
+  contributor: { column: 'contributor_name', ascending: true },
+  type: { column: 'type', ascending: true },
+  status: { column: 'status', ascending: true },
+};
+
 export async function getAllContributions(filters?: ContributionFilters): Promise<Contribution[]> {
+  const order = CONTRIBUTION_SORTS[filters?.sort ?? ''] ?? CONTRIBUTION_SORTS.newest;
+
   let query = supabaseAdmin
     .from('topic_contributions')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order(order.column, { ascending: order.ascending, nullsFirst: false });
+
+  // Deterministic tiebreaker when the primary sort has ties.
+  if (order.column !== 'created_at') {
+    query = query.order('created_at', { ascending: false });
+  }
+  query = query.order('id', { ascending: false });
 
   if (filters?.status) {
     query = query.eq('status', filters.status);
