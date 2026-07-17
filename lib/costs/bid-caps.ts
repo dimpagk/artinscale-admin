@@ -212,6 +212,66 @@ export function getSizeCapReference(
   return out;
 }
 
+/** A market cap joined with its actual spend / orders / CAC in the window. */
+export interface MarketPerfRow extends MarketCap {
+  spend: number | null;
+  metaOrders: number | null;
+  /** Meta spend ÷ Meta-attributed purchases. */
+  metaCac: number | null;
+  metaRoas: number | null;
+  shopifyOrders: number | null;
+  /** Meta spend ÷ all Shopify orders to the country (blended). */
+  blendedCac: number | null;
+  verdict: 'under' | 'watch' | 'over' | 'no-orders' | 'no-data';
+}
+
+interface CountryActualsLike {
+  spend: number;
+  metaOrders: number;
+  metaRevenue: number;
+  shopifyOrders: number;
+}
+
+/**
+ * Join the allowable-CAC caps with per-country actuals into display rows.
+ * Verdict compares the primary actual CAC (Meta-attributed, else blended)
+ * against the cap: under / watch (≤15% over) / over. `no-orders` = spend but
+ * no conversions; `no-data` = no spend recorded yet.
+ */
+export function buildMarketPerformance(
+  caps: MarketCap[],
+  byCountry: Record<string, CountryActualsLike>
+): MarketPerfRow[] {
+  return caps.map((cap) => {
+    const a = byCountry[cap.country];
+    const spend = a && a.spend > 0 ? round2(a.spend) : null;
+    const metaOrders = a ? a.metaOrders : null;
+    const shopifyOrders = a ? a.shopifyOrders : null;
+    const metaCac = spend != null && metaOrders ? round2(spend / metaOrders) : null;
+    const blendedCac = spend != null && shopifyOrders ? round2(spend / shopifyOrders) : null;
+    const metaRoas = spend != null && a && a.metaRevenue ? round2(a.metaRevenue / spend) : null;
+
+    const primary = metaCac ?? blendedCac;
+    let verdict: MarketPerfRow['verdict'];
+    if (spend == null) verdict = 'no-data';
+    else if (primary == null) verdict = 'no-orders';
+    else if (primary <= cap.cap) verdict = 'under';
+    else if (primary <= cap.cap * 1.15) verdict = 'watch';
+    else verdict = 'over';
+
+    return {
+      ...cap,
+      spend,
+      metaOrders,
+      metaCac,
+      metaRoas,
+      shopifyOrders,
+      blendedCac,
+      verdict,
+    };
+  });
+}
+
 export function bidCapsGeneratedAt(): string {
   return snapshotGeneratedAt();
 }
