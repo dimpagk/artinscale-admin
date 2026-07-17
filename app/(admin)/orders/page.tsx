@@ -6,7 +6,13 @@ import {
   RelativeTime,
   type DataTableColumn,
 } from '@/components/admin-ui';
-import { getOrders, orderNeedsApproval, type OrderRow } from '@/lib/orders';
+import {
+  getOrders,
+  orderNeedsApproval,
+  hasGelatoVatIssue,
+  gelatoVatCharged,
+  type OrderRow,
+} from '@/lib/orders';
 import { syncOrdersAction } from './actions';
 
 function money(amount: number | null, currency = 'EUR'): string {
@@ -61,6 +67,7 @@ export default async function OrdersPage() {
   const total = orders.length;
   const needsApproval = orders.filter(orderNeedsApproval).length;
   const shipped = orders.filter((o) => o.gelato_fulfillment_status === 'shipped').length;
+  const vatCharged = orders.filter(hasGelatoVatIssue).length;
 
   const columns: DataTableColumn<OrderRow>[] = [
     {
@@ -120,6 +127,14 @@ export default async function OrdersPage() {
               margin {money(o.subtotal_price - o.gelato_item_cost, o.currency)}
             </p>
           )}
+          {hasGelatoVatIssue(o) && (
+            <p
+              className="text-xs font-medium text-red-600"
+              title="Gelato billed VAT — EU reverse-charge (VAT ID EL159150767) not applied. Not reclaimable via a Greek return; check the Gelato billing profile."
+            >
+              Gelato VAT {money(gelatoVatCharged(o), o.currency)}
+            </p>
+          )}
         </div>
       ),
     },
@@ -154,6 +169,9 @@ export default async function OrdersPage() {
         <Stat label="Total" value={total} />
         <Stat label="Needs approval" value={needsApproval} variant="warning" />
         <Stat label="Shipped" value={shipped} variant="success" />
+        {vatCharged > 0 && (
+          <Stat label="Gelato VAT charged" value={vatCharged} variant="error" />
+        )}
         <form action={syncOrdersAction} className="ml-auto">
           <button
             type="submit"

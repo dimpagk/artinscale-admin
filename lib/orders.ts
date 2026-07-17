@@ -83,6 +83,23 @@ export function orderNeedsApproval(o: OrderRow): boolean {
   return !!o.gelato_order_type && NEEDS_APPROVAL_ORDER_TYPES.has(o.gelato_order_type);
 }
 
+/** Total VAT Gelato billed us on this order's receipt (product + shipping, EUR). */
+export function gelatoVatCharged(o: OrderRow): number {
+  return (o.gelato_product_vat ?? 0) + (o.gelato_shipping_vat ?? 0);
+}
+
+/**
+ * TRUE when Gelato billed VAT on a priced order — i.e. EU B2B reverse-charge
+ * is NOT being applied (our VAT ID EL159150767 should make Gelato invoices
+ * €0 VAT). Foreign VAT charged this way is not reclaimable through a Greek
+ * return, so it is a silent ~€5-6/order cost worth catching. Only meaningful
+ * once Gelato has priced the receipt (gelato_synced_at set); the €0.01 floor
+ * ignores rounding noise.
+ */
+export function hasGelatoVatIssue(o: OrderRow): boolean {
+  return !!o.gelato_synced_at && gelatoVatCharged(o) > 0.01;
+}
+
 export async function getOrders(): Promise<OrderRow[]> {
   const { data, error } = await supabaseAdmin
     .from('orders')
