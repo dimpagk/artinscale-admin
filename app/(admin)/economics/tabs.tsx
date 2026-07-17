@@ -8,6 +8,7 @@ const TABS = [
   { href: '/economics', label: 'Overview' },
   { href: '/economics/pricing', label: 'Pricing' },
   { href: '/economics/bid-caps', label: 'Bid caps' },
+  { href: '/economics/kpis', label: 'KPIs' },
 ] as const;
 
 export function EconomicsTabs() {
