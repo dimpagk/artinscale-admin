@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { getArtworkEconomics, getFinanceSettings } from '@/lib/costs/economics';
+import { getPerOrderOverheads } from '@/lib/costs/overheads';
 import {
   getPnl,
   getMonthlyMetricSeries,
@@ -64,7 +65,7 @@ export default async function EconomicsPage({
   const granularity = parseGranularity(g);
   const { from, to } = defaultRange(granularity);
 
-  const [matrix, metricSeries, artworks, costEntries, recurring, settings, pendingProduction] = await Promise.all([
+  const [matrix, metricSeries, artworks, costEntries, recurring, settings, pendingProduction, overheads] = await Promise.all([
     getPnl(granularity, from, to),
     getMonthlyMetricSeries(to),
     getArtworkEconomics(),
@@ -72,6 +73,7 @@ export default async function EconomicsPage({
     getRecurringCosts(),
     getFinanceSettings(),
     getPendingProductionCount(),
+    getPerOrderOverheads(),
   ]);
   const cur = settings.reporting_currency;
 
@@ -366,6 +368,18 @@ export default async function EconomicsPage({
             name="default_community_royalty_percent"
             defaultValue={settings.default_community_royalty_percent}
             step="0.1"
+          />
+          <Field
+            label="Amortisation: lifetime sales/piece"
+            name="amort_lifetime_units"
+            defaultValue={overheads.amortUnits}
+            step="1"
+          />
+          <Field
+            label="Planned orders/month (0 = actual)"
+            name="planned_monthly_orders"
+            defaultValue={overheads.plannedMonthlyOrders}
+            step="1"
           />
           <div>
             <label className="mb-1 block text-xs text-gray-500">Reporting currency</label>

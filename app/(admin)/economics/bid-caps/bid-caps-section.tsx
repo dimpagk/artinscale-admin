@@ -25,6 +25,8 @@ const VERDICT: Record<
 
 interface BidCapsSectionProps {
   perEuro: PerEuroSummary | null;
+  /** Human-readable basis of the opex spread, e.g. "monthly opex €42 at ...". */
+  opexNote: string;
   perfRows: MarketPerfRow[];
   sizeRows: SizeCapRow[];
   generatedAt: string;
@@ -38,6 +40,7 @@ interface BidCapsSectionProps {
 
 export function BidCapsSection({
   perEuro,
+  opexNote,
   perfRows,
   sizeRows,
   generatedAt,
@@ -181,7 +184,7 @@ export function BidCapsSection({
               label="€1 of total spend → EBITDA"
               value={`€${perEuro.roiLoaded.toFixed(2)}`}
               valueColorClass={perEuro.roiLoaded >= 0 ? 'text-green-700' : 'text-red-700'}
-              description={`€${perEuro.ebitdaPerOrderLoaded.toFixed(2)}/order · creation €${perEuro.creationPerOrder.toFixed(2)}/order at ${perEuro.amortUnits} lifetime sales; subscriptions not included yet`}
+              description={`€${perEuro.ebitdaPerOrderLoaded.toFixed(2)}/order · creation €${perEuro.creationPerOrder.toFixed(2)}/order at ${perEuro.amortUnits} lifetime sales · opex €${perEuro.opexPerOrder.toFixed(2)}/order (${opexNote})`}
             />
           </div>
         </section>

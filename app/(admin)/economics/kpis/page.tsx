@@ -1,6 +1,7 @@
 import { getListedPrintPieces } from '@/lib/pricing';
 import { getFinanceSettings } from '@/lib/costs/economics';
 import { getPerEuroSummary } from '@/lib/costs/bid-caps';
+import { getPerOrderOverheads } from '@/lib/costs/overheads';
 import { SectionLabel } from '@/components/admin-ui';
 
 // KPI reference: what each metric means and which numbers decide push/pull/
@@ -109,19 +110,22 @@ const METRIC_FLOW: Array<{ line: string; note: string; result?: boolean }> = [
   { line: '= CONTRIBUTION', note: 'what one sale earns before marketing', result: true },
   { line: '- CAC', note: 'what we paid Meta to acquire the order (cap = 60% of contribution)' },
   { line: '= marginal profit', note: 'per-order profit before overhead', result: true },
-  { line: '- creation amortised', note: 'one-time piece cost over assumed 10 lifetime sales' },
-  { line: '- opex per order', note: 'subscriptions / orders (not wired in yet)' },
+  { line: '- creation amortised', note: 'one-time piece cost over the lifetime-sales setting (finance settings)' },
+  { line: '- opex per order', note: 'subscriptions + fixed costs, spread per order (finance settings)' },
   { line: '= EBITDA per order', note: 'true operating profit per order', result: true },
 ];
 
 export default async function KpisPage() {
-  const [pieces, finance] = await Promise.all([
+  const [pieces, finance, overheads] = await Promise.all([
     getListedPrintPieces(),
     getFinanceSettings(),
+    getPerOrderOverheads(),
   ]);
   const perEuro = getPerEuroSummary(pieces, {
     weighted: true,
     homeVatPercent: finance.default_vat_percent,
+    amortUnits: overheads.amortUnits,
+    opexPerOrder: overheads.opexPerOrder,
   });
 
   return (

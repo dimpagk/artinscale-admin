@@ -42,6 +42,9 @@ export async function saveFinanceSettingsAction(formData: FormData) {
     creation_fx_usd_to_eur: 'creation_fx_usd_to_eur',
     default_community_artist_fee: 'default_community_artist_fee',
     default_community_royalty_percent: 'default_community_royalty_percent',
+    // Per-EUR-1 economics knobs (migration 047)
+    amort_lifetime_units: 'amort_lifetime_units',
+    planned_monthly_orders: 'planned_monthly_orders',
   };
   for (const [field, col] of Object.entries(map)) {
     const v = numField(field);

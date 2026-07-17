@@ -9,6 +9,7 @@ import {
 } from '@/lib/costs/bid-caps';
 import { getMarketActuals } from '@/lib/costs/market-performance';
 import { getFinanceSettings } from '@/lib/costs/economics';
+import { getPerOrderOverheads } from '@/lib/costs/overheads';
 import { BidCapsSection } from './bid-caps-section';
 
 // Reads live prices, the listed catalog, and live Meta/Shopify actuals.
@@ -17,11 +18,12 @@ export const dynamic = 'force-dynamic';
 const WINDOW_DAYS = 28;
 
 export default async function BidCapsPage() {
-  const [pieces, pricing, actuals, finance] = await Promise.all([
+  const [pieces, pricing, actuals, finance, overheads] = await Promise.all([
     getListedPrintPieces(),
     getPrintSizePricing(),
     getMarketActuals(WINDOW_DAYS),
     getFinanceSettings(),
+    getPerOrderOverheads(),
   ]);
 
   // Output VAT nets down the price before contribution, matching the P&L.
@@ -33,11 +35,15 @@ export default async function BidCapsPage() {
   const caps = getCatalogBidCaps(pieces, { weighted: true, homeVatPercent });
   const perfRows = buildMarketPerformance(caps, actuals.byCountry);
 
-  // Blended per-€1 economics at the caps. Creation is amortised over the
-  // default 10 lifetime sales per piece; subscriptions/opex are NOT wired in
-  // yet (follow-up: read recurring_costs + monthly_fixed_cost and pass
-  // opexPerOrder, and make amortUnits a finance_settings field).
-  const perEuro = getPerEuroSummary(pieces, { weighted: true, homeVatPercent });
+  // Blended per-€1 economics at the caps. Amortisation lifetime and the
+  // opex spread come from finance_settings + recurring_costs (migration 047),
+  // so the operator tunes them without a deploy.
+  const perEuro = getPerEuroSummary(pieces, {
+    weighted: true,
+    homeVatPercent,
+    amortUnits: overheads.amortUnits,
+    opexPerOrder: overheads.opexPerOrder,
+  });
 
   const pricedSizes: PricedSize[] = pricing.rows.map((r) => ({
     sizeKey: r.size_key,
@@ -51,6 +57,7 @@ export default async function BidCapsPage() {
   return (
     <BidCapsSection
       perEuro={perEuro}
+      opexNote={`monthly opex €${overheads.monthlyOpex.toFixed(2)} ${overheads.basis}`}
       perfRows={perfRows}
       sizeRows={sizeRows}
       generatedAt={bidCapsGeneratedAt().slice(0, 10)}
