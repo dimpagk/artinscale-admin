@@ -132,3 +132,23 @@ export function getCountryTier(country: string): CountryTier | null {
   if (!cell) return null;
   return cell.contribution >= TIER_A_MIN_HERO_CONTRIBUTION ? 'A' : 'B';
 }
+
+export interface LandedRange {
+  cheapest: { country: string; landed: number };
+  dearest: { country: string; landed: number };
+}
+
+/**
+ * Cheapest and dearest destination landed cost (production + shipping, EUR)
+ * for a size across the covered markets. Null if the size isn't in the
+ * snapshot. This is the real per-country cost spread the blended
+ * `print_size_pricing` estimate hides.
+ */
+export function getLandedRange(sizeKey: string): LandedRange | null {
+  const markets = supportedMarkets()
+    .map((country) => ({ country, landed: getGelatoLandedCost(sizeKey, country)?.landed }))
+    .filter((m): m is { country: string; landed: number } => m.landed != null)
+    .sort((a, b) => a.landed - b.landed);
+  if (!markets.length) return null;
+  return { cheapest: markets[0], dearest: markets[markets.length - 1] };
+}

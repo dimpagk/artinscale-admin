@@ -294,3 +294,76 @@ export async function getArtworkShopifyRefs(): Promise<Record<string, ArtworkSho
     return {};
   }
 }
+
+/** Map of artwork id → its print size key (`product_type`, e.g. museum-poster-50x70). */
+export async function getArtworkSizes(): Promise<Record<string, string>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('artworks')
+      .select('id, product_type');
+    if (error || !data) return {};
+    const map: Record<string, string> = {};
+    for (const r of data as Array<{ id: string; product_type: string | null }>) {
+      if (r.product_type) map[r.id] = r.product_type;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+/** A listed piece for catalog-grounded economics: its size, live price, units sold. */
+export interface ListedPrintPiece {
+  id: string;
+  title: string;
+  sizeKey: string;
+  price: number;
+  unitsSold: number;
+}
+
+/**
+ * The pieces that are actually for sale — status = 'listed', with a valid
+ * print size and price. This is the universe the bid-caps calculation is
+ * grounded in (retired / draft pieces don't generate sales). `unitsSold` is
+ * carried for future sales-weighting but not used in the average yet.
+ */
+export async function getListedPrintPieces(): Promise<ListedPrintPiece[]> {
+  try {
+    const { data: arts, error } = await supabaseAdmin
+      .from('artworks')
+      .select('id, title, product_type, price')
+      .eq('status', 'listed');
+    if (error || !arts) return [];
+
+    // units_sold lives in the artwork_economics view; carried for weighting.
+    const units: Record<string, number> = {};
+    const { data: econ } = await supabaseAdmin
+      .from('artwork_economics')
+      .select('id, units_sold');
+    for (const e of (econ ?? []) as Array<{ id: string; units_sold: number | null }>) {
+      units[e.id] = e.units_sold ?? 0;
+    }
+
+    return (arts as Array<{
+      id: string;
+      title: string | null;
+      product_type: string | null;
+      price: number | null;
+    }>)
+      .filter(
+        (a) =>
+          a.price != null &&
+          a.product_type != null &&
+          a.product_type.startsWith('museum-poster-')
+      )
+      .map((a) => ({
+        id: a.id,
+        title: a.title ?? '',
+        sizeKey: a.product_type as string,
+        price: Number(a.price),
+        unitsSold: units[a.id] ?? 0,
+      }));
+  } catch {
+    return [];
+  }
+}

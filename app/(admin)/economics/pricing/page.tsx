@@ -7,6 +7,7 @@ import {
   findActiveCampaignForScope,
   campaignsForScope,
   getArtworkShopifyRefs,
+  getArtworkSizes,
   netMarginPct,
   type PrintSizePrice,
   type PricingFinance,
@@ -14,6 +15,7 @@ import {
   type ArtworkShopifyRef,
 } from '@/lib/pricing';
 import { getArtworkEconomics, type ArtworkEconomics } from '@/lib/costs/economics';
+import { getLandedRange } from '@/lib/costs/gelato-landed-cost';
 import {
   updatePriceAction,
   updateOriginalPriceAction,
@@ -40,6 +42,23 @@ function fmtPct(pct: number | null): string {
 
 function eur(n: number | null | undefined): string {
   return n == null ? '—' : `€${Number(n).toFixed(2)}`;
+}
+
+// Real per-country Gelato landed cost (production + shipping) for a size —
+// cheapest → dearest destination. The blended `gelato_cost_estimate_eur`
+// (Est. cost) hides this spread; see docs/GEOGRAPHY_ECONOMICS.md.
+function LandedRangeCell({ sizeKey }: { sizeKey: string | null | undefined }) {
+  const range = sizeKey ? getLandedRange(sizeKey) : null;
+  if (!range) return <span className="text-gray-400">—</span>;
+  return (
+    <span className="tabular-nums text-gray-600">
+      €{range.cheapest.landed.toFixed(2)}
+      <span className="text-[10px] text-gray-400"> {range.cheapest.country}</span>
+      <span className="text-gray-400"> → </span>
+      €{range.dearest.landed.toFixed(2)}
+      <span className="text-[10px] text-gray-400"> {range.dearest.country}</span>
+    </span>
+  );
 }
 
 export default async function PricingPage({
@@ -131,6 +150,7 @@ async function ClassicsView() {
             <tr>
               <th className="px-4 py-3 font-medium">Size</th>
               <th className="px-4 py-3 font-medium">Est. cost</th>
+              <th className="px-4 py-3 font-medium">Real landed</th>
               <th className="px-4 py-3 font-medium">Price (€)</th>
               <th className="px-4 py-3 font-medium">Margin · {finance.vatPercent}% VAT</th>
               <th className="px-4 py-3 font-medium">No-VAT</th>
@@ -307,6 +327,9 @@ function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFin
         )}
       </td>
       <td className="px-4 py-3">
+        <LandedRangeCell sizeKey={row.size_key} />
+      </td>
+      <td className="px-4 py-3">
         <form action={updatePriceAction} className="flex items-center gap-2">
           <input type="hidden" name="size_key" value={row.size_key} />
           <input type="hidden" name="display_name" value={row.display_name} />
@@ -338,11 +361,12 @@ function PricingRow({ row, finance }: { row: PrintSizePrice; finance: PricingFin
 }
 
 async function OriginalsView() {
-  const [rows, finance, refs, campaigns] = await Promise.all([
+  const [rows, finance, refs, campaigns, sizes] = await Promise.all([
     getArtworkEconomics(),
     getPricingFinance(),
     getArtworkShopifyRefs(),
     getCampaigns(),
+    getArtworkSizes(),
   ]);
   const active = findActiveCampaignForScope(campaigns, 'originals');
 
@@ -386,6 +410,7 @@ async function OriginalsView() {
                 <th className="px-4 py-3 font-medium">Piece</th>
                 <th className="px-4 py-3 font-medium">Price (€)</th>
                 <th className="px-4 py-3 font-medium">Prod. cost</th>
+                <th className="px-4 py-3 font-medium">Real landed</th>
                 <th className="px-4 py-3 font-medium">Margin · {finance.vatPercent}% VAT</th>
                 <th className="px-4 py-3 font-medium">No-VAT</th>
                 <th className="px-4 py-3 font-medium">At −20%</th>
@@ -397,7 +422,13 @@ async function OriginalsView() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((a) => (
-                <OriginalsRow key={a.id} a={a} finance={finance} shopifyRef={refs[a.id]} />
+                <OriginalsRow
+                  key={a.id}
+                  a={a}
+                  finance={finance}
+                  shopifyRef={refs[a.id]}
+                  sizeKey={sizes[a.id]}
+                />
               ))}
             </tbody>
           </table>
@@ -417,10 +448,12 @@ function OriginalsRow({
   a,
   finance,
   shopifyRef,
+  sizeKey,
 }: {
   a: ArtworkEconomics;
   finance: PricingFinance;
   shopifyRef?: ArtworkShopifyRef;
+  sizeKey?: string;
 }) {
   const cost = a.unit_production_cost;
   const price = a.price;
@@ -462,6 +495,9 @@ function OriginalsRow({
         </form>
       </td>
       <td className="px-4 py-3 tabular-nums text-gray-700">{eur(cost)}</td>
+      <td className="px-4 py-3">
+        <LandedRangeCell sizeKey={sizeKey} />
+      </td>
       <td className={`px-4 py-3 font-semibold tabular-nums ${marginColor(floor)}`}>
         {fmtPct(floor)}
       </td>

@@ -1,25 +1,29 @@
 /**
- * Per-market ad bid caps.
+ * Per-market ad bid caps, grounded in the LISTED catalog at LIVE prices.
  *
- * Our retail pricing is FLAT across every country, but Gelato's landed cost
- * is destination-tiered (see docs/GEOGRAPHY_ECONOMICS.md). Same price minus a
- * higher cost = less contribution in expensive markets, so the acquisition
- * budget per order has to differ by market even though the price does not.
+ * Retail pricing is flat across countries, but Gelato's landed cost is
+ * destination-tiered (see docs/GEOGRAPHY_ECONOMICS.md), so the acquisition
+ * budget per order differs by market even at one price. This module turns
+ * that into the cost cap (max CPA) to enter on each market's Meta ad set.
  *
- * This module turns the committed landed-cost snapshot into the number the
- * ads side actually needs: the **cost cap** (max CPA) to enter on each
- * market's Meta ad set. Nothing here calls Meta — it produces the caps an
- * operator pastes into Ads Manager, matching the rest of the marketing page.
+ * Two things are decoupled on purpose:
+ *   - Landed COST per (size × country) is the slow-moving Gelato part — it
+ *     lives in the committed snapshot (gelato-costs.json).
+ *   - PRICE is volatile and operator-editable — it is passed in live from
+ *     `print_size_pricing` / the listed artworks, never frozen here.
+ * So a price edit on the Pricing page moves the caps immediately.
  *
- * Two caps per market, because flat pricing leaves the lead FORMAT as the
- * lever, not the price:
- *   - heroCap  — cap for an ad set that prospects on the €29 hero (21×30).
- *   - largeCap — cap for an ad set that leads with the €79 50×70 format.
- * In expensive markets the hero cap is punishingly low; leading with a
- * larger format lifts the workable cap without touching the price.
+ * Caps are grounded in what is actually for sale: the caps that matter are
+ * averaged over the LISTED catalog pieces, each at its real size and price
+ * (today the catalog is 40×50 and 50×70 — no 21×30 is listed). The average
+ * is unweighted for now; pass `unitsSold` and set `weighted: true` to weight
+ * by sales per item once that is wanted.
  *
- * cap = contribution(size, country) × targetRatio   (default 0.6, i.e. keep
- * 40% of contribution as profit and spend at most 60% acquiring the order).
+ *   contribution = price − landedCost(size, country) − paymentFee(price)
+ *   cap          = contribution × targetRatio   (default 0.6; keep ~40% profit)
+ *
+ * Contribution excludes VAT (roughly constant % drag; we are not VAT-
+ * registered yet). See docs/GEOGRAPHY_ECONOMICS.md.
  */
 
 import {
@@ -31,14 +35,10 @@ import {
   type CountryTier,
 } from './gelato-landed-cost';
 
-/** Prospecting hook (entry) and the recommended lead format for Tier B. */
-export const HERO_SIZE_KEY = 'museum-poster-21x30';
-export const LARGE_LEAD_SIZE_KEY = 'museum-poster-50x70';
+export const PAYMENT_FEE_PCT = 0.019;
+export const PAYMENT_FEE_FIXED = 0.25;
 
-// Hero-contribution guidance bands (EUR). Tier (A/B) comes from the helper;
-// these sub-split Tier B into "thin but workable" vs "hero uneconomic".
-const HERO_HEALTHY_MIN = 10;
-const HERO_WORKABLE_MIN = 6;
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const MARKET_NAMES: Record<string, string> = {
   US: 'USA',
@@ -57,78 +57,161 @@ const MARKET_NAMES: Record<string, string> = {
   IT: 'Italy',
 };
 
-export interface MarketBidCap {
-  country: string;
-  name: string;
-  tier: CountryTier;
-  /** Per-order contribution on the €29 hero (EUR, pre-VAT). */
-  heroContribution: number;
-  /** Cost cap for a hero-led ad set (EUR). */
-  heroCap: number;
-  /** Cost cap for a 50×70-led ad set (EUR). */
-  largeCap: number;
-  /** Cheapest-method delivery window to this market, e.g. "8-15" days. */
-  deliveryDays: string;
-  /** Short, flat-pricing-aware recommendation. */
-  guidance: string;
+/** Shopify-style payment fee on a sale (EUR). */
+export function paymentFee(price: number): number {
+  return round2(price * PAYMENT_FEE_PCT + PAYMENT_FEE_FIXED);
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-function guidanceFor(heroContribution: number): string {
-  if (heroContribution >= HERO_HEALTHY_MIN) {
-    return 'Prospect on the €29 hero; bid up to the hero cap.';
-  }
-  if (heroContribution >= HERO_WORKABLE_MIN) {
-    return 'Hero margin thin — bid tight, or lead 50×70+ to lift the cap.';
-  }
-  return 'Hero uneconomic — prospect on 50×70+ formats only.';
-}
-
-/**
- * Cost cap (EUR) for one market and lead size, or null if the size/country
- * is not in the snapshot. This is the raw number for programmatic use;
- * `getMarketBidCaps()` is the display-ready roll-up.
- */
-export function getMarketBidCap(
+/** Pre-VAT contribution for `sizeKey` sold at `price`, shipped to `country`. */
+export function contributionFor(
+  sizeKey: string,
   country: string,
-  sizeKey: string = HERO_SIZE_KEY,
-  targetRatio: number = DEFAULT_TARGET_CAC_RATIO
+  price: number
 ): number | null {
   const cell = getGelatoLandedCost(sizeKey, country);
   if (!cell) return null;
-  return round2(cell.contribution * targetRatio);
+  return round2(price - cell.landed - paymentFee(price));
+}
+
+/** One listed catalog piece: what it is and what it sells for. */
+export interface CatalogPiece {
+  sizeKey: string;
+  price: number;
+  /** Units sold to date — reserved for future sales-weighting. */
+  unitsSold?: number;
+}
+
+export interface MarketCap {
+  country: string;
+  name: string;
+  tier: CountryTier | null;
+  /** Mean per-order contribution across the listed pieces (EUR). */
+  avgContribution: number;
+  /** avgContribution × targetRatio — the cost cap to enter in Meta (EUR). */
+  cap: number;
+  deliveryDays: string;
+  /** How many listed pieces the average is over. */
+  pieces: number;
+  guidance: string;
+}
+
+function guidanceForTier(tier: CountryTier | null): string {
+  if (tier === 'A') return 'Cheap to fulfil — bid up to the cap.';
+  if (tier === 'B') return 'Expensive to fulfil — cap tight; lead larger formats.';
+  return '';
+}
+
+function mostCommonSize(pieces: CatalogPiece[]): string {
+  const counts: Record<string, number> = {};
+  for (const p of pieces) counts[p.sizeKey] = (counts[p.sizeKey] ?? 0) + 1;
+  return (
+    Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    'museum-poster-50x70'
+  );
 }
 
 /**
- * Bid caps for every market in the snapshot, sorted by hero cap (best
- * acquisition headroom first). `targetRatio` is the fraction of
- * contribution to spend acquiring an order (default 0.6).
+ * Allowable CAC per market, averaged over the listed catalog pieces (each at
+ * its real size + live price). Unweighted today; set `weighted: true` (with
+ * `unitsSold` on each piece) to weight by sales per item.
  */
-export function getMarketBidCaps(
-  targetRatio: number = DEFAULT_TARGET_CAC_RATIO
-): MarketBidCap[] {
-  const rows: MarketBidCap[] = [];
+export function getCatalogBidCaps(
+  pieces: CatalogPiece[],
+  opts: { targetRatio?: number; weighted?: boolean } = {}
+): MarketCap[] {
+  const { targetRatio = DEFAULT_TARGET_CAC_RATIO, weighted = false } = opts;
+  if (!pieces.length) return [];
+  const deliverySize = mostCommonSize(pieces);
+  const rows: MarketCap[] = [];
   for (const country of supportedMarkets()) {
-    const hero = getGelatoLandedCost(HERO_SIZE_KEY, country);
-    const large = getGelatoLandedCost(LARGE_LEAD_SIZE_KEY, country);
+    let weightedSum = 0;
+    let weightTotal = 0;
+    let n = 0;
+    for (const p of pieces) {
+      const c = contributionFor(p.sizeKey, country, p.price);
+      if (c == null) continue;
+      // +1 smoothing so unsold pieces still count once when weighted.
+      const w = weighted ? (p.unitsSold ?? 0) + 1 : 1;
+      weightedSum += c * w;
+      weightTotal += w;
+      n++;
+    }
+    if (!n) continue;
+    const avg = round2(weightedSum / weightTotal);
     const tier = getCountryTier(country);
-    if (!hero || !large || !tier) continue;
     rows.push({
       country,
       name: MARKET_NAMES[country] ?? country,
       tier,
-      heroContribution: hero.contribution,
-      heroCap: round2(hero.contribution * targetRatio),
-      largeCap: round2(large.contribution * targetRatio),
-      deliveryDays: hero.deliveryDays,
-      guidance: guidanceFor(hero.contribution),
+      avgContribution: avg,
+      cap: round2(avg * targetRatio),
+      deliveryDays: getGelatoLandedCost(deliverySize, country)?.deliveryDays ?? '',
+      pieces: n,
+      guidance: guidanceForTier(tier),
     });
   }
-  return rows.sort((a, b) => b.heroCap - a.heroCap);
+  return rows.sort((a, b) => b.cap - a.cap);
 }
 
-/** ISO date the underlying landed-cost snapshot was generated. */
+/** A size with its current live price, for the per-size reference table. */
+export interface PricedSize {
+  sizeKey: string;
+  label: string;
+  price: number;
+}
+
+export interface SizeCapRow {
+  sizeKey: string;
+  label: string;
+  price: number;
+  landedCheapest: number;
+  landedDearest: number;
+  capCheapest: number;
+  capDearest: number;
+  cheapestCountry: string;
+  dearestCountry: string;
+}
+
+/**
+ * Price-aware per-size reference: the cheapest and dearest market cap for
+ * each priced size. Reads live prices, so it doubles as a cross-check that
+ * the caps track current pricing.
+ */
+export function getSizeCapReference(
+  sizes: PricedSize[],
+  targetRatio: number = DEFAULT_TARGET_CAC_RATIO
+): SizeCapRow[] {
+  const out: SizeCapRow[] = [];
+  for (const s of sizes) {
+    const perMarket = supportedMarkets()
+      .map((country) => ({
+        country,
+        contribution: contributionFor(s.sizeKey, country, s.price),
+        landed: getGelatoLandedCost(s.sizeKey, country)?.landed,
+      }))
+      .filter(
+        (m): m is { country: string; contribution: number; landed: number } =>
+          m.contribution != null && m.landed != null
+      )
+      .sort((a, b) => b.contribution - a.contribution); // best headroom first
+    if (!perMarket.length) continue;
+    const best = perMarket[0];
+    const worst = perMarket[perMarket.length - 1];
+    out.push({
+      sizeKey: s.sizeKey,
+      label: s.label,
+      price: s.price,
+      landedCheapest: round2(best.landed),
+      landedDearest: round2(worst.landed),
+      capCheapest: round2(best.contribution * targetRatio),
+      capDearest: round2(worst.contribution * targetRatio),
+      cheapestCountry: best.country,
+      dearestCountry: worst.country,
+    });
+  }
+  return out;
+}
+
 export function bidCapsGeneratedAt(): string {
   return snapshotGeneratedAt();
 }
