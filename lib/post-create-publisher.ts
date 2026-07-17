@@ -38,6 +38,13 @@ const GELATO_STORE_ID = process.env.GELATO_STORE_ID;
 const GELATO_DRY_RUN = process.env.GELATO_DRY_RUN === 'true';
 const GELATO_ECOMMERCE_API_BASE = 'https://ecommerce.gelatoapis.com/v1';
 
+// A Gelato product normally gets its variants within ~15s of the
+// :create-from-template POST. If it is still `created` with zero variants
+// well past that, Gelato's variant-creation worker never ran — a stranded
+// product that will never publish. The finalize loop must surface this
+// loudly rather than poll a benign "timeout" forever.
+const GELATO_STRANDED_AFTER_MS = 10 * 60 * 1000; // 10 minutes
+
 export interface GelatoPublishedSummary {
   productId: string;
   handle: string;
@@ -93,6 +100,43 @@ export async function pollGelatoUntilPublished(
     await new Promise((r) => setTimeout(r, intervalMs));
   }
 
+  return null;
+}
+
+/**
+ * Detect a "stranded" Gelato product: still `created` with zero variants
+ * well past the point where the variant-creation worker should have run.
+ * Such a product will never publish to Shopify. Returns null when the
+ * product is healthy, still inside the grace window, or can't be read.
+ */
+export async function detectStrandedGelatoProduct(
+  productId: string
+): Promise<{ productId: string; ageMinutes: number; status: string } | null> {
+  if (GELATO_DRY_RUN) return null;
+  if (!GELATO_API_KEY || !GELATO_STORE_ID) return null;
+
+  const res = await fetch(
+    `${GELATO_ECOMMERCE_API_BASE}/stores/${GELATO_STORE_ID}/products/${productId}`,
+    { headers: { 'X-API-KEY': GELATO_API_KEY } }
+  );
+  if (!res.ok) return null;
+
+  const body = (await res.json()) as {
+    status?: string;
+    variants?: unknown[];
+    createdAt?: string;
+  };
+  const variantCount = Array.isArray(body.variants) ? body.variants.length : 0;
+  const createdMs = body.createdAt ? Date.parse(body.createdAt) : NaN;
+  const ageMs = Number.isFinite(createdMs) ? Date.now() - createdMs : 0;
+
+  if (body.status !== 'active' && variantCount === 0 && ageMs > GELATO_STRANDED_AFTER_MS) {
+    return {
+      productId,
+      ageMinutes: Math.round(ageMs / 60000),
+      status: body.status ?? 'unknown',
+    };
+  }
   return null;
 }
 
@@ -232,7 +276,7 @@ export async function applyListedState(args: {
 
 export interface AutoPublishResult {
   artworkId: string;
-  status: 'published' | 'timeout' | 'no_gelato_id' | 'no_shopify_product';
+  status: 'published' | 'timeout' | 'stranded' | 'no_gelato_id' | 'no_shopify_product';
   gelato?: GelatoPublishedSummary;
   applied?: ApplyListedStateResult;
   message?: string;
@@ -288,6 +332,20 @@ export async function autoPublishArtworkAfterGelatoCreate(args: {
     timeoutMs: pollTimeoutMs ?? 60000,
   });
   if (!gelato) {
+    // Before treating this as a benign "still publishing" timeout, check
+    // whether the product is stranded (0 variants long past creation). That
+    // never resolves on its own, so surface it loudly instead of silently
+    // retrying every cron run.
+    const stranded = await detectStrandedGelatoProduct(artwork.gelato_product_id);
+    if (stranded) {
+      const message =
+        `Gelato product ${stranded.productId} for "${artwork.title}" still has 0 variants ` +
+        `${stranded.ageMinutes} min after creation (status "${stranded.status}"). Gelato's ` +
+        `variant-creation worker never ran, so it will never publish to Shopify. Verify the ` +
+        `size template/product is still available in Gelato, then delete the product and re-push.`;
+      console.error(`[post-create-publisher] STRANDED Gelato product: ${message}`);
+      return { artworkId, status: 'stranded', message };
+    }
     return {
       artworkId,
       status: 'timeout',
