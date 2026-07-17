@@ -151,7 +151,7 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
     }
 
     case 'screenshot': {
-      const boxH = capH ?? 170 * s
+      const boxH = block.boxHeight ? block.boxHeight * s : capH ?? 170 * s
       return (
         <div key={index} style={{ marginBottom: 10 * s }}>
           {block.url ? (

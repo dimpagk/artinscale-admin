@@ -274,7 +274,9 @@ function measureBlocksHeight(ctx: CanvasRenderingContext2D, blocks: BlockType[],
         break
       case 'screenshot': {
         const img = images?.get(block.url)
-        h += screenshotHeight(img, maxW, s, imgCap) + 10 * s
+        // Per-block boxHeight (design units) beats the format default: ad
+        // templates use it to let the artwork dominate the canvas.
+        h += screenshotHeight(img, maxW, s, block.boxHeight ? block.boxHeight * s : imgCap) + 10 * s
         break
       }
       case 'logo':
@@ -617,7 +619,7 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
 
       case 'screenshot': {
         const img = images?.get(block.url)
-        const imgH = screenshotHeight(img, maxW, s, imgCap)
+        const imgH = screenshotHeight(img, maxW, s, block.boxHeight ? block.boxHeight * s : imgCap)
         if (img && block.fit === 'contain') {
           // Whole image visible, centered in the box (used for framed art).
           const scale = Math.min(maxW / img.naturalWidth, imgH / img.naturalHeight)

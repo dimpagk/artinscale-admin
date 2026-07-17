@@ -123,6 +123,11 @@ function adKitSlide(
   ]
     .filter(Boolean)
     .join(' ');
+  // The artwork is the thumb-stopper: give it most of the canvas instead of
+  // the renderer's small default image box (~40% of height). Design-unit
+  // budget per format (canvas ~425 units for feed, ~604 for story) leaves
+  // room for logo + tag + a two-line title + craft line.
+  const artBox = format === 'story' ? 370 : format === 'portrait' ? 235 : 220;
   return {
     bg: 'galleryWhite',
     dark: false,
@@ -130,12 +135,12 @@ function adKitSlide(
     footer: '',
     format,
     blocks: [
-      { type: 'logo', url: BRAND_LOGO_URL, height: 26, align: 'center' },
+      { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'center' },
       { type: 'spacer', fill: true },
-      { type: 'screenshot', url: imageUrl, alt: `${a.title} (framed)`, border: false, fit: 'contain' },
+      { type: 'screenshot', url: imageUrl, alt: `${a.title} (framed)`, border: false, fit: 'contain', boxHeight: artBox },
       { type: 'spacer', fill: true },
       { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
-      { type: 'headline', text: a.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
+      { type: 'headline', text: a.title, fontSize: 'lg', weight: 700, tracking: -0.7 },
       { type: 'text', text: craftLine },
     ],
   };
