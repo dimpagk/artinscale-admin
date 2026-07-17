@@ -108,10 +108,13 @@ export function getGelatoLandedCost(
 }
 
 /**
- * The CAC cap (EUR) for a size in a market: contribution × targetRatio.
- * Bid up to this to stay profitable at the chosen margin cushion. Returns
- * null when the size/country isn't in the snapshot — the caller decides
- * how to treat unknown markets (exclude, or fall back to a blended cap).
+ * CAC cap (EUR) for a size in a market: (snapshot) contribution × targetRatio.
+ *
+ * NOTE: this uses the snapshot's contribution, which is PRE-VAT and at the
+ * snapshot's own (classics) retail price. For live prices AND output VAT
+ * netted down (matching order_economics), use `contributionFor` /
+ * `getCatalogBidCaps` in ./bid-caps — that is the source of truth for
+ * campaign caps. Kept here only as the raw per-size×country primitive.
  */
 export function getAllowableCac(
   sizeKey: string,

@@ -68,6 +68,16 @@ export function BidCapsSection({
         r.tier ? <Badge variant={TIER_BADGE[r.tier].variant}>{TIER_BADGE[r.tier].label}</Badge> : <span className="text-gray-400">—</span>,
     },
     {
+      key: 'vat',
+      header: 'VAT',
+      align: 'right',
+      render: (r) => (
+        <span className="tabular-nums text-gray-500">
+          {r.vatPercent > 0 ? `${r.vatPercent}%` : '0% (export)'}
+        </span>
+      ),
+    },
+    {
       key: 'cap',
       header: 'CAC cap',
       align: 'right',
@@ -150,9 +160,11 @@ export function BidCapsSection({
         <SectionLabel>CAC by market — cap vs actual</SectionLabel>
         <p className="max-w-2xl text-sm text-gray-500">
           The cost cap (max CPA) to enter on each market&rsquo;s Meta ad set, set
-          at 60% of contribution so ~40% stays as profit. Contribution is the{' '}
-          <strong>sales-weighted</strong> average over the {pieceCount} listed
-          pieces (sizes {sizes}) at their live prices. <strong>Meta CAC</strong>{' '}
+          at 60% of contribution so ~40% stays as profit. Contribution is{' '}
+          <strong>net of output VAT</strong> (EU sales carry the Greek home rate;
+          exports are zero-rated), the <strong>sales-weighted</strong> average
+          over the {pieceCount} listed pieces (sizes {sizes}) at their live
+          prices. <strong>Meta CAC</strong>{' '}
           = spend ÷ Meta-attributed purchases; <strong>Blended CAC</strong> ={' '}
           spend ÷ all Shopify orders to the country. Last {windowDays} days.
         </p>

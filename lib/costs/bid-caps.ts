@@ -19,11 +19,17 @@
  * is unweighted for now; pass `unitsSold` and set `weighted: true` to weight
  * by sales per item once that is wanted.
  *
- *   contribution = price − landedCost(size, country) − paymentFee(price)
+ *   netRev       = price ÷ (1 + outputVat(country)/100)   // price is VAT-inclusive
+ *   contribution = netRev − landedCost(size, country) − paymentFee(price)
  *   cap          = contribution × targetRatio   (default 0.6; keep ~40% profit)
  *
- * Contribution excludes VAT (roughly constant % drag; we are not VAT-
- * registered yet). See docs/GEOGRAPHY_ECONOMICS.md.
+ * Contribution is NET of output VAT, matching the order_economics view. We
+ * ARE Greek VAT-registered (finance_settings.default_vat_percent = 24). Under
+ * the €10k pan-EU distance-selling threshold that home rate applies to every
+ * EU B2C sale; non-EU exports (US) are zero-rated (UK is a special case, see
+ * outputVatPercent). Gelato input VAT is tracked as a separate cost in
+ * order_economics and, matching it, is NOT subtracted here. See
+ * docs/GEOGRAPHY_ECONOMICS.md.
  */
 
 import {
@@ -37,6 +43,42 @@ import {
 
 export const PAYMENT_FEE_PCT = 0.019;
 export const PAYMENT_FEE_FIXED = 0.25;
+
+/**
+ * Fallback home VAT rate (%) when a caller doesn't pass one. Mirrors
+ * finance_settings.default_vat_percent (Greek standard rate). Callers that
+ * can reach the DB should pass the live value.
+ */
+export const DEFAULT_HOME_VAT_PERCENT = 24;
+
+/** EU-27 member states (ISO alpha-2) — B2C sales here carry output VAT. */
+const EU_MEMBERS = new Set([
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR',
+  'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK',
+  'SI', 'ES', 'SE',
+]);
+
+/**
+ * Non-EU markets that still require charging local VAT on B2C (not a clean
+ * zero-rated export). UK: consignments ≤ £135 need UK VAT registration +
+ * 20% at point of sale, so we model it like a VAT market, not an export.
+ */
+const NON_EU_OUTPUT_VAT: Record<string, number> = { GB: 20 };
+
+/**
+ * Output VAT % to apply on a B2C sale shipped to `country`, given the
+ * seller's home rate. EU → home rate (24 under the <€10k regime; swap for
+ * destination rates once on OSS); listed non-EU exceptions (UK 20); all
+ * other non-EU (US, CH, …) → 0, zero-rated export.
+ */
+export function outputVatPercent(
+  country: string,
+  homeVatPercent: number = DEFAULT_HOME_VAT_PERCENT
+): number {
+  const c = country.trim().toUpperCase();
+  if (EU_MEMBERS.has(c)) return homeVatPercent;
+  return NON_EU_OUTPUT_VAT[c] ?? 0;
+}
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -62,15 +104,22 @@ export function paymentFee(price: number): number {
   return round2(price * PAYMENT_FEE_PCT + PAYMENT_FEE_FIXED);
 }
 
-/** Pre-VAT contribution for `sizeKey` sold at `price`, shipped to `country`. */
+/**
+ * Contribution for `sizeKey` sold at gross (VAT-inclusive) `price`, shipped
+ * to `country`, NET of output VAT so it matches order_economics:
+ *   netRev = price ÷ (1 + vatPercent/100);  contribution = netRev − landed − fee.
+ * `vatPercent` is the OUTPUT VAT for that country (use `outputVatPercent`).
+ */
 export function contributionFor(
   sizeKey: string,
   country: string,
-  price: number
+  price: number,
+  vatPercent: number = DEFAULT_HOME_VAT_PERCENT
 ): number | null {
   const cell = getGelatoLandedCost(sizeKey, country);
   if (!cell) return null;
-  return round2(price - cell.landed - paymentFee(price));
+  const netRev = price / (1 + vatPercent / 100);
+  return round2(netRev - cell.landed - paymentFee(price));
 }
 
 /** One listed catalog piece: what it is and what it sells for. */
@@ -85,7 +134,9 @@ export interface MarketCap {
   country: string;
   name: string;
   tier: CountryTier | null;
-  /** Mean per-order contribution across the listed pieces (EUR). */
+  /** Output VAT % applied to sales in this market (0 for zero-rated exports). */
+  vatPercent: number;
+  /** Mean per-order contribution across the listed pieces, net of VAT (EUR). */
   avgContribution: number;
   /** avgContribution × targetRatio — the cost cap to enter in Meta (EUR). */
   cap: number;
@@ -117,18 +168,23 @@ function mostCommonSize(pieces: CatalogPiece[]): string {
  */
 export function getCatalogBidCaps(
   pieces: CatalogPiece[],
-  opts: { targetRatio?: number; weighted?: boolean } = {}
+  opts: { targetRatio?: number; weighted?: boolean; homeVatPercent?: number } = {}
 ): MarketCap[] {
-  const { targetRatio = DEFAULT_TARGET_CAC_RATIO, weighted = false } = opts;
+  const {
+    targetRatio = DEFAULT_TARGET_CAC_RATIO,
+    weighted = false,
+    homeVatPercent = DEFAULT_HOME_VAT_PERCENT,
+  } = opts;
   if (!pieces.length) return [];
   const deliverySize = mostCommonSize(pieces);
   const rows: MarketCap[] = [];
   for (const country of supportedMarkets()) {
+    const vatPercent = outputVatPercent(country, homeVatPercent);
     let weightedSum = 0;
     let weightTotal = 0;
     let n = 0;
     for (const p of pieces) {
-      const c = contributionFor(p.sizeKey, country, p.price);
+      const c = contributionFor(p.sizeKey, country, p.price, vatPercent);
       if (c == null) continue;
       // +1 smoothing so unsold pieces still count once when weighted.
       const w = weighted ? (p.unitsSold ?? 0) + 1 : 1;
@@ -143,6 +199,7 @@ export function getCatalogBidCaps(
       country,
       name: MARKET_NAMES[country] ?? country,
       tier,
+      vatPercent,
       avgContribution: avg,
       cap: round2(avg * targetRatio),
       deliveryDays: getGelatoLandedCost(deliverySize, country)?.deliveryDays ?? '',
@@ -179,14 +236,20 @@ export interface SizeCapRow {
  */
 export function getSizeCapReference(
   sizes: PricedSize[],
-  targetRatio: number = DEFAULT_TARGET_CAC_RATIO
+  targetRatio: number = DEFAULT_TARGET_CAC_RATIO,
+  homeVatPercent: number = DEFAULT_HOME_VAT_PERCENT
 ): SizeCapRow[] {
   const out: SizeCapRow[] = [];
   for (const s of sizes) {
     const perMarket = supportedMarkets()
       .map((country) => ({
         country,
-        contribution: contributionFor(s.sizeKey, country, s.price),
+        contribution: contributionFor(
+          s.sizeKey,
+          country,
+          s.price,
+          outputVatPercent(country, homeVatPercent)
+        ),
         landed: getGelatoLandedCost(s.sizeKey, country)?.landed,
       }))
       .filter(
