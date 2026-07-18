@@ -1,0 +1,30 @@
+{
+  "id": "isarithm",
+  "enabledForLaunch": false,
+  "vectorizesWell": true,
+  "isPrimary": false,
+  "persona": {
+    "name": "Emil Varga",
+    "medium": "Archival print",
+    "tagline": "A survey of terrain that does not exist.",
+    "bioMd": "Emil Varga is a Berlin artist who works in code. He does not draw; he writes small deterministic systems, a few hundred lines of code that decide how thousands of fine ink strokes move across the page: where they gather, where they thin, and where they may not go. Each system runs through numbered seeds by the hundred, and he keeps almost none of them.\n\nEvery finished print is one seed, chosen slowly and never corrected by hand. His signature is the reserve: a single empty shape no line is allowed to enter, its edge drawn entirely by absence. The code is the brush, he says. Choosing is the art.",
+    "processMd": "Isarithm is Emil's second system. It builds an elevation field the viewer never sees, floods it to a per-seed sea level, and draws only the measurement: contour lines above the datum, every sixth an index line drawn heavier, the survey convention. The sea stays bare paper, and the coastline that emerges is the one line granted the accent ink. A small cross marks the highest summit, and the foot margin records the seed and the datum like a plate from an atlas of nowhere. He renders seeds by the hundred, discards freely, and promotes one number to a print.",
+    "email": "emil@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a10"
+  },
+  "prompt": {
+    "master": "Topographic contour survey of an imaginary landmass, fine ink isolines traced at even elevation intervals on warm paper, every sixth contour an index line drawn slightly heavier, lines crowding into dense dark passages on steep slopes and opening into calm on flat ground, one large continuous sea of untouched bare paper where everything below the datum drowned, the emergent coastline drawn in a single restrained accent ink, the whole sheet held to one archival ink pair (deep neutral or earth-toned contours with one quiet coast accent), a small surveyor's benchmark cross at the highest summit, a hairline neatline framing the plate, generous even margins with a plate notation in the foot, cartographic and exact, matte, no depicted terrain, only its measurement",
+    "negative": "satellite imagery, hillshade or relief shading, gradients, watercolor wash, painterly texture, photorealism, glow, 3D rendering, labeled place names or typography inside the plate, roads, buildings, figurative elements, filled land masses, blue water fill, more than one accent color, text, logos, watermarks"
+  },
+  "palette": {
+    "colors": ["#2A2A26", "#C65A32", "#5D4A36", "#3D5A98", "#2E3550", "#A83240", "#35473C", "#B8863C", "#96402F", "#532318", "#FBFAF5"],
+    "description": "Each survey is drawn in one of five archival ink voices, chosen by the seed and named in the plate notation: carbon (#2A2A26 contours, rust #C65A32 coast), sepia (#5D4A36, cobalt #3D5A98 coast), indigo (#2E3550, madder #A83240 coast), spruce (#35473C, ochre #B8863C coast), madder (#96402F, oxblood #532318 coast). One ink pair per piece, never mixed. The coast ink is reserved exclusively for the coastline, the datum contour itself. #FBFAF5 is paper only, never a pigment; the sea is paper left alone."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "one landmass of contour lines drowning on one side into a large continuous sea of bare paper, generous even margins with a slightly deeper foot",
+    "maxSubjects": 1,
+    "notes": "The sea is the reserve: at least a third of the plate stays bare paper, one continuous body, never scattered pockets alone. Density is inherited from slope, never composed: steep ground crowds, flat ground opens. The coastline is the only accent line and is never outlined twice. A small seed and datum notation sits in the foot margin. Never fill land or water; never shade; only lines."
+  },
+  "referenceAssetPaths": []
+}

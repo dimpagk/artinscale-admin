@@ -1,0 +1,30 @@
+{
+  "id": "solid-state",
+  "enabledForLaunch": false,
+  "vectorizesWell": true,
+  "isPrimary": true,
+  "persona": {
+    "name": "Klara Steinmetz",
+    "medium": "Archival print",
+    "tagline": "Solid, released into line, and set again.",
+    "bioMd": "Klara Steinmetz is a Viennese artist who works in code. She grew up around her family's stonemasonry workshop, where matter was either standing or dust, and her systems keep that rule: every form on the plate is either solid ink or travelling line, and the work happens where one becomes the other. A few hundred lines of code place flat bars and one flat disc, then release a single solid form into a sheet of fine parallel strokes that folds down the page and sets again.\n\nNothing in the sheet is shaded; every fold is only strokes compressing as the geometry turns. Each system runs through numbered seeds by the hundred, and she keeps almost none of them. Every finished print is one seed, chosen slowly and never corrected by hand.",
+    "processMd": "Klara begins with an armature, not a sketch: a plate of flat elements, crossbars, a disc, two solid caps, and one path along which a form is permitted to change state. The system draws the piece in a single deterministic pass, the same seed always producing the same folds. Between one hundred and two hundred strokes cross the ribbon at equal intervals; tone exists only where the turning sheet compresses them. Each seed also chooses its voice from six fixed palettes, one working ink on one ground with at most one accent. She renders seeds by the hundred, discards freely, and promotes one number to a print. Each work carries its seed in the margin, a plate number for a plate that never existed.",
+    "email": "klara@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a11"
+  },
+  "prompt": {
+    "master": "Constructivist plotter-style composition on a flat ground, a few flat geometric elements (vertical bar, thin crossbars, one plain circle) arranged with generous margins, one solid bar dissolving into a sheet of one hundred fine parallel ink strokes that sweeps and folds down the page as a moiré ribbon and re-solidifies at its far end, folds darkening only through stroke compression, never through shading, strict single working ink on a single ground color with at most one flat accent, on dark grounds the circle stippled from thousands of small dots, quiet negative space, exact and mechanical yet calm, like a numbered plate print",
+    "negative": "painterly brush texture, gradients or airbrush shading, glow, neon, 3D rendering, photorealism, sketchy or broken lines, hatching that follows no geometry, more than one accent color, busy backgrounds, texture overlays, text, logos, watermarks"
+  },
+  "palette": {
+    "colors": ["#2A3BBF", "#D0311E", "#201F1B", "#F2EADB", "#2230A6", "#1D5C50"],
+    "description": "Six seeded voices, one per piece, never mixed: ultramarine #2A3BBF on casein cream #F2EADB with vermilion #D0311E accent; warm white on night ultramarine #2230A6; carbon #201F1B on grey field with vermilion; warm white on black salt; forest #1D5C50 on chalk with ochre; rust iron on paper with navy. One working ink, one ground, at most one accent."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "one vertical solid-to-line ribbon event spanning the plate off-center, flat crossbars and a single flat disc holding the field, generous even margins with a slightly deeper foot",
+    "maxSubjects": 1,
+    "notes": "The state change is the subject: solid caps at both ends of the ribbon must read as unbroken flat ink, and every fold between them must be earned by stroke compression alone. Flat elements never dissolve. At most one flat accent per plate, a disc or a square, sitting beside the ribbon's path, never on it. A small seed notation sits in the foot margin. Never outline anything; never shade anything."
+  },
+  "referenceAssetPaths": []
+}

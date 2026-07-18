@@ -10,6 +10,10 @@ import amsterdamNocturne from './amsterdam-nocturne.json';
 import newyorkOil from './newyork-oil.json';
 import nordicDusk from './nordic-dusk.json';
 import fieldNotation from './field-notation.json';
+import isarithm from './isarithm.json';
+import occultation from './occultation.json';
+import solidState from './solid-state.json';
+import warp from './warp.json';
 
 export type { StylePack } from './types';
 
@@ -35,6 +39,10 @@ export const STYLE_PACKS: Record<string, StylePack> = {
   [newyorkOil.id]: newyorkOil as StylePack,
   [nordicDusk.id]: nordicDusk as StylePack,
   [fieldNotation.id]: fieldNotation as StylePack,
+  [isarithm.id]: isarithm as StylePack,
+  [occultation.id]: occultation as StylePack,
+  [solidState.id]: solidState as StylePack,
+  [warp.id]: warp as StylePack,
 };
 
 /** Synchronous lookup — JSON only. Use in client components. */

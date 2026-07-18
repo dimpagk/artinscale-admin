@@ -1,0 +1,30 @@
+{
+  "id": "warp",
+  "enabledForLaunch": false,
+  "vectorizesWell": true,
+  "isPrimary": false,
+  "persona": {
+    "name": "Klara Steinmetz",
+    "medium": "Archival print",
+    "tagline": "A woven mesh stretched over cloth, body, stone, and wood.",
+    "bioMd": "Klara Steinmetz is a Viennese artist who works in code. She grew up around her family's stonemasonry workshop, where matter was either standing or dust, and her systems keep that rule: every form on the plate is either solid ink or travelling line, and the work happens where one becomes the other. A few hundred lines of code place flat bars and one flat disc, then release a single solid form into a sheet of fine parallel strokes that folds down the page and sets again.\n\nNothing in the sheet is shaded; every fold is only strokes compressing as the geometry turns. Each system runs through numbered seeds by the hundred, and she keeps almost none of them. Every finished print is one seed, chosen slowly and never corrected by hand.",
+    "processMd": "Warp is Klara's second system, and it trades her stone for cloth. Each piece hangs one to three panels of fabric that never existed: a fine rectangular mesh of vertical warp threads and horizontal weft threads, drawn one hairline at a time, then draped through a seeded fold field. Nothing is shaded; where the mesh compresses, the translucent inks stack into satin ridges, and where it stretches, the paper breathes through. Warp and weft may carry different inks, so the cloth changes color as it folds. Each seed chooses its voice from six fixed palettes and its seed is noted in the foot margin, a plate number for a bolt of cloth that was never woven.",
+    "email": "klara@artinscale.studio",
+    "userId": "00000000-0000-0000-0000-000000000a11"
+  },
+  "prompt": {
+    "master": "Plotter-style drawing of a fine woven mesh of vertical and horizontal hairline threads at even pitch, stretched over one to four vertical forms: sometimes draped cloth crumpling into deep folds, sometimes the mesh wrapped over an organic body silhouette (a torso, a limb, hips) whose volume is read only by the threads bunching where it narrows and spreading where it swells, sometimes a rounded stone mass, sometimes a plank of timber with dense vertical grain and a knot, tone created only by line density and overlap never by shading or gradients, warp and weft threads sometimes in different ink colors so the surface shifts hue as it curves, generous even margins like a numbered plate print, airy and exact, textile and computational at once",
+    "negative": "painterly brush texture, gradients or airbrush shading, glow, neon, 3D rendering, photorealism, solid filled shapes, drop shadows, background texture, torn or ragged cloth edges, more than three panels, figurative imagery, text, logos, watermarks"
+  },
+  "palette": {
+    "colors": ["#E2799E", "#3FAE9C", "#C92330", "#2A3BBF", "#232EA8", "#F7F4EC"],
+    "description": "Six seeded voices, one per piece: pink warp with ice-green weft on warm white; two close reds; ultramarine with carbon; the four-ink spektrum weave; warm white and pink threads on night ultramarine #232EA8; forest with rust. Warp and weft each hold to their own ink or banded ink set; the ground is paper only."
+  },
+  "composition": {
+    "aspectRatios": ["4:5", "2:3"],
+    "subjectPlacement": "one to four vertical forms of varying width (hanging cloth panels, mesh-wrapped body silhouettes, stone masses, or timber planks, all panels in one plate sharing the form) with generous even margins and a slightly deeper foot",
+    "maxSubjects": 4,
+    "notes": "The weave is the subject: thread pitch stays constant across every panel, and all tone comes from fold compression. Where a voice carries more than one yarn, the hues pool in soft organic regions that drift with the drape, never a hard rectangular plaid. Whole regions must stay calm flat mesh; folds mean nothing without stillness around them. Body silhouettes lean with anatomical asymmetry, never mirrored like a vase; timber runs its grain long and sparse-crossed with a knot the grain bows around. Panels may nearly touch but each keeps its own hem. A small seed notation sits in the foot margin. Never outline the form; never shade; only threads."
+  },
+  "referenceAssetPaths": []
+}
