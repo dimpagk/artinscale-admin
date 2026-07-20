@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PageHeader } from '@/components/admin-ui'
 import { GENERATIVE_ARTISTS } from '@/lib/generative/registry'
 import { systemDir } from '@/lib/generative/server'
+import { promotedCounts } from '@/lib/generative/promote'
 import { SeedImage } from '@/components/generative/seed-image'
 
 export const dynamic = 'force-dynamic'
@@ -11,10 +12,15 @@ export const dynamic = 'force-dynamic'
  * artist who owns them. Each card opens a seed browser backed by the
  * system's own headless renderer; nothing here touches AI generation.
  */
-export default function GenerativePage() {
+export default async function GenerativePage() {
+  const counts = await promotedCounts()
   const artists = GENERATIVE_ARTISTS.map((artist) => ({
     ...artist,
-    systems: artist.systems.map((s) => ({ ...s, available: !!systemDir(s.id) })),
+    systems: artist.systems.map((s) => ({
+      ...s,
+      available: !!systemDir(s.id),
+      promoted: counts[s.id] ?? 0,
+    })),
   }))
   const offline = artists.every((a) => a.systems.every((s) => !s.available))
 
@@ -72,6 +78,11 @@ export default function GenerativePage() {
                     </span>
                   </div>
                   <p className="mt-1 text-xs leading-snug text-gray-500">{system.tagline}</p>
+                  {system.promoted > 0 && (
+                    <p className="mt-1.5 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      {system.promoted} {system.promoted === 1 ? 'artpiece' : 'artpieces'}
+                    </p>
+                  )}
                 </div>
               </Link>
             ))}
