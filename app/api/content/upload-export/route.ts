@@ -48,6 +48,34 @@ export async function POST(request: Request) {
     )
   }
 
+  // Per-slide mode: the client uploads one slide per request (large 2x
+  // renders in a single multipart body exceed the dev middleware's 10 MB
+  // cap and Vercel's ~4.5 MB serverless limit). slide_index is 1-based;
+  // the slide's URL is merged into exported_image_urls at that position.
+  const slideIndexRaw = form.get('slide_index')
+  const slideCountRaw = form.get('slide_count')
+  const slideIndex = typeof slideIndexRaw === 'string' ? parseInt(slideIndexRaw, 10) : null
+  const slideCount = typeof slideCountRaw === 'string' ? parseInt(slideCountRaw, 10) : null
+  const perSlide = slideIndex !== null && slideCount !== null
+  if (perSlide) {
+    if (
+      !Number.isInteger(slideIndex) || !Number.isInteger(slideCount) ||
+      slideCount < 1 || slideCount > MAX_FILES ||
+      slideIndex < 1 || slideIndex > slideCount
+    ) {
+      return NextResponse.json(
+        { error: `Invalid slide_index/slide_count (${slideIndexRaw}/${slideCountRaw}).` },
+        { status: 400 }
+      )
+    }
+    if (images.length !== 1) {
+      return NextResponse.json(
+        { error: `Per-slide mode expects exactly one image (got ${images.length}).` },
+        { status: 400 }
+      )
+    }
+  }
+
   // Confirm the post exists before we waste storage on uploads.
   const { data: existingPost, error: fetchError } = await supabaseAdmin
     .from('social_posts')
@@ -84,11 +112,13 @@ export async function POST(request: Request) {
     }
 
     const buf = Buffer.from(await file.arrayBuffer())
-    const path = `social-exports/${socialPostId}/${timestamp}-slide-${i + 1}.png`
+    const isJpeg = file.type === 'image/jpeg'
+    const slideNo = perSlide ? slideIndex : i + 1
+    const path = `social-exports/${socialPostId}/${timestamp}-slide-${slideNo}.${isJpeg ? 'jpg' : 'png'}`
 
     try {
       await uploadFile('ai-generated', path, buf, {
-        contentType: 'image/png',
+        contentType: isJpeg ? 'image/jpeg' : 'image/png',
         upsert: true,
       })
     } catch (err) {
@@ -102,9 +132,27 @@ export async function POST(request: Request) {
   }
 
   const existingConfig = (existingPost as { visual_config: Record<string, unknown> }).visual_config ?? {}
+  // Per-slide mode merges into the existing array at the slide's
+  // position (client uploads sequentially, so no write races); a fresh
+  // export run resets the array when its length no longer matches.
+  let mergedUrls = urls
+  if (perSlide) {
+    const prior = existingConfig.exported_image_urls
+    const base =
+      Array.isArray(prior) && prior.length === slideCount
+        ? [...(prior as (string | null)[])]
+        : new Array<string | null>(slideCount).fill(null)
+    base[slideIndex - 1] = urls[0]
+    mergedUrls = base.filter((u): u is string => typeof u === 'string')
+    // Keep positions stable while some slides are still uploading: only
+    // collapse nulls once every slot is filled.
+    if (mergedUrls.length !== slideCount) {
+      mergedUrls = base as string[]
+    }
+  }
   const updatedVisualConfig = {
     ...existingConfig,
-    exported_image_urls: urls,
+    exported_image_urls: mergedUrls,
     exported_at: new Date().toISOString(),
   }
 
@@ -120,5 +168,7 @@ export async function POST(request: Request) {
     )
   }
 
-  return NextResponse.json({ urls })
+  // Return the merged list (equals `urls` in batch mode) so the client's
+  // final per-slide response carries the complete, ordered export set.
+  return NextResponse.json({ urls: mergedUrls })
 }

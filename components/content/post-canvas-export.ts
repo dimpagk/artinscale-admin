@@ -903,17 +903,43 @@ export async function downloadPostAsPng(config: VisualConfig | SlideConfig, file
  * one click renders client-side, ships the bytes server-side, and
  * stamps the URL onto the post in a single round-trip.
  */
-export async function uploadPostAsPng(
-  socialPostId: string,
+/**
+ * Encode a rendered slide for upload. PNG first; when the PNG lands
+ * over ~4 MB (photographic full-bleed slides at 2x easily do), fall
+ * back to JPEG q0.92 so every request stays under Vercel's ~4.5 MB
+ * serverless body cap and dev's 10 MB middleware cap. Meta/Instagram
+ * accept both formats.
+ */
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+async function renderSlideBlob(
   config: VisualConfig | SlideConfig
-): Promise<{ urls: string[] }> {
+): Promise<{ blob: Blob; filename: (i: number) => string }> {
   const canvas = await renderPostToCanvas(config)
-  const blob = await new Promise<Blob>((resolve, reject) => {
+  const png = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob returned null'))), 'image/png')
   })
+  if (png.size <= MAX_UPLOAD_BYTES) {
+    return { blob: png, filename: (i) => `slide-${i}.png` }
+  }
+  const jpeg = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob returned null'))), 'image/jpeg', 0.92)
+  })
+  return { blob: jpeg, filename: (i) => `slide-${i}.jpg` }
+}
+
+/** POST one slide to the upload route; returns the full merged url list. */
+async function uploadSlide(
+  socialPostId: string,
+  blob: Blob,
+  filename: string,
+  slideIndex: number,
+  slideCount: number
+): Promise<string[]> {
   const fd = new FormData()
   fd.append('social_post_id', socialPostId)
-  fd.append('images', blob, `slide-1.png`)
+  fd.append('slide_index', String(slideIndex))
+  fd.append('slide_count', String(slideCount))
+  fd.append('images', blob, filename)
   const res = await fetch('/api/content/upload-export', {
     method: 'POST',
     body: fd,
@@ -921,37 +947,38 @@ export async function uploadPostAsPng(
   if (!res.ok) {
     throw new Error(`Upload failed: ${res.status} ${await res.text()}`)
   }
-  return (await res.json()) as { urls: string[] }
+  return ((await res.json()) as { urls: string[] }).urls
+}
+
+export async function uploadPostAsPng(
+  socialPostId: string,
+  config: VisualConfig | SlideConfig
+): Promise<{ urls: string[] }> {
+  const { blob, filename } = await renderSlideBlob(config)
+  const urls = await uploadSlide(socialPostId, blob, filename(1), 1, 1)
+  return { urls }
 }
 
 /**
- * Render every slide in a carousel and upload as a sequenced batch.
- * Slide order is preserved in `exported_image_urls`.
+ * Render every slide in a carousel and upload it. One request per
+ * slide (not a single batch): a 3-slide kit of 2x PNGs blows past
+ * both the dev middleware's 10 MB body cap and Vercel's ~4.5 MB
+ * serverless limit in one multipart body, and the truncated stream
+ * surfaces as a misleading "Body must be multipart/form-data" 400.
+ * The route merges each slide's URL by index, so order is preserved
+ * in `exported_image_urls`.
  */
 export async function uploadCarouselAsPngs(
   socialPostId: string,
   config: VisualConfig
 ): Promise<{ urls: string[] }> {
   const slides = getSlides(config)
-  const fd = new FormData()
-  fd.append('social_post_id', socialPostId)
-
+  let urls: string[] = []
   for (let i = 0; i < slides.length; i++) {
-    const canvas = await renderPostToCanvas(slides[i])
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob returned null'))), 'image/png')
-    })
-    fd.append('images', blob, `slide-${i + 1}.png`)
+    const { blob, filename } = await renderSlideBlob(slides[i])
+    urls = await uploadSlide(socialPostId, blob, filename(i + 1), i + 1, slides.length)
   }
-
-  const res = await fetch('/api/content/upload-export', {
-    method: 'POST',
-    body: fd,
-  })
-  if (!res.ok) {
-    throw new Error(`Upload failed: ${res.status} ${await res.text()}`)
-  }
-  return (await res.json()) as { urls: string[] }
+  return { urls }
 }
 
 /** Download all slides in a carousel as individual PNGs */
