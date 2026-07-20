@@ -102,32 +102,36 @@ function storyLine(a: SocialDraftArtwork): string | null {
   return out;
 }
 
-/**
- * One ad-kit slide (operator direction, 2026-07): the paid-ads template.
- * Same composition at every format so the three exports read as one
- * campaign: brand mark top-centre, the framed print floating on gallery
- * white, and the wall label (tag, title, craft line) beneath it. All
- * type renders through the branded canvas blocks (Outfit / DM Sans,
- * real logo asset) - never text baked into the artwork. No price on
- * the image; price lives in the ad's primary text and on the PDP.
- */
-function adKitSlide(
-  a: SocialDraftArtwork,
-  format: 'square' | 'portrait' | 'story',
-  imageUrl: string
-): SlideConfig {
+/** The shared "By {artist}. Archival matte print, {size}. Made to order." line. */
+function craftLineFor(a: SocialDraftArtwork): string {
   const size = sizeText(a.product_type);
-  const craftLine = [
+  return [
     a.artistName ? `By ${a.artistName}.` : null,
     `Archival matte print${size ? `, ${size}` : ''}. Made to order.`,
   ]
     .filter(Boolean)
     .join(' ');
+}
+
+/**
+ * One feed ad-kit slide (operator direction, 2026-07): the paid-ads
+ * template for the 1:1 and 4:5 placements. Brand mark top-centre, the
+ * framed print floating on gallery white, and the wall label (tag,
+ * title, craft line) beneath it. All type renders through the branded
+ * canvas blocks (Outfit / DM Sans, real logo asset) - never text baked
+ * into the artwork. No price on the image; price lives in the ad's
+ * primary text and on the PDP. The 9:16 placement uses storySlide().
+ */
+function adKitSlide(
+  a: SocialDraftArtwork,
+  format: 'square' | 'portrait',
+  imageUrl: string
+): SlideConfig {
   // The artwork is the thumb-stopper: give it most of the canvas instead of
   // the renderer's small default image box (~40% of height). Design-unit
-  // budget per format (canvas ~425 units for feed, ~604 for story) leaves
-  // room for logo + tag + a two-line title + craft line.
-  const artBox = format === 'story' ? 370 : format === 'portrait' ? 235 : 220;
+  // budget per format (canvas ~425 units for feed) leaves room for logo +
+  // tag + a two-line title + craft line.
+  const artBox = format === 'portrait' ? 235 : 220;
   return {
     bg: 'galleryWhite',
     dark: false,
@@ -141,7 +145,33 @@ function adKitSlide(
       { type: 'spacer', fill: true },
       { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
       { type: 'headline', text: a.title, fontSize: 'lg', weight: 700, tracking: -0.7 },
-      { type: 'text', text: craftLine },
+      { type: 'text', text: craftLineFor(a) },
+    ],
+  };
+}
+
+/**
+ * The 9:16 Story / Reel slide (operator direction, 2026-07): the SINGLE
+ * source of truth for the story format, shared by the "Generate story"
+ * button and the ad kit's story placement so the two are identical by
+ * construction. The hero covers the whole canvas full-bleed; the
+ * renderer lays a bottom scrim and anchors the wording low in white -
+ * logo, tag, title, craft line. No baked-in text over the art, no
+ * footer (IG's link sticker carries the CTA at publish time).
+ */
+function storySlide(a: SocialDraftArtwork, heroUrl: string, heroLabel: string): SlideConfig {
+  return {
+    bg: 'galleryWhite',
+    dark: false,
+    accent: 'none',
+    footer: '',
+    format: 'story',
+    blocks: [
+      { type: 'screenshot', url: heroUrl, alt: `${a.title} (${heroLabel})`, border: false, fullBleed: true },
+      { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
+      { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
+      { type: 'headline', text: a.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
+      { type: 'text', text: craftLineFor(a) },
     ],
   };
 }
@@ -261,7 +291,9 @@ export async function createSocialDraft(
     const slides = [
       adKitSlide(artwork, 'square', hero),
       adKitSlide(artwork, 'portrait', hero),
-      adKitSlide(artwork, 'story', hero),
+      // Story placement uses the exact "Generate story" template so the
+      // 9:16 ad matches the organic story (shared storySlide builder).
+      storySlide(artwork, images[0].url, images[0].label),
     ];
     postType = 'carousel';
     visualConfig = { ...slides[0], slides };
@@ -275,39 +307,12 @@ export async function createSocialDraft(
     postType = 'carousel';
     visualConfig = { ...slides[0], slides };
   } else {
-    // Story: one 9:16 slide combining the carousel's first and last
-    // slides (operator direction, 2026-07): the framed hero hangs in the
-    // upper half (fit contain so the whole frame shows), and the wall
-    // label sits bottom-anchored beneath it, exactly like the carousel's
-    // closing slide. No banner, no footer, no price, link CTA.
+    // Story: one 9:16 full-bleed slide, built by the shared storySlide()
+    // so the organic story and the ad kit's story placement stay in
+    // lockstep. The operator adds IG's link sticker at publish time.
     const hero = images[0];
-    const size = sizeText(artwork.product_type);
-    const craftLine = [
-      artwork.artistName ? `By ${artwork.artistName}.` : null,
-      `Archival matte print${size ? `, ${size}` : ''}. Made to order.`,
-    ]
-      .filter(Boolean)
-      .join(' ');
     postType = 'single';
-    // Full-bleed treatment (operator direction): the framed hero covers
-    // the whole 9:16 canvas as the background (first block, fullBleed),
-    // and the wording overlays it bottom-anchored on the renderer's dark
-    // scrim (white text). No CTA link: the operator adds IG's link
-    // sticker at publish time.
-    visualConfig = {
-      bg: 'galleryWhite',
-      dark: false,
-      accent: 'none',
-      footer: '',
-      format: 'story',
-      blocks: [
-        { type: 'screenshot', url: hero.url, alt: `${artwork.title} (${hero.label})`, border: false, fullBleed: true },
-        { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
-        { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
-        { type: 'headline', text: artwork.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
-        { type: 'text', text: craftLine },
-      ],
-    };
+    visualConfig = storySlide(artwork, hero.url, hero.label);
   }
 
   const { data, error } = await supabaseAdmin
