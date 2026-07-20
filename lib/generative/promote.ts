@@ -33,11 +33,22 @@ const MIGRATION_HINT =
 // Supabase client errors are plain objects (PostgrestError), not Error
 // instances; pull the message out of either shape.
 function errMessage(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (err && typeof err === 'object' && 'message' in err) {
-    return String((err as { message: unknown }).message)
+  // Walk the wrapper chain (undici puts the real reason in `cause`,
+  // supabase storage in `originalError`); surface every distinct message or
+  // the operator only sees a useless "fetch failed".
+  const parts: string[] = []
+  let cur: unknown = err
+  for (let depth = 0; cur && depth < 5; depth++) {
+    const obj = cur as { message?: unknown; cause?: unknown; originalError?: unknown; code?: unknown }
+    const msg =
+      typeof obj === 'object' && obj !== null && obj.message !== undefined
+        ? String(obj.message)
+        : String(cur)
+    const code = typeof obj === 'object' && obj !== null && obj.code ? ` [${String(obj.code)}]` : ''
+    if (!parts.includes(msg + code)) parts.push(msg + code)
+    cur = typeof obj === 'object' && obj !== null ? (obj.cause ?? obj.originalError) : undefined
   }
-  return String(err)
+  return parts.join(': ')
 }
 
 function isMissingColumnError(err: unknown): boolean {

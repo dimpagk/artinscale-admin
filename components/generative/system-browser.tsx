@@ -120,7 +120,9 @@ export function SystemBrowser({
           </div>
           {promoted.size > 0 && (
             <p className="mt-3 text-[11px] text-gray-400">
-              {promoted.size} {promoted.size === 1 ? 'seed is' : 'seeds are'} already artpieces.
+              {promoted.size === 1
+                ? '1 seed is already an artpiece.'
+                : `${promoted.size} seeds are already artpieces.`}
             </p>
           )}
         </div>
