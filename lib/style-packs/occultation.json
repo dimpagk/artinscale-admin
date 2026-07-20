@@ -7,7 +7,7 @@
     "name": "Emil Varga",
     "medium": "Archival print",
     "tagline": "A census of a sky that does not exist.",
-    "bioMd": "Emil Varga is a Berlin artist who works in code. He does not draw; he writes small deterministic systems, a few hundred lines of code that decide how thousands of fine ink strokes move across the page: where they gather, where they thin, and where they may not go. Each system runs through numbered seeds by the hundred, and he keeps almost none of them.\n\nEvery finished print is one seed, chosen slowly and never corrected by hand. His signature is the reserve: a single empty shape no line is allowed to enter, its edge drawn entirely by absence. The code is the brush, he says. Choosing is the art.",
+    "bioMd": "Emil Varga is a Berlin artist who works in code. He does not draw; he writes small deterministic systems, a few hundred lines that decide how thousands of fine marks fall across the page: where they gather, where they thin, and what the sheet is finally a record of. Each system runs through numbered seeds by the hundred, and he keeps almost none of them.\n\nEvery finished print is one seed, chosen slowly and never corrected by hand. The systems do not share a subject: one follows motion, one measures ground, one takes a census of a sky. What they share is the method and the hand it produces: archival ink on warm paper, the discipline of a scientific plate, and a set of recurring devices (a reserved absence, a single accent pigment, a notation in the foot margin) used where a system calls for them and set aside where it does not. Each system is free to take its own direction, and to be revised into new versions as that direction sharpens. The code is the brush, he says. Choosing is the art.",
     "processMd": "Occultation is Emil's third system, and his first with no lines at all. An oblique band of probability crosses the plate like a galaxy on a photographic field, swelling into star clouds, cut by dark rifts, condensing here and there into open clusters, and the system takes a census: tens of thousands of candidate stars, each admitted or refused by the density beneath it, every admitted star one ink dot sized by magnitude class. One dark body blocks part of the sky; nothing is drawn inside it, its limb is never outlined, and the foot notation records how many stars it swallowed beside the seed. The stars that graze the limb are the only marks granted the accent ink. He renders seeds by the hundred, discards freely, and promotes one number to a print.",
     "email": "emil@artinscale.studio",
     "userId": "00000000-0000-0000-0000-000000000a10"
@@ -17,11 +17,26 @@
     "negative": "constellation lines connecting stars, nebula clouds or gradients, milky glow, lens flares, cross-shaped diffraction spikes, blue or black sky fill, photorealism, 3D rendering, watercolor wash, painterly texture, labeled star names or typography inside the plate, planets with visible surfaces, figurative elements, outlined or filled occulting body, more than one accent color, text, logos, watermarks"
   },
   "palette": {
-    "colors": ["#2A2A26", "#C65A32", "#2B3350", "#B8863C", "#5A4632", "#3D5A98", "#3D4348", "#A83240", "#4A3527", "#4E7A6A", "#FBFAF5"],
+    "colors": [
+      "#2A2A26",
+      "#C65A32",
+      "#2B3350",
+      "#B8863C",
+      "#5A4632",
+      "#3D5A98",
+      "#3D4348",
+      "#A83240",
+      "#4A3527",
+      "#4E7A6A",
+      "#FBFAF5"
+    ],
     "description": "Each census is drawn in one of five archival ink voices, chosen by the seed and named in the plate notation: carbon (#2A2A26 census, rust #C65A32 graze), indigo (#2B3350, ochre #B8863C graze), sepia (#5A4632, cobalt #3D5A98 graze), slate (#3D4348, madder #A83240 graze), umber (#4A3527, verdigris #4E7A6A graze). One ink pair per piece, never mixed. The graze ink is reserved exclusively for the stars nearest the occulted limb. #FBFAF5 is paper only, never a pigment; the occulted body is paper left alone."
   },
   "composition": {
-    "aspectRatios": ["4:5", "2:3"],
+    "aspectRatios": [
+      "4:5",
+      "2:3"
+    ],
     "subjectPlacement": "one dark occulted disc of bare paper resting on an oblique band of dense star dots, the band thinning to near-empty paper at the plate edges, generous even margins with a slightly deeper foot",
     "maxSubjects": 1,
     "notes": "The occulted body is the reserve: perfectly bare paper, never outlined, its limb implied only by where the dots stop. Density is inherited from the band, its star clouds, its dark rifts and its open clusters, never composed: the field must thin to genuine emptiness away from the band. Only dots; no lines except hairline graticule arcs, fiducial ticks and the neatline. The accent appears only at the occulted limb. A seed and count notation sits in the foot margin."
