@@ -115,9 +115,9 @@ function craftLineFor(a: SocialDraftArtwork): string {
 
 /**
  * One feed ad-kit slide (operator direction, 2026-07): the paid-ads
- * template for the 1:1 and 4:5 placements. Brand mark top-centre, the
- * framed print floating on gallery white, and the wall label (tag,
- * title, craft line) beneath it. All type renders through the branded
+ * template for the 1:1 and 4:5 placements. Everything rides the left
+ * rail (operator, 2026-07-20): brand mark, framed print, and wall
+ * label (tag, title, craft line) share one flush-left edge. All type renders through the branded
  * canvas blocks (Outfit / DM Sans, real logo asset) - never text baked
  * into the artwork. No price on the image; price lives in the ad's
  * primary text and on the PDP. The 9:16 placement uses storySlide().
@@ -139,9 +139,9 @@ function adKitSlide(
     footer: '',
     format,
     blocks: [
-      { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'center' },
+      { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
       { type: 'spacer', fill: true },
-      { type: 'screenshot', url: imageUrl, alt: `${a.title} (framed)`, border: false, fit: 'contain', boxHeight: artBox },
+      { type: 'screenshot', url: imageUrl, alt: `${a.title} (framed)`, border: false, fit: 'contain', boxHeight: artBox, align: 'left' },
       { type: 'spacer', fill: true },
       { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
       { type: 'headline', text: a.title, fontSize: 'lg', weight: 700, tracking: -0.7 },

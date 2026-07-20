@@ -158,7 +158,7 @@ function renderBlock(block: BlockType, index: number, s: number, isDark: boolean
             <img
               src={block.url}
               alt={block.alt || ''}
-              style={{ width: '100%', height: boxH, objectFit: block.fit ?? 'cover', borderRadius: block.fit === 'contain' ? 0 : 6 * s, border: block.border ? `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}` : 'none' }}
+              style={{ width: '100%', height: boxH, objectFit: block.fit ?? 'cover', objectPosition: block.align === 'left' ? 'left center' : 'center', borderRadius: block.fit === 'contain' ? 0 : 6 * s, border: block.border ? `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}` : 'none' }}
             />
           ) : (
             <div style={{ width: '100%', height: 80 * s, borderRadius: 6 * s, border: `1px dashed ${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 * s, color: fgSub, fontFamily: B.bodyFont }}>

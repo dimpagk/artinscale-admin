@@ -621,11 +621,13 @@ function drawBlocks(ctx: CanvasRenderingContext2D, blocks: BlockType[], s: numbe
         const img = images?.get(block.url)
         const imgH = screenshotHeight(img, maxW, s, block.boxHeight ? block.boxHeight * s : imgCap)
         if (img && block.fit === 'contain') {
-          // Whole image visible, centered in the box (used for framed art).
+          // Whole image visible in the box (used for framed art);
+          // horizontally centered unless the block asks for left.
           const scale = Math.min(maxW / img.naturalWidth, imgH / img.naturalHeight)
           const dw = img.naturalWidth * scale
           const dh = img.naturalHeight * scale
-          ctx.drawImage(img, x + (maxW - dw) / 2, y + (imgH - dh) / 2, dw, dh)
+          const dx = block.align === 'left' ? x : x + (maxW - dw) / 2
+          ctx.drawImage(img, dx, y + (imgH - dh) / 2, dw, dh)
         } else if (img) {
           // Real image, center-cropped into the block rect.
           ctx.save()
