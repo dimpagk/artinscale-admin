@@ -1,7 +1,8 @@
 // Turning a chosen seed into an artpiece: render the canonical print master,
 // upload it, create the artworks row with generative provenance, and hand the
 // rest of the process (Gelato push, listing, mockups) to the existing artwork
-// detail page. Requires sql/049_generative_provenance.sql to be applied.
+// detail page. Requires sql/049_generative_provenance.sql and
+// sql/050_generative_version.sql to be applied.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -9,7 +10,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { uploadFile, getPublicUrl } from '@/lib/storage'
 import { getProductDefaults } from '@/lib/pricing-defaults'
 import { findSystem } from './registry'
-import { renderCached, systemDir } from './server'
+import { renderCached, systemDir, systemVersion } from './server'
 
 // Pinned studio persona UUIDs (sql/047, sql/048).
 const ARTIST_UUIDS: Record<string, string> = {
@@ -28,7 +29,7 @@ export interface PromotedSeed {
 }
 
 const MIGRATION_HINT =
-  'generative provenance columns missing: apply sql/049_generative_provenance.sql in the Supabase SQL editor, then retry.'
+  'generative provenance columns missing: apply sql/049_generative_provenance.sql and sql/050_generative_version.sql in the Supabase SQL editor, then retry.'
 
 // Supabase client errors are plain objects (PostgrestError), not Error
 // instances; pull the message out of either shape.
@@ -53,7 +54,10 @@ function errMessage(err: unknown): string {
 
 function isMissingColumnError(err: unknown): boolean {
   const msg = errMessage(err)
-  return /generative_system|generative_seed/.test(msg) && /column|schema/i.test(msg)
+  return (
+    /generative_system|generative_seed|generative_version/.test(msg) &&
+    /column|schema/i.test(msg)
+  )
 }
 
 /** Seeds of one system that are already artworks. */
@@ -156,10 +160,11 @@ export async function promoteSeed(
       currency: defaults?.currency ?? 'EUR',
       product_type: PRODUCT_TYPE,
       creation_date: new Date().toISOString().slice(0, 10),
-      inspiration_summary: `Deterministic drawing system "${system.title}" (generative/${systemId}), seed ${seed}. Rendered from code at 300 DPI; the same seed always yields the same piece.`,
+      inspiration_summary: `Deterministic drawing system "${system.title}" (generative/${systemId}), seed ${seed}, algorithm ${systemVersion(systemId) ?? 'unknown'}. Rendered from code at 300 DPI; the same seed on the same algorithm always yields the same piece.`,
       creation_source: 'manual',
       generative_system: systemId,
       generative_seed: seed,
+      generative_version: systemVersion(systemId),
     })
     .select('id')
     .single()

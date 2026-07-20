@@ -135,6 +135,47 @@ function runRenderer(
 
 const seedTag = (seed: number) => `s${String(seed).padStart(6, '0')}`
 
+// Files whose contents decide the pixels: the drawing algorithm and the
+// RNG/noise primitives it draws from. render.js only parses flags and sizes
+// the canvas, so it is deliberately excluded.
+const VERSION_FILES = ['system.js', 'p5compat.js']
+
+// stat identity (mtime + size) of the version files, so the common case is
+// two stat calls rather than re-hashing the source on every thumbnail.
+const versionCache = new Map<string, { stamp: string; version: string }>()
+
+/**
+ * Content hash of a system's algorithm, short hex.
+ *
+ * Derived rather than hand-maintained: editing a system changes its version
+ * with nobody having to remember to bump a number. It keys the render cache
+ * (so a changed algorithm can never serve an image drawn by the old one) and
+ * is stamped on artpieces, which is what makes "seed + version reproduces
+ * the piece" a checkable claim instead of an assumption.
+ */
+export function systemVersion(systemId: string): string | null {
+  const dir = systemDir(systemId)
+  if (!dir) return null
+  const files = VERSION_FILES.map((f) => path.join(dir, 'node', f))
+  let stamp = ''
+  try {
+    for (const f of files) {
+      const st = fs.statSync(f)
+      stamp += `${f}:${st.mtimeMs}:${st.size};`
+    }
+  } catch {
+    return null
+  }
+  const cached = versionCache.get(systemId)
+  if (cached?.stamp === stamp) return cached.version
+
+  const hash = crypto.createHash('sha256')
+  for (const f of files) hash.update(fs.readFileSync(f))
+  const version = hash.digest('hex').slice(0, 10)
+  versionCache.set(systemId, { stamp, version })
+  return version
+}
+
 export async function renderCached(req: RenderRequest): Promise<RenderResult> {
   const dir = systemDir(req.system)
   if (!dir) throw new Error(`renderer unavailable for system "${req.system}"`)
@@ -144,21 +185,26 @@ export async function renderCached(req: RenderRequest): Promise<RenderResult> {
   }
 
   const params = sanitizeParams(req.system, req.params ?? {})
+  // The algorithm version is part of the key: without it an edited system
+  // keeps serving images its code can no longer draw, and a stale print
+  // master gets promoted as though it were the seed's piece.
+  const version = systemVersion(req.system) ?? 'unknown'
   const hash = crypto
     .createHash('sha1')
-    .update(JSON.stringify({ kind: req.kind, seed, params }))
+    .update(JSON.stringify({ kind: req.kind, seed, params, version }))
     .digest('hex')
     .slice(0, 10)
 
   const variant = Object.keys(params).length ? `-v${hash.slice(0, 6)}` : ''
   const relPath =
     req.kind === 'master'
-      ? // Follow each system's own master naming so admin-rendered masters
-        // land next to the CLI-rendered ones the operator already curates.
+      ? // Near the system's own master naming, plus the algorithm version:
+        // the operator's CLI masters keep the plain name, and an admin
+        // master is never mistaken for one drawn by different code.
         path.join(
           'node',
           'masters',
-          `${req.system}-${seedTag(seed)}${variant}-print-40x50-300dpi.png`
+          `${req.system}-${seedTag(seed)}${variant}-alg-${version}-print-40x50-300dpi.png`
         )
       : path.join('node', 'cache', `${req.kind}-${seedTag(seed)}-${hash}.png`)
 
