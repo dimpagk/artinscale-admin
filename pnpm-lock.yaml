@@ -12,8 +12,8 @@ importers:
         specifier: ^0.79.0
         version: 0.79.0
       '@dimpagk/artinscale-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(framer-motion@12.38.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        specifier: ^0.4.0
+        version: 0.4.0(framer-motion@12.38.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@google/genai':
         specifier: ^2.10.0
         version: 2.10.0
@@ -101,8 +101,8 @@ packages:
     resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
     engines: {node: '>=6.9.0'}
 
-  '@dimpagk/artinscale-ui@0.3.0':
-    resolution: {integrity: sha512-cBmvjRAs88nLs4unycPn6UyTFeXWTqFFdcUp5xj9RLc/gRpDSGUA38QtPgeXcPonbvtNt5Ny+v0diQcArkICNw==, tarball: https://npm.pkg.github.com/download/@dimpagk/artinscale-ui/0.3.0/a0de6020cff4b778031d704a7e3e65b7e8b7a9e6}
+  '@dimpagk/artinscale-ui@0.4.0':
+    resolution: {integrity: sha512-iNjARcxSBD7r/u+9ffaOk27tWx/0ROHeITjX9cEoNyiaHdvh8SThKYSgZf4n18L3l/mAHfP5iDX5k/kqQRlJvQ==, tarball: https://npm.pkg.github.com/download/@dimpagk/artinscale-ui/0.4.0/de99f8d85c743e531d66ac5163e26369d9f9cc20}
     peerDependencies:
       framer-motion: ^12.38.0
       next: '>=14'
@@ -1054,7 +1054,7 @@ snapshots:
 
   '@babel/runtime@7.29.2': {}
 
-  '@dimpagk/artinscale-ui@0.3.0(framer-motion@12.38.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+  '@dimpagk/artinscale-ui@0.4.0(framer-motion@12.38.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.13(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       '@phosphor-icons/react': 2.1.10(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       clsx: 2.1.1

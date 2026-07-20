@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
-    "@dimpagk/artinscale-ui": "^0.3.0",
+    "@dimpagk/artinscale-ui": "^0.4.0",
     "@google/genai": "^2.10.0",
     "@phosphor-icons/react": "^2.1.10",
     "@remotion/player": "^4.0.436",

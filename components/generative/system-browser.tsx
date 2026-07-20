@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { SidebarCard } from '@/components/admin-ui';
@@ -84,10 +85,13 @@ export function SystemBrowser({
       {/* ── controls ── */}
       <aside className="w-full shrink-0 space-y-5 xl:w-64">
         <SidebarCard title="Seeds">
+          {/* The range sits on its own line: at sidebar width it cannot share
+              a row with both buttons without wrapping mid-label. */}
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
+              className="flex-1"
               onClick={() => {
                 setFrom(Math.max(1, from - PAGE_SIZE));
                 setSelected(null);
@@ -95,12 +99,10 @@ export function SystemBrowser({
             >
               ← Prev
             </Button>
-            <span className="flex-1 text-center font-mono text-xs text-gray-500">
-              {seedLabel(from)} – {seedLabel(from + PAGE_SIZE - 1)}
-            </span>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
+              className="flex-1"
               onClick={() => {
                 setFrom(from + PAGE_SIZE);
                 setSelected(null);
@@ -109,6 +111,9 @@ export function SystemBrowser({
               Next →
             </Button>
           </div>
+          <p className="mt-2 text-center font-mono text-xs whitespace-nowrap text-gray-500">
+            {seedLabel(from)} – {seedLabel(from + PAGE_SIZE - 1)}
+          </p>
           <div className="mt-3 flex items-end gap-2">
             <Input
               value={jump}
@@ -118,7 +123,7 @@ export function SystemBrowser({
               inputMode="numeric"
               size="sm"
             />
-            <Button variant="outline" size="sm" onClick={applyJump}>
+            <Button variant="ghost" size="sm" onClick={applyJump}>
               Go
             </Button>
           </div>
@@ -258,28 +263,21 @@ function ParamControl({
     );
   }
   return (
-    <label className="block">
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium text-gray-600">{spec.label}</span>
-        <span className="font-mono text-[11px] text-gray-400">
-          {value === undefined ? `${spec.def}` : value}
-        </span>
-      </div>
-      {/* The design system has no range slider yet; keep a native input
-          tinted with the brand accent until one lands. */}
-      <input
-        type="range"
-        min={spec.min}
-        max={spec.max}
-        step={spec.step}
-        value={value === undefined ? spec.def : Number(value)}
-        onChange={(e) => {
-          const n = Number(e.target.value);
-          onChange(n === spec.def ? undefined : n);
-        }}
-        className="mt-1 w-full accent-[var(--brand-navy)]"
-      />
-    </label>
+    <Slider
+      label={spec.label}
+      size="sm"
+      min={spec.min}
+      max={spec.max}
+      step={spec.step}
+      value={value === undefined ? spec.def : Number(value)}
+      onChange={(e) => {
+        const n = Number(e.target.value);
+        onChange(n === spec.def ? undefined : n);
+      }}
+      // Counts stay bare (2200 strands); the 0..1 knobs get two decimals so
+      // the readout does not jitter between 0.65 and 0.6500000000000001.
+      formatValue={(v) => (Number.isInteger(v) ? String(v) : v.toFixed(2))}
+    />
   );
 }
 
@@ -397,7 +395,7 @@ function SeedDetail({
           ) : (
             <div className="flex items-center gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={renderMaster}
                 disabled={masterState.status === 'rendering'}
               >
