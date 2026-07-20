@@ -118,13 +118,22 @@ export async function promoteSeed(
   const buffer = await fs.promises.readFile(path.join(dir, relPath))
 
   // 2. Upload the master; stable path so re-promotion attempts overwrite
-  // rather than accumulate.
+  // rather than accumulate. The first large POST after idle regularly dies
+  // with a bare "fetch failed" (undici reusing a keep-alive socket the
+  // server already closed), so retry once: the upsert upload is idempotent.
   const seedTag = `s${String(seed).padStart(6, '0')}`
   const storagePath = `generative/${systemId}/${systemId}-${seedTag}-print-40x50-300dpi.png`
-  await uploadFile('ai-generated', storagePath, buffer, {
-    contentType: 'image/png',
-    upsert: true,
-  })
+  try {
+    await uploadFile('ai-generated', storagePath, buffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
+  } catch {
+    await uploadFile('ai-generated', storagePath, buffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
+  }
   const imageUrl = getPublicUrl('ai-generated', storagePath)
 
   // 3. The artworks row (admin-managed source of truth). Insert directly so

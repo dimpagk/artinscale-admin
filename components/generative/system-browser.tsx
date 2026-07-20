@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SeedImage } from './seed-image';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Modal } from '@/components/ui/modal';
+import { SidebarCard } from '@/components/admin-ui';
 import type { GenerativeParam } from '@/lib/generative/registry';
 
 const PAGE_SIZE = 24;
@@ -77,46 +83,44 @@ export function SystemBrowser({
     <div className="flex flex-col gap-6 xl:flex-row">
       {/* ── controls ── */}
       <aside className="w-full shrink-0 space-y-5 xl:w-64">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Seeds</h2>
-          <div className="mt-3 flex items-center gap-2">
-            <button
+        <SidebarCard title="Seeds">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setFrom(Math.max(1, from - PAGE_SIZE));
                 setSelected(null);
               }}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
             >
               ← Prev
-            </button>
+            </Button>
             <span className="flex-1 text-center font-mono text-xs text-gray-500">
               {seedLabel(from)} – {seedLabel(from + PAGE_SIZE - 1)}
             </span>
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setFrom(from + PAGE_SIZE);
                 setSelected(null);
               }}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
             >
               Next →
-            </button>
+            </Button>
           </div>
-          <div className="mt-3 flex items-center gap-2">
-            <input
+          <div className="mt-3 flex items-end gap-2">
+            <Input
               value={jump}
               onChange={(e) => setJump(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && applyJump()}
               placeholder="Jump to seed…"
               inputMode="numeric"
-              className="w-full rounded-lg border border-gray-200 px-3 py-1.5 font-mono text-sm placeholder:font-sans"
+              size="sm"
             />
-            <button
-              onClick={applyJump}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
-            >
+            <Button variant="outline" size="sm" onClick={applyJump}>
               Go
-            </button>
+            </Button>
           </div>
           {promoted.size > 0 && (
             <p className="mt-3 text-[11px] text-gray-400">
@@ -125,7 +129,7 @@ export function SystemBrowser({
                 : `${promoted.size} seeds are already artpieces.`}
             </p>
           )}
-        </div>
+        </SidebarCard>
 
         {migrationNeeded && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-snug text-amber-800">
@@ -134,27 +138,25 @@ export function SystemBrowser({
           </div>
         )}
 
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Parameters
-            </h2>
-            {touchedCount > 0 && (
-              <button
+        <SidebarCard
+          title="Parameters"
+          description="Untouched controls stay on the pack's canonical values."
+          action={
+            touchedCount > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setStaged({});
                   setValues({});
                 }}
-                className="text-xs text-gray-400 underline hover:text-gray-600"
               >
-                Reset to canonical
-              </button>
-            )}
-          </div>
-          <p className="mt-1 text-[11px] leading-snug text-gray-400">
-            Untouched controls stay on the pack&apos;s canonical values.
-          </p>
-          <div className="mt-3 space-y-3">
+                Reset
+              </Button>
+            ) : undefined
+          }
+        >
+          <div className="space-y-3">
             {paramSpecs.map((spec) => (
               <ParamControl
                 key={spec.key}
@@ -171,19 +173,10 @@ export function SystemBrowser({
               />
             ))}
           </div>
-          <button
-            onClick={() => setValues(staged)}
-            disabled={!dirty}
-            className={cn(
-              'mt-4 w-full rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-              dirty
-                ? 'bg-[var(--brand-navy)] text-white hover:opacity-90'
-                : 'cursor-default bg-gray-100 text-gray-400'
-            )}
-          >
+          <Button variant="primary" className="mt-4 w-full" disabled={!dirty} onClick={() => setValues(staged)}>
             Apply &amp; re-render page
-          </button>
-        </div>
+          </Button>
+        </SidebarCard>
       </aside>
 
       {/* ── grid ── */}
@@ -211,9 +204,9 @@ export function SystemBrowser({
                   alt={`${title} ${seedLabel(seed)}`}
                 />
                 {piece && (
-                  <span className="absolute right-1.5 top-1.5 rounded-full bg-emerald-600/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm">
+                  <Badge variant="success" size="sm" className="absolute right-1.5 top-1.5 shadow-sm">
                     artpiece{piece.status !== 'created' ? ` · ${piece.status}` : ''}
-                  </span>
+                  </Badge>
                 )}
                 <div className="px-2 py-1.5 font-mono text-[11px] text-gray-500">
                   {seedLabel(seed)}
@@ -252,20 +245,16 @@ function ParamControl({
 }) {
   if (spec.kind === 'select') {
     return (
-      <label className="block">
-        <span className="text-xs font-medium text-gray-600">{spec.label}</span>
-        <select
-          value={value === undefined ? spec.def : String(value)}
-          onChange={(e) => onChange(e.target.value === spec.def ? undefined : e.target.value)}
-          className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
-        >
-          {spec.options.map((o) => (
-            <option key={o} value={o}>
-              {o === 'auto' ? 'auto (seeded)' : o}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label={spec.label}
+        size="sm"
+        value={value === undefined ? spec.def : String(value)}
+        onChange={(e) => onChange(e.target.value === spec.def ? undefined : e.target.value)}
+        options={spec.options.map((o) => ({
+          value: o,
+          label: o === 'auto' ? 'auto (seeded)' : o,
+        }))}
+      />
     );
   }
   return (
@@ -276,6 +265,8 @@ function ParamControl({
           {value === undefined ? `${spec.def}` : value}
         </span>
       </div>
+      {/* The design system has no range slider yet; keep a native input
+          tinted with the brand accent until one lands. */}
       <input
         type="range"
         min={spec.min}
@@ -370,43 +361,30 @@ function SeedDetail({
     piece?.artworkId ?? (promoteState.status === 'done' ? promoteState.artworkId : null);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+    <Modal
+      isOpen
+      onClose={onClose}
+      size="lg"
+      title={`${title} ${seedLabel(seed)}`}
+      header={
+        <div className="flex items-center gap-2">
           <h3 className="font-mono text-sm text-gray-700">
             {title} {seedLabel(seed)}
-            {paramsModified && (
-              <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 font-sans text-[11px] text-amber-700">
-                modified params
-              </span>
-            )}
-            {piece && (
-              <span className="ml-2 rounded bg-emerald-50 px-1.5 py-0.5 font-sans text-[11px] text-emerald-700">
-                artpiece · {piece.status}
-              </span>
-            )}
           </h3>
-          <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
-            Close
-          </button>
+          {paramsModified && (
+            <Badge variant="warning" size="sm">
+              modified params
+            </Badge>
+          )}
+          {piece && (
+            <Badge variant="success" size="sm">
+              artpiece · {piece.status}
+            </Badge>
+          )}
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-gray-50 p-5">
-          <SeedImage
-            system={system}
-            seed={seed}
-            kind="preview"
-            params={params}
-            className="mx-auto max-h-[58vh] w-auto rounded shadow"
-            alt={`${title} ${seedLabel(seed)} preview`}
-          />
-        </div>
-        <div className="space-y-3 border-t border-gray-100 px-5 py-3">
+      }
+      actions={
+        <div className="w-full space-y-3">
           {/* master render */}
           {masterState.status === 'done' ? (
             <p className="text-sm text-gray-600">
@@ -418,20 +396,15 @@ function SeedDetail({
             </p>
           ) : (
             <div className="flex items-center gap-3">
-              <button
+              <Button
+                variant="outline"
                 onClick={renderMaster}
                 disabled={masterState.status === 'rendering'}
-                className={cn(
-                  'rounded-lg border px-4 py-2 text-sm font-medium',
-                  masterState.status === 'rendering'
-                    ? 'cursor-wait border-gray-200 text-gray-400'
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                )}
               >
                 {masterState.status === 'rendering'
                   ? 'Rendering master… (can take minutes)'
                   : 'Render 40x50 print master'}
-              </button>
+              </Button>
               {masterState.status === 'error' && (
                 <span className="text-sm text-red-500">{masterState.message}</span>
               )}
@@ -451,22 +424,15 @@ function SeedDetail({
             </p>
           ) : (
             <div className="flex items-center gap-3">
-              <button
+              <Button
+                variant="primary"
                 onClick={promote}
                 disabled={promoteState.status === 'working' || paramsModified || migrationNeeded}
-                className={cn(
-                  'rounded-lg px-4 py-2 text-sm font-medium text-white',
-                  promoteState.status === 'working'
-                    ? 'cursor-wait bg-gray-300'
-                    : paramsModified || migrationNeeded
-                      ? 'cursor-not-allowed bg-gray-300'
-                      : 'bg-emerald-700 hover:opacity-90'
-                )}
               >
                 {promoteState.status === 'working'
                   ? 'Creating artpiece… (renders the master first)'
                   : 'Turn into artpiece'}
-              </button>
+              </Button>
               {paramsModified && (
                 <span className="text-xs text-gray-400">
                   Promotion uses canonical parameters only; reset them first.
@@ -481,7 +447,16 @@ function SeedDetail({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      }
+    >
+      <SeedImage
+        system={system}
+        seed={seed}
+        kind="preview"
+        params={params}
+        className="mx-auto max-h-[58vh] w-auto rounded shadow"
+        alt={`${title} ${seedLabel(seed)} preview`}
+      />
+    </Modal>
   );
 }

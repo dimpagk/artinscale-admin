@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/admin-ui'
+import { Badge } from '@/components/ui/badge'
 import { GENERATIVE_ARTISTS } from '@/lib/generative/registry'
 import { systemDir } from '@/lib/generative/server'
 import { promotedCounts } from '@/lib/generative/promote'
@@ -79,9 +80,9 @@ export default async function GenerativePage() {
                   </div>
                   <p className="mt-1 text-xs leading-snug text-gray-500">{system.tagline}</p>
                   {system.promoted > 0 && (
-                    <p className="mt-1.5 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    <Badge variant="success" size="sm" className="mt-1.5">
                       {system.promoted} {system.promoted === 1 ? 'artpiece' : 'artpieces'}
-                    </p>
+                    </Badge>
                   )}
                 </div>
               </Link>

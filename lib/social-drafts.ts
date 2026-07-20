@@ -124,6 +124,19 @@ function craftLineFor(a: SocialDraftArtwork): string {
  * image (price lives in the ad's primary text and on the PDP), no
  * footer (IG's link sticker / the ad CTA carries the link).
  */
+/**
+ * Headline size adapts to title length so long titles don't crowd the
+ * scrim overlay (xl on a square wraps past two lines around ~26 chars;
+ * every extra line eats into the artwork). Short titles keep the
+ * approved xl look; longer ones step down instead of wrapping deep.
+ * The 9:16 canvas is taller, so its thresholds are looser.
+ */
+function headlineSizeFor(title: string, format: 'square' | 'portrait' | 'story'): 'md' | 'lg' | 'xl' {
+  const n = title.length;
+  if (format === 'story') return n <= 34 ? 'xl' : n <= 52 ? 'lg' : 'md';
+  return n <= 26 ? 'xl' : n <= 42 ? 'lg' : 'md';
+}
+
 function storySlide(
   a: SocialDraftArtwork,
   heroUrl: string,
@@ -140,7 +153,7 @@ function storySlide(
       { type: 'screenshot', url: heroUrl, alt: `${a.title} (${heroLabel})`, border: false, fullBleed: true },
       { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
       { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
-      { type: 'headline', text: a.title, fontSize: 'xl', weight: 700, tracking: -0.7 },
+      { type: 'headline', text: a.title, fontSize: headlineSizeFor(a.title, format), weight: 700, tracking: -0.7 },
       { type: 'text', text: craftLineFor(a) },
     ],
   };
@@ -245,30 +258,67 @@ export async function createSocialDraft(
   let visualConfig: VisualConfig;
 
   if (kind === 'ad') {
-    // Ad kit: one post whose three slides are the three ad placements
-    // (feed 1:1, feed 4:5, story 9:16). Stored as a carousel so the
-    // grid's Export & Upload renders every slide - the exported PNGs
-    // land in placement order, ready to attach in Ads Manager. The
-    // framed mockup is the hero (it sells scale); falls back to the
-    // original art if the framed composite is missing.
-    const hero = mockups.framed || mockups.original;
-    if (!hero) {
+    // Ad kit: one post per creative variant, each with the three ad
+    // placements (feed 1:1, feed 4:5, story 9:16) as slides sharing the
+    // storySlide treatment - hero full-bleed, scrim, flush-left overlay.
+    // Stored as carousels so the grid's Export & Upload renders every
+    // slide; the exported PNGs land in placement order, ready to attach
+    // in Ads Manager.
+    //   Variant A "framed": the framed print on a wall (the approved
+    //     control look). Falls back to the original art if no composite.
+    //   Variant B "room": the in-room lifestyle mockup - same template,
+    //     different hero - so Meta can A/B context-vs-closeup. Skipped
+    //     when the artwork has no in-room composite.
+    const framedHero = mockups.framed || mockups.original;
+    if (!framedHero) {
       return {
         ok: false,
         message: 'No framed mockup or original image. Generate mockups first.',
       };
     }
-    // Every placement shares the storySlide treatment (operator,
-    // 2026-07-20): the framed art full-bleed as the background, scrim
-    // and left-aligned overlay on top. Only the canvas format differs.
-    const heroLabel = mockups.framed ? 'Framed' : 'Original';
-    const slides = [
-      storySlide(artwork, hero, heroLabel, 'square'),
-      storySlide(artwork, hero, heroLabel, 'portrait'),
-      storySlide(artwork, hero, heroLabel, 'story'),
+    const variants: Array<{ key: string; hero: string; label: string; suffix: string }> = [
+      {
+        key: 'framed',
+        hero: framedHero,
+        label: mockups.framed ? 'Framed' : 'Original',
+        suffix: '',
+      },
+      ...(mockups.inRoom
+        ? [{ key: 'room', hero: mockups.inRoom, label: 'Room', suffix: ' - room' }]
+        : []),
     ];
-    postType = 'carousel';
-    visualConfig = { ...slides[0], slides };
+    const created: string[] = [];
+    for (const v of variants) {
+      const slides = [
+        storySlide(artwork, v.hero, v.label, 'square'),
+        storySlide(artwork, v.hero, v.label, 'portrait'),
+        storySlide(artwork, v.hero, v.label, 'story'),
+      ];
+      const { data, error } = await supabaseAdmin
+        .from('social_posts')
+        .insert({
+          title: `${artwork.title} (ad kit${v.suffix})`,
+          platform: 'instagram',
+          post_type: 'carousel',
+          visual_config: { ...slides[0], slides },
+          caption: caption(artwork),
+          status: 'draft',
+          artwork_id: artwork.id,
+          tags: ['source:artwork-page', 'kind:ad', `variant:${v.key}`],
+        })
+        .select('id')
+        .single();
+      if (error) return { ok: false, message: `Draft insert failed: ${error.message}` };
+      created.push((data as { id: string }).id);
+    }
+    return {
+      ok: true,
+      postId: created[0],
+      message:
+        created.length === 2
+          ? 'Ad kit drafts created: framed + room variants, three placements each. Export & Upload each post for the A/B set.'
+          : 'Ad kit draft created (framed variant only - no in-room mockup for a room variant).',
+    };
   } else if (kind === 'carousel') {
     const story = storyCardSlide(artwork);
     const slides = [
@@ -290,7 +340,7 @@ export async function createSocialDraft(
   const { data, error } = await supabaseAdmin
     .from('social_posts')
     .insert({
-      title: `${artwork.title} (${kind === 'ad' ? 'ad kit' : kind})`,
+      title: `${artwork.title} (${kind})`,
       platform: 'instagram',
       post_type: postType,
       visual_config: visualConfig,
@@ -308,10 +358,8 @@ export async function createSocialDraft(
     ok: true,
     postId: (data as { id: string }).id,
     message:
-      kind === 'ad'
-        ? 'Ad kit draft created (1:1, 4:5 and 9:16 slides). Export & Upload renders the three placement PNGs.'
-        : kind === 'carousel'
-          ? `Carousel draft created (story card + ${images.length} image slides + branded CTA slide).`
-          : 'Story draft created.',
+      kind === 'carousel'
+        ? `Carousel draft created (story card + ${images.length} image slides + branded CTA slide).`
+        : 'Story draft created.',
   };
 }

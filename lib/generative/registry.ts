@@ -104,7 +104,7 @@ export const GENERATIVE_ARTISTS: GenerativeArtist[] = [
             def: 'auto',
             options: ['auto', 'CARBON', 'INDIGO', 'SEPIA', 'SLATE', 'UMBER'],
           },
-          { key: 'census', label: 'Census', kind: 'number', def: 20000, min: 4000, max: 40000, step: 500 },
+          { key: 'census', label: 'Census', kind: 'number', def: 28000, min: 4000, max: 40000, step: 500 },
           pct('band', 'Band', 0.55),
           pct('cluster', 'Cluster', 0.55),
           pct('occult', 'Occult', 0.6),
