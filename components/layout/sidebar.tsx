@@ -17,6 +17,7 @@ import {
   MagicWand,
   Palette,
   Armchair,
+  Spiral,
   SignOut,
 } from '@phosphor-icons/react';
 import { createClient } from '@/lib/supabase/client';
@@ -53,6 +54,8 @@ const sections: NavSection[] = [
       { href: '/artists', label: 'Artists', icon: <PaintBrushHousehold size={16} weight="duotone" /> },
       { href: '/artworks', label: 'Artworks', icon: <Image size={16} weight="duotone" /> },
       { href: '/art-generator', label: 'AI Art', icon: <MagicWand size={16} weight="duotone" /> },
+      // Deterministic drawing systems (code art), grouped by studio artist.
+      { href: '/generative', label: 'Generative', icon: <Spiral size={16} weight="duotone" /> },
       { href: '/external-prints', label: 'External Prints', icon: <Globe size={16} weight="duotone" /> },
     ],
   },
