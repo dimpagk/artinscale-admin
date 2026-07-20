@@ -116,15 +116,35 @@ export async function POST(request: Request) {
     const slideNo = perSlide ? slideIndex : i + 1
     const path = `social-exports/${socialPostId}/${timestamp}-slide-${slideNo}.${isJpeg ? 'jpg' : 'png'}`
 
-    try {
-      await uploadFile('ai-generated', path, buf, {
-        contentType: isJpeg ? 'image/jpeg' : 'image/png',
-        upsert: true,
-      })
-    } catch (err) {
+    // One retry with a short backoff: multi-MB uploads intermittently die
+    // with undici "fetch failed" (stale keep-alive socket to Supabase);
+    // a fresh attempt on a new connection almost always lands.
+    let uploadErr: unknown = null
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        uploadErr = null
+        await uploadFile('ai-generated', path, buf, {
+          contentType: isJpeg ? 'image/jpeg' : 'image/png',
+          upsert: true,
+        })
+        break
+      } catch (err) {
+        uploadErr = err
+        await new Promise((r) => setTimeout(r, 400))
+      }
+    }
+    if (uploadErr) {
+      const err = uploadErr
       const message = err instanceof Error ? err.message : String(err)
+      // "fetch failed" from undici hides the real network error; surface
+      // the cause so a failing upload is diagnosable from the toast.
+      const cause =
+        err instanceof Error && err.cause
+          ? ` (cause: ${err.cause instanceof Error ? err.cause.message : String(err.cause)})`
+          : ''
+      console.error(`[upload-export] slide ${i + 1} failed: ${message}${cause} [${buf.length} bytes]`)
       return NextResponse.json(
-        { error: `storage upload failed at slide ${i + 1}: ${message}` },
+        { error: `storage upload failed at slide ${i + 1}: ${message}${cause} [${buf.length} bytes]` },
         { status: 500 }
       )
     }

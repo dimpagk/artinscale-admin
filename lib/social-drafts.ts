@@ -114,58 +114,28 @@ function craftLineFor(a: SocialDraftArtwork): string {
 }
 
 /**
- * One feed ad-kit slide (operator direction, 2026-07): the paid-ads
- * template for the 1:1 and 4:5 placements. Everything rides the left
- * rail (operator, 2026-07-20): brand mark, framed print, and wall
- * label (tag, title, craft line) share one flush-left edge. All type renders through the branded
- * canvas blocks (Outfit / DM Sans, real logo asset) - never text baked
- * into the artwork. No price on the image; price lives in the ad's
- * primary text and on the PDP. The 9:16 placement uses storySlide().
+ * The shared ad/story slide (operator direction, 2026-07-20): the
+ * SINGLE source of truth for every ad placement and the "Generate
+ * story" button, so all of them are identical by construction. The
+ * artwork covers the whole canvas full-bleed ("the art is the
+ * background"); the renderer lays a bottom scrim and anchors the
+ * wording low, flush left in white - logo, tag, title, craft line.
+ * No baked-in text over the art beyond that overlay, no price on the
+ * image (price lives in the ad's primary text and on the PDP), no
+ * footer (IG's link sticker / the ad CTA carries the link).
  */
-function adKitSlide(
+function storySlide(
   a: SocialDraftArtwork,
-  format: 'square' | 'portrait',
-  imageUrl: string
+  heroUrl: string,
+  heroLabel: string,
+  format: 'square' | 'portrait' | 'story' = 'story'
 ): SlideConfig {
-  // The artwork is the thumb-stopper: give it most of the canvas instead of
-  // the renderer's small default image box (~40% of height). Design-unit
-  // budget per format (canvas ~425 units for feed) leaves room for logo +
-  // tag + a two-line title + craft line.
-  const artBox = format === 'portrait' ? 235 : 220;
   return {
     bg: 'galleryWhite',
     dark: false,
     accent: 'none',
     footer: '',
     format,
-    blocks: [
-      { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
-      { type: 'spacer', fill: true },
-      { type: 'screenshot', url: imageUrl, alt: `${a.title} (framed)`, border: false, fit: 'contain', boxHeight: artBox, align: 'left' },
-      { type: 'spacer', fill: true },
-      { type: 'tag', text: 'EXCLUSIVELY AT ARTINSCALE' },
-      { type: 'headline', text: a.title, fontSize: 'lg', weight: 700, tracking: -0.7 },
-      { type: 'text', text: craftLineFor(a) },
-    ],
-  };
-}
-
-/**
- * The 9:16 Story / Reel slide (operator direction, 2026-07): the SINGLE
- * source of truth for the story format, shared by the "Generate story"
- * button and the ad kit's story placement so the two are identical by
- * construction. The hero covers the whole canvas full-bleed; the
- * renderer lays a bottom scrim and anchors the wording low in white -
- * logo, tag, title, craft line. No baked-in text over the art, no
- * footer (IG's link sticker carries the CTA at publish time).
- */
-function storySlide(a: SocialDraftArtwork, heroUrl: string, heroLabel: string): SlideConfig {
-  return {
-    bg: 'galleryWhite',
-    dark: false,
-    accent: 'none',
-    footer: '',
-    format: 'story',
     blocks: [
       { type: 'screenshot', url: heroUrl, alt: `${a.title} (${heroLabel})`, border: false, fullBleed: true },
       { type: 'logo', url: BRAND_LOGO_URL, height: 22, align: 'left' },
@@ -288,12 +258,14 @@ export async function createSocialDraft(
         message: 'No framed mockup or original image. Generate mockups first.',
       };
     }
+    // Every placement shares the storySlide treatment (operator,
+    // 2026-07-20): the framed art full-bleed as the background, scrim
+    // and left-aligned overlay on top. Only the canvas format differs.
+    const heroLabel = mockups.framed ? 'Framed' : 'Original';
     const slides = [
-      adKitSlide(artwork, 'square', hero),
-      adKitSlide(artwork, 'portrait', hero),
-      // Story placement uses the exact "Generate story" template so the
-      // 9:16 ad matches the organic story (shared storySlide builder).
-      storySlide(artwork, images[0].url, images[0].label),
+      storySlide(artwork, hero, heroLabel, 'square'),
+      storySlide(artwork, hero, heroLabel, 'portrait'),
+      storySlide(artwork, hero, heroLabel, 'story'),
     ];
     postType = 'carousel';
     visualConfig = { ...slides[0], slides };
